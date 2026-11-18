@@ -1994,8 +1994,8 @@ if selfTest {
 if KarelController.trySignalExisting(toggle: toggle, port: ipcPort) { exit(0) }
 if toggle { exit(0) }
 
-let app = NSApplication.shared
+private let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
-let ctrl = KarelController(ipcPort: ipcPort, noUpdate: noUpdate, updatedFrom: updatedFrom)
+private let ctrl = KarelController(ipcPort: ipcPort, noUpdate: noUpdate, updatedFrom: updatedFrom)
 app.delegate = ctrl
 withExtendedLifetime(ctrl) { app.run() }
