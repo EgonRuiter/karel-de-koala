@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.1.1"
+#define KAREL_VERSION "2.1.2"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -878,13 +878,28 @@ static void ser_send(LinuxSerial *s, const char *line) {
 static void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev) {
     ev_out[0] = 0; time_t now = time(NULL);
     if (s->fd < 0) {
-        if (now - s->last_probe < 2) return;
-        s->last_probe = now;
+        (void)now;
+        static int probe_cd = 0;
+        if (probe_cd-- > 0) return;
+        probe_cd = 6;
         DIR *dp = opendir("/dev"); if (!dp) return;
+        char cands[16][64]; int nc = 0;
         struct dirent *de;
-        while ((de = readdir(dp)) != NULL) {
-            if (strncmp(de->d_name, "ttyACM", 6) != 0 && strncmp(de->d_name, "ttyUSB", 6) != 0) continue;
-            char p[256]; snprintf(p, sizeof(p), "/dev/%.120s", de->d_name);
+        while ((de = readdir(dp)) != NULL && nc < 16) {
+            if (strncmp(de->d_name, "ttyACM", 6) == 0 || strncmp(de->d_name, "ttyUSB", 6) == 0) {
+                snprintf(cands[nc++], 64, "%.63s", de->d_name);
+            }
+        }
+        closedir(dp);
+        for (int i = nc - 1; i > 0; i--) {
+            for (int j = 0; j < i; j++) {
+                if (strcmp(cands[j], cands[j + 1]) < 0) {
+                    char swp[64]; memcpy(swp, cands[j], 64); memcpy(cands[j], cands[j + 1], 64); memcpy(cands[j + 1], swp, 64);
+                }
+            }
+        }
+        for (int ci = 0; ci < nc; ci++) {
+            char p[256]; snprintf(p, sizeof(p), "/dev/%.120s", cands[ci]);
             int fd = open(p, O_RDWR | O_NOCTTY | O_NONBLOCK); if (fd < 0) continue;
             struct termios tio; tcgetattr(fd, &tio);
             tio.c_iflag &= ~(tcflag_t)(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
@@ -894,17 +909,16 @@ static void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev) {
             tio.c_cflag |= CS8 | CLOCAL | CREAD;
             cfsetispeed(&tio, B115200); cfsetospeed(&tio, B115200);
             tcsetattr(fd, TCSANOW, &tio);
-            sleep_ms(60); tcflush(fd, TCIFLUSH);
+            sleep_ms(25); tcflush(fd, TCIFLUSH);
             (void)!write(fd, "KAREL_PING\n", 11);
-            sleep_ms(120);
+            sleep_ms(95);
             char b[128]; ssize_t n = read(fd, b, sizeof(b) - 1);
             if (n > 0) {
                 b[n] = 0;
-                if (strstr(b, "KAREL_PONG")) { s->fd = fd; snprintf(s->port, sizeof(s->port), "%.60s", de->d_name); closedir(dp); return; }
+                if (strstr(b, "KAREL_PONG")) { s->fd = fd; snprintf(s->port, sizeof(s->port), "%.60s", cands[ci]); return; }
             }
             close(fd);
         }
-        closedir(dp);
         return;
     }
     if (s->rlen >= sizeof(s->rbuf) - 1) s->rlen = 0;
@@ -1890,7 +1904,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.2", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.3", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];

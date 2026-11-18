@@ -65,19 +65,15 @@ DOUBLE_PRESS_WINDOW_SEC = 0.30
 DEBOUNCE_SEC = 0.03
 PET_COOLDOWN_SEC = 0.40
 
-# Pure-alphanumeric UTF-16LE PowerShell -e payloads (avoids US-International dead keys
-# like ", ', ~, ^, : on Dutch/EU keyboards; scans all mounted drives & retries up to ~8s):
-#   normal -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_karel.bat')-ea 0}|%{saps $_ -wi 1;exit};sleep 1}
-#   toggle -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_k*.bat')-ea 0}|%{saps $_ t -wi 1;exit};sleep 1} 
-WIN_LAUNCH_B64 = (
-    "MAAuAC4ANwB8ACUAewBnAGQAcgB8AD8AIABSAG8AbwB0AHwAJQB7AGcAaQAoACQAXwAuAFIAbwBv"
-    "AHQAKwAnAGwAYQB1AG4AYwBoAF8AawBhAHIAZQBsAC4AYgBhAHQAJwApAC0AZQBhACAAMAB9AHwA"
-    "JQB7AHMAYQBwAHMAIAAkAF8AIAAtAHcAaQAgADEAOwBlAHgAaQB0AH0AOwBzAGwAZQBlAHAAIAAxAH0A"
+# Cross-layout-safe (US / nl-NL US-Intl / UK ISO) headless Run commands:
+# avoids \, ', ", ~, ^, ` (`#` on UK/ISO), bypasses PowerShell/cmd popups via conhost --headless:
+WIN_LAUNCH_CMD = (
+    "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
+    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe)"
 )
-WIN_TOGGLE_B64 = (
-    "MAAuAC4ANwB8ACUAewBnAGQAcgB8AD8AIABSAG8AbwB0AHwAJQB7AGcAaQAoACQAXwAuAFIAbwBv"
-    "AHQAKwAnAGwAYQB1AG4AYwBoAF8AawAqAC4AYgBhAHQAJwApAC0AZQBhACAAMAB9AHwAJQB7AHMAYQBw"
-    "AHMAIAAkAF8AIAB0ACAALQB3AGkAIAAxADsAZQB4AGkAdAB9ADsAcwBsAGUAZQBwACAAMQB9ACAA"
+WIN_TOGGLE_CMD = (
+    "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
+    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe t)"
 )
 
 
@@ -372,11 +368,10 @@ def send_hid_autolaunch(extra_args=""):
         kbd = Keyboard(usb_hid.devices)
         layout = KeyboardLayoutUS(kbd)
         kbd.send(Keycode.GUI, Keycode.R)
-        time.sleep(0.60)
+        time.sleep(0.35)
         is_tog = extra_args.strip() in ("t", "--toggle")
-        b64_cmd = WIN_TOGGLE_B64 if is_tog else WIN_LAUNCH_B64
-        layout.write("powershell -w 1 -e " + b64_cmd)
-        time.sleep(0.05)
+        layout.write(WIN_TOGGLE_CMD if is_tog else WIN_LAUNCH_CMD)
+        time.sleep(0.02)
         kbd.send(Keycode.ENTER)
     except Exception as exc:
         print("[KAREL] HID launch skipped:", exc)
@@ -430,11 +425,13 @@ def main():
 
     if dev_mode:
         print("[KAREL] Dev/Safe Mode active (GP0/GP24). Skipping HID auto-launch.")
-    elif rst_boot:
-        # External RUN / RESET_PIN reset: check briefly if laptop Karel is already running.
-        boop_deadline = time.monotonic() + 3.0
+    else:
+        # Check on EVERY plug-in/reset if Karel is already running before firing HID!
+        data_port = getattr(usb_cdc, "data", None)
         connected_existing = False
-        while time.monotonic() < boop_deadline:
+        ping_deadline = time.monotonic() + (2.8 if rst_boot else 3.2)
+        extended_for_host = False
+        while time.monotonic() < ping_deadline:
             now = time.monotonic()
             rx_buffer, led_state, burst_type, burst_until, pinged, _ = _poll_serial_cmds(
                 rx_buffer, led_state, burst_type, burst_until, now,
@@ -445,16 +442,14 @@ def main():
                 burst_type = "BOOP"
                 burst_until = now + 1.5
                 break
+            if not extended_for_host and data_port is not None and data_port.connected:
+                extended_for_host = True
+                if now + 1.2 > ping_deadline:
+                    ping_deadline = now + 1.2
             update_led(px, led_state, now, burst_type, burst_until, mono_led)
-            time.sleep(0.03)
+            time.sleep(0.025)
         if not connected_existing:
             send_hid_autolaunch()
-    else:
-        boot_wait_end = time.monotonic() + 4.0
-        while time.monotonic() < boot_wait_end:
-            update_led(px, led_state, time.monotonic(), burst_type, burst_until, mono_led)
-            time.sleep(0.03)
-        send_hid_autolaunch()
 
     pet_sensor = TouchOrSwitchInput(PET_TOUCH_PIN_NAME)
     backup_action_sensor = TouchOrSwitchInput(BACKUP_TOUCH_PIN_NAME)

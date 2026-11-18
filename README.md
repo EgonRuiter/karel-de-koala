@@ -11,7 +11,7 @@
 ### Windows 10 / 11 (Standaard Zero-Install Plug-and-Play)
 1. **Steek de Karel USB-C stick in je pc.**
 2. Het station verschijnt als **`KAREL`** (inclusief eigen koalasticker-icoon via `karel.ico` en `AUTORUN.INF`).
-3. Na ~2,5 seconden start **`launch_karel.bat`** automatisch **`desktop/karel_native.exe`** (`~92 KB`, `.NET Framework 4.x`, geen Python of installatie nodig!).
+3. De RP2350 checkt eerst via USB Serial (`KAREL_PING`) of Karel al draait: zo ja, dan geeft Karel een *Hardware Boop* zonder popups. Draait Karel nog niet, dan start `conhost --headless` direct **`desktop/karel_native.exe`** (`~94 KB`, `.NET Framework 4.x`, zonder PowerShell/cmd-venster en zonder Python!). Via het rechtermuis-menu (**Stil mee-opstarten — 0 popups**) kun je optioneel Karel stil op de achtergrond laten meedraaien zodat zelfs de initiële `Win+R`-dialoog verdwijnt.
 4. **Handmatig starten / optionele Python-versie:**
    - Dubbelklik `desktop/launch_karel.bat` (standaard Zero-Install).
    - Geef `--python` mee (`launch_karel.bat --python`) om de uitgebreide Python-versie uit [`python_extended/`](python_extended/) te starten indien gewenst.

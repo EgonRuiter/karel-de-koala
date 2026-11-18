@@ -633,7 +633,7 @@ private final class SerialSync {
 
     private func tryConnect() {
         guard let devs = try? FileManager.default.contentsOfDirectory(atPath: "/dev") else { return }
-        for d in devs.sorted() where d.hasPrefix("cu.usbmodem") {
+        for d in devs.sorted().reversed() where d.hasPrefix("cu.usbmodem") {
             let path = "/dev/\(d)"
             let cand = Darwin.open(path, O_RDWR | O_NOCTTY | O_NONBLOCK)
             if cand < 0 { continue }
@@ -643,11 +643,11 @@ private final class SerialSync {
             cfsetspeed(&tio, speed_t(B115200))
             tio.c_cflag |= tcflag_t(CLOCAL | CREAD)
             tcsetattr(cand, TCSANOW, &tio)
-            usleep(80_000)
+            usleep(25_000)
             tcflush(cand, TCIFLUSH)
             _ = "KAREL_PING\n".withCString { Darwin.write(cand, $0, strlen($0)) }
             var acc = ""
-            for _ in 0..<12 {
+            for _ in 0..<6 {
                 var buf = [UInt8](repeating: 0, count: 128)
                 let n = Darwin.read(cand, &buf, 128)
                 if n > 0 { acc += String(decoding: buf[0..<n], as: UTF8.self) }
@@ -655,7 +655,7 @@ private final class SerialSync {
                     lock.lock(); fd = cand; portName = d; lock.unlock()
                     return
                 }
-                usleep(25_000)
+                usleep(20_000)
             }
             Darwin.close(cand)
         }
@@ -668,7 +668,7 @@ private final class SerialSync {
             if curFd < 0 {
                 lineBuf = ""
                 tryConnect()
-                usleep(1_800_000)
+                usleep(400_000)
                 continue
             }
             var buf = [UInt8](repeating: 0, count: 256)
@@ -697,7 +697,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.1"
+    static let version = "2.1.2"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1981,7 +1981,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.2", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.3", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

@@ -20,6 +20,7 @@ using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace KarelNative {
 
@@ -561,9 +562,16 @@ namespace KarelNative {
             sp = null; PortName = ""; lastState = "";
         }
 
+        private static int ParseComNum(string p) {
+            int v = 0;
+            if (p != null && p.StartsWith("COM", StringComparison.OrdinalIgnoreCase)) int.TryParse(p.Substring(3), out v);
+            return v;
+        }
+
         private void TryConnect() {
             string[] names;
             try { names = SerialPort.GetPortNames(); } catch { return; }
+            Array.Sort(names, delegate(string a, string b) { return ParseComNum(b).CompareTo(ParseComNum(a)); });
             for (int i = 0; i < names.Length; i++) {
                 SerialPort cand = null;
                 try {
@@ -571,10 +579,10 @@ namespace KarelNative {
                     cand.NewLine = "\n";
                     cand.DtrEnable = true;
                     cand.RtsEnable = true;
-                    cand.ReadTimeout = 280;
-                    cand.WriteTimeout = 250;
+                    cand.ReadTimeout = 120;
+                    cand.WriteTimeout = 150;
                     cand.Open();
-                    Thread.Sleep(80);
+                    Thread.Sleep(25);
                     cand.DiscardInBuffer();
                     cand.WriteLine("KAREL_PING");
                     string resp = cand.ReadLine();
@@ -590,7 +598,7 @@ namespace KarelNative {
 
         private void Loop() {
             while (!stopping) {
-                if (sp == null) { TryConnect(); Thread.Sleep(1800); continue; }
+                if (sp == null) { TryConnect(); Thread.Sleep(350); continue; }
                 try {
                     string line = sp.ReadLine();
                     if (!string.IsNullOrEmpty(line)) {
@@ -605,8 +613,41 @@ namespace KarelNative {
         public void Stop() { stopping = true; Drop(); }
     }
 
+    internal static class StartupHelper {
+        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string AppName = "KarelDeKoala";
+
+        public static bool IsEnabled() {
+            try {
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(RunKey, false)) {
+                    return k != null && k.GetValue(AppName) != null;
+                }
+            } catch { return false; }
+        }
+
+        public static bool Toggle() {
+            bool on = !IsEnabled();
+            try {
+                string localDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
+                string dstExe = Path.Combine(localDir, "karel_native.exe");
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(RunKey)) {
+                    if (on) {
+                        Directory.CreateDirectory(localDir);
+                        File.Copy(Application.ExecutablePath, dstExe, true);
+                        string srcSpr = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "karel_sprites.gz");
+                        if (File.Exists(srcSpr)) File.Copy(srcSpr, Path.Combine(localDir, "karel_sprites.gz"), true);
+                        k.SetValue(AppName, "\"" + dstExe + "\" --tray");
+                    } else {
+                        k.DeleteValue(AppName, false);
+                    }
+                }
+                return on;
+            } catch { return IsEnabled(); }
+        }
+    }
+
     internal static class AutoUpdater {
-        public const string Version = "2.1.1";
+        public const string Version = "2.1.2";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -792,11 +833,11 @@ namespace KarelNative {
             get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x00000080; return cp; }
         }
 
-        public KarelForm() : this(42421, false, "") { }
+        public KarelForm() : this(42421, false, "", false) { }
 
-        public KarelForm(int ipcPort) : this(ipcPort, false, "") { }
+        public KarelForm(int ipcPort) : this(ipcPort, false, "", false) { }
 
-        public KarelForm(int ipcPort, bool noUpdate, string updatedFrom) {
+        public KarelForm(int ipcPort, bool noUpdate, string updatedFrom, bool startHidden) {
             sprites = SpriteBank.LoadEmbedded();
             save = new SaveStore();
             save.Load();
@@ -840,7 +881,13 @@ namespace KarelNative {
             tick.Interval = 62;
             tick.Tick += OnTick;
             tick.Start();
-            TriggerClimb(IsEn() ? "Karel climbed onto your desktop!" : "Karel klimt je bureau op!");
+            if (startHidden) {
+                trayHidden = true;
+                Opacity = 0;
+                Shown += delegate { Hide(); Opacity = 1.0; };
+            } else {
+                TriggerClimb(IsEn() ? "Karel climbed onto your desktop!" : "Karel klimt je bureau op!");
+            }
             if (!noUpdate) {
                 AutoUpdater.StartAsync(save, updatedFrom, delegate(string ver, string cmd) {
                     pendingUpdateVer = ver;
@@ -1050,7 +1097,7 @@ namespace KarelNative {
         }
 
         private void WakeFromTray() {
-            if (trayHidden) { trayHidden = false; Show(); TopMost = true; }
+            if (trayHidden) { trayHidden = false; Opacity = 1.0; Show(); TopMost = true; }
             TriggerClimb(IsEn() ? "I'm back! (Ctrl+Alt+K)" : "Daar ben ik weer! (Ctrl+Alt+K)");
         }
 
@@ -1143,7 +1190,7 @@ namespace KarelNative {
                 } else if (autoPaused) ApplyAutoQuiet("", wa);
                 string usb = save.PollUsb();
                 if (usb == "off") Say(IsEn() ? "USB unplugged! Memory mode." : "USB los! Geheugen-modus.", 60);
-                else if (usb == "on") TriggerClimb(IsEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!");
+                else if (usb == "on") { if (trayHidden) WakeFromTray(); else TriggerClimb(IsEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!"); }
             }
             if (focusActive && (DateTime.Now - focusLastTick).TotalSeconds >= 1.0) {
                 focusLastTick = DateTime.Now;
@@ -1488,6 +1535,13 @@ namespace KarelNative {
             m.Items.Add(en ? "Language: NL / EN" : "Taal: NL / EN", null, delegate {
                 save.Data["language"] = en ? "nl" : "en"; save.Save(); RefreshHub();
             });
+            ToolStripMenuItem bgIt = new ToolStripMenuItem(en ? "Silent Windows Auto-Start (0 popups)" : "Stil mee-opstarten (0 popups)");
+            bgIt.Checked = StartupHelper.IsEnabled();
+            bgIt.Click += delegate {
+                bool on = StartupHelper.Toggle();
+                Say(on ? (en ? "0-popup auto-start ON!" : "Stil mee-opstarten AAN (0 popups)!") : (en ? "Auto-start OFF." : "Stil mee-opstarten UIT."), 55);
+            };
+            m.Items.Add(bgIt);
             m.Items.Add(new ToolStripSeparator());
             m.Items.Add(en ? "Hide Behind Taskbar (Ctrl+Alt+K)" : "Verberg achter Taakbalk (Ctrl+Alt+K)", null, delegate { Enqueue("EVENT:TRAY_TOGGLE"); });
             m.Items.Add(en ? "Dive & Quit" : "Duik achter Taakbalk & Sluit", null, delegate { Enqueue("EVENT:QUIT_NOW"); });
@@ -1787,13 +1841,14 @@ namespace KarelNative {
 
         [STAThread]
         public static void Main(string[] args) {
-            bool selfTest = false, toggle = false, noUpdate = false;
+            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false;
             string updatedFrom = "";
             int ipcPort = 42421;
             for (int i = 0; i < args.Length; i++) {
                 string a = args[i];
                 if (a == "--self-test") selfTest = true;
                 else if (a == "--no-update") noUpdate = true;
+                else if (a == "--tray" || a == "--hidden") startHidden = true;
                 else if (a == "--toggle" || a == "-t" || a == "t") toggle = true;
                 else if (a.StartsWith("--updated-from=")) updatedFrom = a.Substring(15);
                 else if (a.StartsWith("--ipc-port=")) {
@@ -1808,7 +1863,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.1.3", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -1818,7 +1873,7 @@ namespace KarelNative {
             if (toggle) return;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom));
+            Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
         }
     }
 }
