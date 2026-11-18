@@ -653,7 +653,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.1.3";
+        public const string Version = "2.1.4";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1847,13 +1847,14 @@ namespace KarelNative {
 
         [STAThread]
         public static void Main(string[] args) {
-            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false;
+            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false, noShadow = false;
             string updatedFrom = "";
             int ipcPort = 42421;
             for (int i = 0; i < args.Length; i++) {
                 string a = args[i];
                 if (a == "--self-test") selfTest = true;
                 else if (a == "--no-update") noUpdate = true;
+                else if (a == "--no-shadow") noShadow = true;
                 else if (a == "--tray" || a == "--hidden") startHidden = true;
                 else if (a == "--toggle" || a == "-t" || a == "t") toggle = true;
                 else if (a.StartsWith("--updated-from=")) updatedFrom = a.Substring(15);
@@ -1869,7 +1870,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.4", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.1.5", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -1877,6 +1878,21 @@ namespace KarelNative {
             NativeWin.EnableDpi();
             if (TrySignalExisting(toggle, ipcPort)) return;
             if (toggle) return;
+            if (!noShadow) {
+                try {
+                    string exe = Application.ExecutablePath;
+                    string rt = Path.GetPathRoot(exe);
+                    if (!string.IsNullOrEmpty(rt) && new DriveInfo(rt).DriveType == DriveType.Removable) {
+                        string liveExe = Path.Combine(Path.GetTempPath(), "karel_live.exe");
+                        try { File.Copy(exe, liveExe, true); }
+                        catch { liveExe = Path.Combine(Path.GetTempPath(), "karel_live_" + Process.GetCurrentProcess().Id + ".exe"); File.Copy(exe, liveExe, true); }
+                        StringBuilder sb = new StringBuilder("--no-shadow");
+                        for (int i = 0; i < args.Length; i++) sb.Append(" \"").Append(args[i].Replace("\"", "")).Append("\"");
+                        Process.Start(new ProcessStartInfo(liveExe, sb.ToString()) { WorkingDirectory = Path.GetTempPath(), UseShellExecute = false });
+                        return;
+                    }
+                } catch { }
+            }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
