@@ -11,7 +11,7 @@
 ### Windows 10 / 11 (Standaard Zero-Install Plug-and-Play)
 1. **Steek de Karel USB-C stick in je pc.**
 2. Het station verschijnt als **`KAREL`** (inclusief eigen koalasticker-icoon via `karel.ico` en `AUTORUN.INF`).
-3. De RP2350 checkt eerst via USB Serial (`KAREL_PING`) of Karel al draait: zo ja, dan geeft Karel een *Hardware Boop* zonder popups. Draait Karel nog niet, dan start `conhost --headless` direct **`desktop/karel_native.exe --ask`** (`~100 KB`, `.NET Framework 4.x`, zonder PowerShell/cmd-venster en zonder Python!): deze vraagt eerst via een Sticky pop-up *"Wil je een koala op je scherm hebben?"* met knoppen **Ja**, **README bekijken** en **Nee** (gevolgd door *"Weet je het zeker?"*). Via het rechtermuis-menu (**Stil mee-opstarten — 0 popups**) kun je optioneel Karel stil op de achtergrond laten meedraaien zodat zelfs de initiële `Win+R`-dialoog verdwijnt.
+3. De RP2350 checkt eerst via USB Serial (`KAREL_PING`) of Karel al draait: zo ja, dan geeft Karel een *Hardware Boop* zonder popups. Daarna detecteert de stick automatisch Windows vs. macOS (`NumLock`-LED check, zodat macOS nooit per ongeluk `Cmd+R` / Windows-commando's ontvangt) en start op Windows razendsnel (`88` tekens via `r.cmd` + snelle 1-frame HID) **`desktop/karel_native.exe --ask`**: deze vraagt eerst via een Sticky pop-up *"Wil je een koala op je scherm hebben?"* met knoppen **Ja**, **README bekijken** en **Nee** (gevolgd door *"Weet je het zeker?"*). Via het rechtermuis-menu (**Stil mee-opstarten — 0 popups**) op Windows of **Automatisch mee-opstarten (Mac)** in de menubalk op macOS kan Karel daarna volledig stil op de achtergrond meedraaien.
 4. **Handmatig starten / optionele Python-versie:**
    - Dubbelklik `desktop/launch_karel.bat` (standaard Zero-Install).
    - Geef `--python` mee (`launch_karel.bat --python`) om de uitgebreide Python-versie uit [`python_extended/`](python_extended/) te starten indien gewenst.
@@ -19,7 +19,7 @@
 
 ### macOS (Zero-Install Native Swift / AppKit)
 De native macOS-tegenhanger staat nu direct naast de Windows-versie in **`desktop/`**:
-- Dubbelklik **`desktop/launch_karel.command`** (haalt quarantaine-vlag weg, start een vooraf gebouwde `Karel.app`, of compileert eenmalig via `desktop/build_mac.sh` als `swiftc` aanwezig is).
+- Dubbelklik direct op de vooraf gebouwde **`Karel.app`** op de stick of **`desktop/launch_karel.command`** (haalt quarantaine-vlag weg, schaduw-kopieert veilig uit `/Volumes/`, toont *"Wil je een koala op je scherm hebben?"* en biedt via het menu **Automatisch mee-opstarten (Mac)** via LaunchAgent; `desktop/build_mac.sh` compileert zo nodig lokaal via `swiftc`).
 - **Universal App bouwen voor distributie op alle 50 sticks** (automatisch via [`.github/workflows/release.yml`](.github/workflows/release.yml), of eenmalig op een Mac met Command Line Tools via `./desktop/build_mac.sh`): maakt `desktop/Karel.app` (Apple Silicon + Intel), zodat studenten daarna **nul dependencies** nodig hebben.
 - *Optionele Python-editie:* [`python_extended/`](python_extended/README.md) blijft los beschikbaar (`launch_karel.command --python`, vereist Python 3 + Tk `>= 8.6`).
 

@@ -749,7 +749,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.6"
+    static let version = "2.1.7"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -879,6 +879,69 @@ private final class KarelStageView: NSView {
 
 // MARK: - Main Karel Controller
 
+private enum MacStartupHelper {
+    private static let label = "nl.svsticky.karel"
+
+    private static var plistUrl: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    private static var installedAppUrl: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("KarelDeKoala/Karel.app")
+    }
+
+    static func isEnabled() -> Bool {
+        return FileManager.default.fileExists(atPath: plistUrl.path)
+    }
+
+    private static func runLaunchctl(_ args: [String]) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = args
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        try? p.run()
+        p.waitUntilExit()
+    }
+
+    @discardableResult
+    static func toggle() -> Bool {
+        let fm = FileManager.default
+        let on = !isEnabled()
+        if on {
+            let appDst = installedAppUrl
+            let dir = appDst.deletingLastPathComponent()
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let curApp = Bundle.main.bundleURL
+            if curApp.pathExtension == "app" && curApp.path != appDst.path {
+                try? fm.removeItem(at: appDst)
+                try? fm.copyItem(at: curApp, to: appDst)
+            }
+            let exePath = appDst.appendingPathComponent("Contents/MacOS/Karel").path
+            guard fm.isExecutableFile(atPath: exePath) else { return false }
+            let laDir = plistUrl.deletingLastPathComponent()
+            try? fm.createDirectory(at: laDir, withIntermediateDirectories: true)
+            let dict: [String: Any] = [
+                "Label": label,
+                "ProgramArguments": [exePath, "--tray"],
+                "RunAtLoad": true,
+            ]
+            if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
+                try? data.write(to: plistUrl, options: .atomic)
+                runLaunchctl(["unload", plistUrl.path])
+                runLaunchctl(["load", "-w", plistUrl.path])
+            }
+        } else {
+            runLaunchctl(["unload", "-w", plistUrl.path])
+            try? fm.removeItem(at: plistUrl)
+        }
+        return isEnabled()
+    }
+}
+
 private final class KarelController: NSObject, NSApplicationDelegate {
     private let sprites = SpriteBank.loadBundled()
     private let save = SaveStore()
@@ -910,7 +973,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
 
     private var state = "IDLE", roamMode = "free", bubble = "", diveMode = "quit", climbMsg = ""
     private var pendingUpdateSh = "", pendingUpdateVer = "", updatedFrom = ""
-    private var noUpdate = false
+    private var noUpdate = false, startHidden = false
     private var scale = 3, frameIdx = 0, actTicks = 0, bubbleTicks = 0, discoTicks = 0, hyperTicks = 0
     private var noseClicks = 0, climbStep = 0, closeStep = 0, roamTicks = 0, roamWait = 120, ledgeTicks = 0
     private var wx = 200.0, wy = 200.0, roamTx = 200.0, roamTy = 200.0, jumpY = 0.0, jumpVy = 0.0
@@ -948,10 +1011,11 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         "Nog één bug en dan lekker slapen?"
     ]
 
-    init(ipcPort: UInt16, noUpdate: Bool = false, updatedFrom: String = "") {
+    init(ipcPort: UInt16, noUpdate: Bool = false, updatedFrom: String = "", startHidden: Bool = false) {
         self.ipcPort = ipcPort
         self.noUpdate = noUpdate
         self.updatedFrom = updatedFrom
+        self.startHidden = startHidden
         super.init()
     }
 
@@ -983,7 +1047,12 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         wy = groundY(wa)
         roamTx = wx; roamTy = wy
         applyPanelPosition()
-        panel.orderFrontRegardless()
+        if startHidden {
+            trayHidden = true
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let btn = statusItem.button {
@@ -1007,7 +1076,9 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         tickTimer = Timer.scheduledTimer(withTimeInterval: 0.062, repeats: true) { [weak self] _ in
             self?.onTick()
         }
-        triggerClimb(isEn() ? "Karel climbed onto your Mac desktop!" : "Karel klimt je Dock op!")
+        if !startHidden {
+            triggerClimb(isEn() ? "Karel climbed onto your Mac desktop!" : "Karel klimt je Dock op!")
+        }
         if !noUpdate {
             AutoUpdater.startAsync(save: save, updatedFrom: updatedFrom) { [weak self] ver, sh in
                 self?.pendingUpdateVer = ver
@@ -1358,7 +1429,10 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             }
             let usb = save.pollUsb()
             if usb == "off" { say(isEn() ? "USB unplugged! Memory mode." : "USB los! Geheugen-modus.", 60) }
-            else if usb == "on" { triggerClimb(isEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!") }
+            else if usb == "on" {
+                if trayHidden { wakeFromTray() }
+                else { triggerClimb(isEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!") }
+            }
         }
         if focusActive && Date().timeIntervalSince(focusLastTick) >= 1.0 {
             focusLastTick = Date()
@@ -1737,6 +1811,14 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             guard let s = self else { return }
             s.save.data["language"] = s.isEn() ? "nl" : "en"; s.save.save(); s.refreshHub()
         }
+        let stOn = MacStartupHelper.isEnabled()
+        addMenuItem(m, (stOn ? "✓ " : "") + (en ? "Auto-start on Login (Mac)" : "Automatisch mee-opstarten (Mac)")) { [weak self] in
+            let on = MacStartupHelper.toggle()
+            let msg = on
+                ? (self?.isEn() == true ? "Auto-start ON (Mac)" : "Auto-start AAN (Mac)")
+                : (self?.isEn() == true ? "Auto-start OFF" : "Auto-start UIT")
+            self?.say(msg, 45)
+        }
         m.addItem(.separator())
         addMenuItem(m, trayHidden ? (en ? "Wake Karel" : "Wek Karel") : (en ? "Hide Behind Dock" : "Verberg achter Dock")) { [weak self] in self?.enqueue("EVENT:TRAY_TOGGLE") }
         addMenuItem(m, en ? "Dive & Quit" : "Duik weg & Sluit") { [weak self] in self?.enqueue("EVENT:QUIT_NOW") }
@@ -2068,12 +2150,18 @@ var selfTest = false
 var toggle = false
 var noUpdate = false
 var askPrompt = false
+var noAsk = false
+var startHidden = false
+var noShadow = false
 var updatedFrom = ""
 var ipcPort: UInt16 = 42421
 for a in CommandLine.arguments.dropFirst() {
     if a == "--self-test" { selfTest = true }
     else if a == "--no-update" { noUpdate = true }
     else if a == "--ask" { askPrompt = true }
+    else if a == "--no-ask" { noAsk = true }
+    else if a == "--no-shadow" { noShadow = true }
+    else if a == "--tray" || a == "--hidden" { startHidden = true }
     else if a == "--toggle" || a == "-t" || a == "t" { toggle = true }
     else if a.hasPrefix("--updated-from=") { updatedFrom = String(a.dropFirst(15)) }
     else if a.hasPrefix("--ipc-port="), let p = UInt16(a.dropFirst(11)), p > 0 { ipcPort = p }
@@ -2082,7 +2170,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.7", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.8", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
@@ -2094,10 +2182,37 @@ if selfTest {
 
 if KarelController.trySignalExisting(toggle: toggle, port: ipcPort) { exit(0) }
 if toggle { exit(0) }
-if askPrompt && !showAskPrompt() { exit(0) }
+
+let curBundle = Bundle.main.bundleURL
+if !noShadow && curBundle.pathExtension == "app" && curBundle.path.hasPrefix("/Volumes/") {
+    let fm = FileManager.default
+    let liveApp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Karel_live.app")
+    let liveExe = liveApp.appendingPathComponent("Contents/MacOS/Karel")
+    do {
+        try? fm.removeItem(at: liveApp)
+        try fm.copyItem(at: curBundle, to: liveApp)
+        if fm.isExecutableFile(atPath: liveExe.path) {
+            var passArgs = ["--no-shadow"]
+            for a in CommandLine.arguments.dropFirst() where a != "--no-shadow" && !a.hasPrefix("-psn_") {
+                passArgs.append(a)
+            }
+            if !passArgs.contains("--ask") && !noAsk && !startHidden && updatedFrom.isEmpty {
+                passArgs.append("--ask")
+            }
+            let p = Process()
+            p.executableURL = liveExe
+            p.arguments = passArgs
+            try p.run()
+            exit(0)
+        }
+    } catch { }
+}
+
+let shouldAsk = askPrompt || (!noAsk && !startHidden && updatedFrom.isEmpty)
+if shouldAsk && !showAskPrompt() { exit(0) }
 
 private let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
-private let ctrl = KarelController(ipcPort: ipcPort, noUpdate: noUpdate, updatedFrom: updatedFrom)
+private let ctrl = KarelController(ipcPort: ipcPort, noUpdate: noUpdate, updatedFrom: updatedFrom, startHidden: startHidden)
 app.delegate = ctrl
 withExtendedLifetime(ctrl) { app.run() }

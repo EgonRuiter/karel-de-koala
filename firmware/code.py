@@ -69,11 +69,11 @@ PET_COOLDOWN_SEC = 0.40
 # avoids \, ', ", ~, ^, ` (`#` on UK/ISO), bypasses PowerShell/cmd popups via conhost --headless:
 WIN_LAUNCH_CMD = (
     "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe --ask)"
+    "do if exist %d:/r.cmd %d:/r.cmd"
 )
 WIN_TOGGLE_CMD = (
     "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe t)"
+    "do if exist %d:/t.cmd %d:/t.cmd"
 )
 
 
@@ -357,8 +357,57 @@ def _has_flag_file(path):
         return False
 
 
+def _host_supports_numlock_led(kbd):
+    """Return False on macOS (ignores NumLock LED reports) so Cmd+R is never fired there."""
+    try:
+        before = kbd.led_on(Keyboard.LED_NUM_LOCK)
+        if before:
+            return True
+        kbd.send(Keycode.KEYPAD_NUMLOCK)
+        deadline = time.monotonic() + 0.14
+        flipped = False
+        while time.monotonic() < deadline:
+            if kbd.led_on(Keyboard.LED_NUM_LOCK) != before:
+                flipped = True
+                break
+            time.sleep(0.01)
+        if flipped:
+            kbd.send(Keycode.KEYPAD_NUMLOCK)
+            time.sleep(0.02)
+        return flipped
+    except Exception:
+        return True
+
+
+def _fast_type(kbd, layout, text):
+    """Send 1 HID report per character unless consecutive modifier shifts or repeats require a break."""
+    dev = getattr(kbd, "_keyboard_device", None)
+    if dev is None:
+        layout.write(text)
+        return
+    zero = bytearray(8)
+    buf = bytearray(8)
+    prev_mod = -1
+    prev_kc = -1
+    for ch in text:
+        codes = layout.keycodes(ch)
+        mod = 0
+        kc = codes[-1]
+        for c in codes[:-1]:
+            if c >= 224:
+                mod |= 1 << (c - 224)
+        if mod != prev_mod or kc == prev_kc:
+            dev.send_report(zero)
+        buf[0] = mod
+        buf[2] = kc
+        dev.send_report(buf)
+        prev_mod = mod
+        prev_kc = kc
+    dev.send_report(zero)
+
+
 def send_hid_autolaunch(extra_args=""):
-    """Send Windows GUI+R layout-safe launcher keystrokes after waiting for KAREL drive mount."""
+    """Send Windows GUI+R layout-safe launcher keystrokes after OS & flag checks."""
     if not HAS_HID or not usb_hid.devices:
         return
     if _has_flag_file("/.karel_no_hid") or _has_flag_file("/.karel_mac"):
@@ -366,11 +415,14 @@ def send_hid_autolaunch(extra_args=""):
         return
     try:
         kbd = Keyboard(usb_hid.devices)
+        if not _host_supports_numlock_led(kbd):
+            print("[KAREL] macOS host detected (no NumLock LED); skipping Win+R.")
+            return
         layout = KeyboardLayoutUS(kbd)
         kbd.send(Keycode.GUI, Keycode.R)
-        time.sleep(0.35)
+        time.sleep(0.24)
         is_tog = extra_args.strip() in ("t", "--toggle")
-        layout.write(WIN_TOGGLE_CMD if is_tog else WIN_LAUNCH_CMD)
+        _fast_type(kbd, layout, WIN_TOGGLE_CMD if is_tog else WIN_LAUNCH_CMD)
         time.sleep(0.02)
         kbd.send(Keycode.ENTER)
     except Exception as exc:

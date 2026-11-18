@@ -26,12 +26,12 @@ The **RP2350 SuperMini** typically carries **4 MB (`4,096 KB`) QSPI Flash** (lea
 | Drive Path | Source File | Measured Size (Bytes) | Role |
 |---|---|---:|---|
 | `/boot.py` | `firmware/boot.py` | 3,169 B | USB label `KAREL`, `autoreload=False` (host-RW), HID + Dual CDC, Dev Mode (`GP0`/`GP24`) |
-| `/code.py` | `firmware/code.py` | 19,969 B | RP2350 SuperMini Check-First `KAREL_PING` + `conhost --headless` `Win+R` `--ask` launch (skips via `/.karel_no_hid`), Toggle (`GP15`/`GP24`), NeoPixel (`GP16`/`GP23`) |
+| `/code.py` | `firmware/code.py` | 21,463 B | RP2350 Check-First `KAREL_PING` + macOS `NumLock`-LED detectie + snelle HID `r.cmd` (`88` chars), Toggle (`GP15`/`GP24`), NeoPixel (`GP16`/`GP23`) |
 | `/karel_native.exe` | `desktop/karel_native.exe` | 101,888 B | **Standard Zero-Install** Windows `.NET 4.x` host (`--ask` opt-in popup + `"Weet je het zeker?"`, 54 anims, `%TEMP%` USB-safe shadow, Tray, `--tray`, SHA-256 auto-updater) |
 | `/karel_sprites.gz` | `desktop/karel_sprites.gz` | 10,141 B | Shared compressed sprite pack (`54` anims, `194` frames) for macOS, Linux & source rebuilds |
-| `/karel_mac.swift` | `desktop/karel_mac.swift` | 92,054 B | macOS native Cocoa/AppKit mirror of `karel_native.cs` (`v2.1.6` + `--ask` + `CryptoKit` auto-updater + async save) |
+| `/karel_mac.swift` | `desktop/karel_mac.swift` | 96,765 B | macOS native Cocoa/AppKit mirror of `karel_native.cs` (`v2.1.7` + auto `--ask` + `/Volumes/` shadow copy + `LaunchAgent` auto-start + `CryptoKit` auto-updater) |
 | `/build_mac.sh` | `desktop/build_mac.sh` | 3,067 B | Compiles Universal `Karel.app` (`arm64` + `x86_64`) on macOS (or via `.github/workflows/release.yml`) |
-| `/launch_karel.command` | `desktop/launch_karel.command` | 1,723 B | macOS launcher (`Karel.app` prebuilt / auto-build / `--python` fallback) |
+| `/launch_karel.command` | `desktop/launch_karel.command` | 1,786 B | macOS launcher (`xattr -cr`, `Karel.app --ask` prebuilt / auto-build / `--python` fallback) |
 | `/karel_linux_x86_64` | `desktop/karel_linux_x86_64` | 88,336 B | **Prebuilt Zero-Install** Linux x86_64 ELF binary (full Windows/macOS parity + `--ask` + SHA-256 auto-updater) |
 | `/karel_linux.c` | `desktop/karel_linux.c` | 113,401 B | Linux C99 X11/XShape native host (pure C deflate, SHA-256, WAV, POSIX Serial, `--ask`, Mini-Hub, roam modes) |
 | `/build_linux.sh` | `desktop/build_linux.sh` | 1,838 B | Compiles `karel_linux_<arch>` (84 KB) on Linux (WSL2 / Ubuntu / GitHub Action) |
