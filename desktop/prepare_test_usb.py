@@ -69,7 +69,7 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False):
         raise FileNotFoundError(f"Niet gevonden: {exe_src}")
     os.makedirs(target_dir, exist_ok=True)
     files = (
-        "karel_native.exe", "launch_karel.bat", "r.cmd", "t.cmd", "karel_sprites.gz",
+        "karel_native.exe", "launch_karel.bat", "karel_sprites.gz",
         "karel_mac.swift", "build_mac.sh", "launch_karel.command",
         "karel_linux.c", "build_linux.sh", "launch_karel.sh",
         "karel_linux", "karel_linux_x86_64", "karel_linux_aarch64",

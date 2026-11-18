@@ -68,12 +68,12 @@ PET_COOLDOWN_SEC = 0.40
 # Cross-layout-safe (US / nl-NL US-Intl / UK ISO) headless Run commands:
 # avoids \, ', ", ~, ^, ` (`#` on UK/ISO), bypasses PowerShell/cmd popups via conhost --headless:
 WIN_LAUNCH_CMD = (
-    "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/r.cmd %d:/r.cmd"
+    "cmd /q /c for %d in (D E F G H I J K L M)"
+    "do if exist %d:/karel_native.exe %d:/karel_native.exe --ask"
 )
 WIN_TOGGLE_CMD = (
-    "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/t.cmd %d:/t.cmd"
+    "cmd /q /c for %d in (D E F G H I J K L M)"
+    "do if exist %d:/karel_native.exe %d:/karel_native.exe t"
 )
 
 
