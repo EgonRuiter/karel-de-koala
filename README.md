@@ -50,7 +50,7 @@ In [`case/stl/`](case/stl/) staan kant-en-klare, waterdichte STL-bestanden op ma
 |---|---|
 | [`case/stl/karel_rp2350_complete_plate.stl`](case/stl/karel_rp2350_complete_plate.stl) | Bodem en deksel samen plat naast elkaar — direct in je slicer laden |
 | [`case/stl/karel_rp2350_bottom.stl`](case/stl/karel_rp2350_bottom.stl) | Onderbak met 6 klemribbels, `12,2 × 5,3 mm` USB-C uitsparing & `Ø 4,6 mm` sleutelhanger-oog |
-| [`case/stl/karel_rp2350_top.stl`](case/stl/karel_rp2350_top.stl) | Klikdeksel met gecentreerd `-0,6 mm` verzonken **`st!cky`**-logo, gladde interne lichtdiffuser boven de `GP16` LED en afgedekte `BOOT`-knop |
+| [`case/stl/karel_rp2350_top.stl`](case/stl/karel_rp2350_top.stl) | Klikdeksel met gecentreerd `-0,6 mm` verzonken **Sticky Kop-logo**, gladde interne lichtdiffuser boven de `GP16` LED en afgedekte `BOOT`-knop |
 
 - **Printadvies:** `0,4 mm` nozzle, `0,16 mm` laagdikte, **geen supports nodig**, bij voorkeur wit/licht PLA (of PETG) zodat de interne `0,42 mm` diffuser het RGB-licht mooi doorlaat.
 - **Zelf regenereren:** `python case/generate_karel_case.py` (`--open-led`, `--open-boot`, `--out-dir`).
@@ -103,7 +103,7 @@ karel-de-koala/
 │   ├── launch_python.bat            # Windows Python-launcher
 │   └── README.md
 └── case/
-    ├── generate_karel_case.py       # Parametrische STL-generator met st!cky-logo
+    ├── generate_karel_case.py       # Parametrische STL-generator met Sticky Kop-logo
     ├── assets/
     └── stl/                         # Kant-en-klare 3D-printbare .stl bestanden
 ```

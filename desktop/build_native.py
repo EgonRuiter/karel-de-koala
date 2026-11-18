@@ -3,6 +3,7 @@
 
 import gzip
 import os
+import struct
 import subprocess
 import sys
 
@@ -44,6 +45,30 @@ def export_sprites_gz(out_path):
     return len(raw), os.path.getsize(out_path)
 
 
+def patch_pe_removable_swap(exe_path):
+    """Set IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP (0x0400) & valid PE CheckSum so Windows keeps USB apps in swap/RAM."""
+    with open(exe_path, "rb") as f:
+        buf = bytearray(f.read())
+    pe = struct.unpack_from("<I", buf, 0x3C)[0]
+    if buf[pe : pe + 4] != b"PE\x00\x00":
+        raise RuntimeError("Invalid PE header")
+    ch_off = pe + 22
+    chars = struct.unpack_from("<H", buf, ch_off)[0] | 0x0400
+    struct.pack_into("<H", buf, ch_off, chars)
+    cs_off = pe + 88
+    struct.pack_into("<I", buf, cs_off, 0)
+    pad = bytes(buf) + (b"\x00" * ((-len(buf)) % 4))
+    acc = 0
+    for off in range(0, len(pad), 4):
+        acc += struct.unpack_from("<I", pad, off)[0]
+        acc = (acc & 0xFFFFFFFF) + (acc >> 32)
+    acc = (acc & 0xFFFF) + (acc >> 16)
+    acc = (acc & 0xFFFF) + (acc >> 16)
+    struct.pack_into("<I", buf, cs_off, (acc + len(buf)) & 0xFFFFFFFF)
+    with open(exe_path, "wb") as f:
+        f.write(buf)
+
+
 def build_native(out_exe=None):
     csc = find_csc()
     ico_path = write_drive_branding(HERE)[0]
@@ -70,6 +95,7 @@ def build_native(out_exe=None):
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         raise RuntimeError(f"csc.exe failed:\n{res.stdout}\n{res.stderr}")
+    patch_pe_removable_swap(exe_path)
 
     exe_sz = os.path.getsize(exe_path)
     print(f"Built {exe_path}: {exe_sz} B (sprites {raw_sz} B -> {gz_sz} B gzip)")

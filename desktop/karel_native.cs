@@ -22,6 +22,14 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[assembly: AssemblyTitle("Karel de Koala")]
+[assembly: AssemblyDescription("Sticky RP2350 Desktop Koala Companion")]
+[assembly: AssemblyCompany("Studievereniging Sticky")]
+[assembly: AssemblyProduct("Karel de Koala")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
+[assembly: AssemblyVersion("2.1.9.0")]
+[assembly: AssemblyFileVersion("2.1.9.0")]
+
 namespace KarelNative {
 
     internal static class NativeWin {
@@ -653,7 +661,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.1.8";
+        public const string Version = "2.1.9";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1982,7 +1990,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.9", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.1.10", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -1990,21 +1998,7 @@ namespace KarelNative {
             NativeWin.EnableDpi();
             if (TrySignalExisting(toggle, ipcPort)) return;
             if (toggle) return;
-            if (!noShadow) {
-                try {
-                    string exe = Application.ExecutablePath;
-                    string rt = Path.GetPathRoot(exe);
-                    if (!string.IsNullOrEmpty(rt) && new DriveInfo(rt).DriveType == DriveType.Removable) {
-                        string liveExe = Path.Combine(Path.GetTempPath(), "karel_live.exe");
-                        try { File.Copy(exe, liveExe, true); }
-                        catch { liveExe = Path.Combine(Path.GetTempPath(), "karel_live_" + Process.GetCurrentProcess().Id + ".exe"); File.Copy(exe, liveExe, true); }
-                        StringBuilder sb = new StringBuilder("--no-shadow");
-                        for (int i = 0; i < args.Length; i++) sb.Append(" \"").Append(args[i].Replace("\"", "")).Append("\"");
-                        Process.Start(new ProcessStartInfo(liveExe, sb.ToString()) { WorkingDirectory = Path.GetTempPath(), UseShellExecute = false });
-                        return;
-                    }
-                } catch { }
-            }
+            if (noShadow) { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             if (askPrompt && !ShowAskPrompt()) return;

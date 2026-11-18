@@ -6,12 +6,12 @@ overhanging USB-C, 1x left BOOT button + right-side GP16 WS2812 RGB LED, no onbo
 - Two-piece snap-fit enclosure (Bottom Base + Top Lid), zero screws/glue, zero supports needed.
 - Reinforced monolithic keychain eyelet (4.6 mm hole) integrated into the Bottom Base.
 - Front USB-C overmold-friendly cutout (12.2 x 5.3 mm, 1.9 mm cradle accommodating ~1.7-1.95 mm USB-C overhang).
-- Official SV Sticky compact wordmark ("st!cky") debossed -0.6 mm into Top Lid exterior,
-  with the Koala exclamation-mark outline broadened slightly for crisp 0.4 mm FDM slicing.
+- Official SV Sticky Koala Head ("Kop-logo") debossed -0.6 mm into Top Lid exterior,
+  isolated from the wordmark and broadened slightly for crisp 0.4 mm FDM slicing.
 - Definitive two-piece snap-fit STL set in case/stl/:
   1. karel_rp2350_bottom.stl: rigid snap-fit tray with 6 compliant crush ribs and monolithic keychain eyelet.
-  2. karel_rp2350_top.stl: completely smooth, hole-free exterior with the "-0.6 mm st!cky"
-     wordmark symmetrically centered on the top lid (X=0.0, Y=+0.2 mm). An internal
+  2. karel_rp2350_top.stl: completely smooth, hole-free exterior with the "-0.6 mm Kop-logo"
+     emblem symmetrically centered on the top lid (X=0.0, Y=+0.2 mm). An internal
      translucent light-funnel sits centered directly above the GP16 WS2812 RGB LED
      while the onboard BOOT switch stays safely shielded underneath.
   3. karel_rp2350_complete_plate.stl: both pieces oriented flat side-by-side ready to slice & test-print.
@@ -159,6 +159,7 @@ def build_sticky_plaque_2d_mesh(
     step_mm: float = 0.10,
     rotate_ccw_deg: int = 0,
     min_gap_mm: float = 0.42,
+    head_only: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[tuple[float, float]]]:
     """
     Create a strictly planar, conforming 2D triangle mesh filling [x0, x1] x [y0, y1]
@@ -179,15 +180,21 @@ def build_sticky_plaque_2d_mesh(
     # Render logo onto fine padded mask so bolding never clips outer tips
     fine_res = 0.025  # 40 px/mm for super crisp curve distance field
     src = Image.open(logo_path).convert("RGBA")
+    if head_only:
+        sarr = np.array(src)
+        red_src = (sarr[..., 3] > 100) & (sarr[..., 0].astype(int) - sarr[..., 1].astype(int) > 60)
+        ys_r, xs_r = np.where(red_src)
+        sarr[~red_src, 3] = 0
+        src = Image.fromarray(sarr).crop((int(xs_r.min()), int(ys_r.min()), int(xs_r.max()) + 1, int(ys_r.max()) + 1))
     logo_w_px = int(round(target_w_mm / fine_res))
     logo_h_px = int(round(logo_w_px * src.height / src.width))
     resized = src.resize((logo_w_px, logo_h_px), Image.Resampling.LANCZOS)
     rarr = np.pad(np.array(resized), ((20, 20), (20, 20), (0, 0)), mode="constant", constant_values=0)
     alpha = rarr[..., 3] > 100
 
-    # Thicken letters + outline cleanly for 0.40 mm FDM nozzle while guarding gaps >= min_gap_mm
+    # Thicken outline cleanly for 0.40 mm FDM nozzle while guarding gaps >= min_gap_mm
     is_red = alpha & (rarr[..., 0].astype(int) - rarr[..., 1].astype(int) > 60)
-    is_black = alpha & (~is_red)
+    is_black = np.zeros_like(alpha) if head_only else (alpha & (~is_red))
     lbl_b, nb = ndimage.label(is_black)
     lbl_r, nr = ndimage.label(is_red)
     comps: list[tuple[str, np.ndarray]] = (
@@ -200,9 +207,10 @@ def build_sticky_plaque_2d_mesh(
     outline_idx = max(red_idxs, key=lambda idx: cur[idx].sum())
 
     s3 = np.ones((3, 3), dtype=bool)
-    for step in range(5):
+    bold_steps = 2 if head_only else 5
+    for step in range(bold_steps):
         for idx in range(len(cur)):
-            limit = 5 if idx == outline_idx else (4 if types[idx] == "black" else 0)
+            limit = bold_steps if idx == outline_idx else (4 if types[idx] == "black" else 0)
             if step >= limit:
                 continue
             others = np.zeros_like(alpha)
@@ -1037,13 +1045,12 @@ def build_top_lid(
     led_cy = pcb_y0 + bcfg["led"][1]
     led_r = bcfg["led"][2]
 
-    # Symmetrically center bold 90-deg CCW rotated 22.4 mm "st!cky" wordmark along lid length (X=0.00, Y=+0.20).
-    # Keeps >= 0.50 mm nozzle-safe stroke widths and keeps GP16 diffuser beside the main lettering.
-    logo_w = 22.4
-    plaque_x0, plaque_x1 = -5.00, 5.00
-    plaque_y0, plaque_y1 = -11.50, 11.90
+    # Symmetrically center upright Sticky Koala Kop-logo (11.8 x 19.8 mm) on lid top (X=0.00, Y=+0.20).
+    logo_w = 11.8
+    plaque_x0, plaque_x1 = -7.00, 7.00
+    plaque_y0, plaque_y1 = -10.80, 11.20
 
-    if with_led_hole:
+    if with_led_hole and not (plaque_x0 < led_cx < plaque_x1 and plaque_y0 < led_cy < plaque_y1):
         add_closed_poly(circle_poly(led_cx, led_cy, led_r, n=28))
     if with_boot_hole:
         add_closed_poly(circle_poly(boot_cx, boot_cy, boot_r, n=32))
@@ -1056,8 +1063,9 @@ def build_top_lid(
         y1=plaque_y1,
         target_w_mm=logo_w,
         step_mm=0.10,
-        rotate_ccw_deg=90,
+        rotate_ccw_deg=0,
         min_gap_mm=0.42,
+        head_only=True,
     )
     add_closed_poly(np.array(p_border, dtype=float))
 
@@ -1304,7 +1312,7 @@ def main() -> None:
     write_binary_stl(path_bottom, tris_bottom, "Karel RP2350 SuperMini Bottom Base")
     print("  Verified:", verify_stl(path_bottom))
 
-    mode_desc = "Open GP16/BOOT" if (args.open_led or args.open_boot) else "Centered st!cky + Smooth GP16 Diffuser + Protected BOOT"
+    mode_desc = "Open GP16/BOOT" if (args.open_led or args.open_boot) else "Centered Kop-logo + Smooth GP16 Diffuser + Protected BOOT"
     print(f"Generating Top Lid ({mode_desc})...")
     tris_top = build_top_lid(
         diffuser_mode="gp16",
