@@ -11,7 +11,7 @@
 ### Windows 10 / 11 (Standaard Zero-Install Plug-and-Play)
 1. **Steek de Karel USB-C stick in je pc.**
 2. Het station verschijnt als **`KAREL`** (inclusief eigen koalasticker-icoon via `karel.ico` en `AUTORUN.INF`).
-3. De RP2350 checkt eerst via USB Serial (`KAREL_PING`) of Karel al draait: zo ja, dan geeft Karel een *Hardware Boop* zonder popups. Draait Karel nog niet, dan start `conhost --headless` direct **`desktop/karel_native.exe`** (`~94 KB`, `.NET Framework 4.x`, zonder PowerShell/cmd-venster en zonder Python!). Via het rechtermuis-menu (**Stil mee-opstarten — 0 popups**) kun je optioneel Karel stil op de achtergrond laten meedraaien zodat zelfs de initiële `Win+R`-dialoog verdwijnt.
+3. De RP2350 checkt eerst via USB Serial (`KAREL_PING`) of Karel al draait: zo ja, dan geeft Karel een *Hardware Boop* zonder popups. Draait Karel nog niet, dan start `conhost --headless` direct **`desktop/karel_native.exe --ask`** (`~100 KB`, `.NET Framework 4.x`, zonder PowerShell/cmd-venster en zonder Python!): deze vraagt eerst via een Sticky pop-up *"Wil je een koala op je scherm hebben?"* met knoppen **Ja**, **README bekijken** en **Nee** (gevolgd door *"Weet je het zeker?"*). Via het rechtermuis-menu (**Stil mee-opstarten — 0 popups**) kun je optioneel Karel stil op de achtergrond laten meedraaien zodat zelfs de initiële `Win+R`-dialoog verdwijnt.
 4. **Handmatig starten / optionele Python-versie:**
    - Dubbelklik `desktop/launch_karel.bat` (standaard Zero-Install).
    - Geef `--python` mee (`launch_karel.bat --python`) om de uitgebreide Python-versie uit [`python_extended/`](python_extended/) te starten indien gewenst.
@@ -24,7 +24,7 @@ De native macOS-tegenhanger staat nu direct naast de Windows-versie in **`deskto
 - *Optionele Python-editie:* [`python_extended/`](python_extended/README.md) blijft los beschikbaar (`launch_karel.command --python`, vereist Python 3 + Tk `>= 8.6`).
 
 ### Linux (Zero-Install C99 X11 / XWayland)
-De native Linux-versie (`desktop/karel_linux_x86_64`, `~82 KB` C99-binary tegen systeem-`libX11` + `XShape`, feature-pariteit met Windows & macOS) draait zonder extra dependencies:
+De native Linux-versie (`desktop/karel_linux_x86_64`, `~86 KB` C99-binary tegen systeem-`libX11` + `XShape`, feature-pariteit met Windows & macOS) draait zonder extra dependencies:
 - Start **`bash desktop/launch_karel.sh`** vanaf de USB-stick (omzeilt automatisch FAT32 `noexec`-mounts via `/tmp`, start voorgebouwde `karel_linux_x86_64` of compileert lokaal met `gcc` als X11 aanwezig is; `--python` start `python_extended/`).
 - **Vooraf compileren voor distributie op alle 50 sticks:** via `./desktop/build_linux.sh` op Linux of automatisch in [`.github/workflows/release.yml`](.github/workflows/release.yml).
 

@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.1.5"
+#define KAREL_VERSION "2.1.6"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -88,10 +88,13 @@ typedef union { int type; XKeyEvent xkey; XExposeEvent xexpose; XButtonEvent xbu
 #define MotionNotify 6
 #define Expose 12
 #define ClientMessage 33
+#define Button1 1
 #define ShapeBounding 0
 #define ShapeSet 0
 #define Convex 2
 #define CoordModeOrigin 0
+#define XK_Return 0xff0d
+#define XK_Escape 0xff1b
 #define XK_Left 0xff51
 #define XK_Up 0xff52
 #define XK_Right 0xff53
@@ -120,6 +123,8 @@ int XStoreName(Display *, Window, const char *);
 Status XSetWMProtocols(Display *, Window, Atom *, int);
 int XSelectInput(Display *, Window, long);
 GC XCreateGC(Display *, Drawable, unsigned long, void *);
+int XFreeGC(Display *, GC);
+int XClearArea(Display *, Window, int, int, unsigned int, unsigned int, Bool);
 int XMapRaised(Display *, Window);
 int XUnmapWindow(Display *, Window);
 int XMoveWindow(Display *, Window, int, int);
@@ -1882,15 +1887,117 @@ static void step_physics(KarelApp *k) {
     }
 }
 
+static int run_ask_prompt(KarelApp *k) {
+    float s = k->dpi;
+    int W = Sc(490, s), H = Sc(224, s), P = Sc(18, s), hdrH = Sc(40, s), en = is_en(k);
+    int wx, wy, ww, wh; get_work_area(k->dpy, k->scr, &wx, &wy, &ww, &wh);
+    Window win = XCreateSimpleWindow(k->dpy, k->root, wx + (ww - W) / 2, wy + (wh - H) / 2,
+                                     (unsigned)W, (unsigned)H, 0, 0, rgb_px(k->dpy, k->scr, 18, 20, 27));
+    XStoreName(k->dpy, win, "Karel de Koala");
+    XSetWMProtocols(k->dpy, win, &k->wm_del, 1);
+    XSelectInput(k->dpy, win, ExposureMask | ButtonPressMask | KeyPressMask);
+    GC gc = XCreateGC(k->dpy, win, 0, NULL);
+    Rgba frame[32][32];
+    render_frame_rgba(&k->sb, "IDLE", 0, k->save.skin, k->save.equipped, frame);
+    XMapRaised(k->dpy, win);
+
+    int confirm = 0, done = 0, res = 0;
+    while (!done) {
+        XEvent ev; XNextEvent(k->dpy, &ev);
+        if (ev.type == Expose) {
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 18, 20, 27));
+            XFillRectangle(k->dpy, win, gc, 0, 0, (unsigned)W, (unsigned)H);
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 196, 30, 37));
+            XFillRectangle(k->dpy, win, gc, 0, 0, (unsigned)W, (unsigned)hdrH);
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
+            if (k->bfont) XSetFont(k->dpy, gc, k->bfont->fid);
+            char hdr[96]; snprintf(hdr, sizeof(hdr), "KAREL DE KOALA  *  STICKY RP2350   v%s", KAREL_VERSION);
+            XDrawString(k->dpy, win, gc, P, Sc(26, s), hdr, (int)strlen(hdr));
+
+            int boxSz = Sc(104, s), by0 = hdrH + Sc(16, s);
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 27, 31, 42));
+            XFillRectangle(k->dpy, win, gc, P, by0, (unsigned)boxSz, (unsigned)boxSz);
+            int pxs = Sc(3, s), ox = P + (boxSz - 32 * pxs) / 2, oy = by0 + (boxSz - 32 * pxs) / 2;
+            for (int py = 0; py < 32; py++)
+                for (int px = 0; px < 32; px++)
+                    if (frame[py][px].a) {
+                        XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, frame[py][px].r, frame[py][px].g, frame[py][px].b));
+                        XFillRectangle(k->dpy, win, gc, ox + px * pxs, oy + py * pxs, (unsigned)pxs, (unsigned)pxs);
+                    }
+
+            int tx = P + boxSz + Sc(16, s);
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 242, 245, 250));
+            const char *q = confirm
+                ? (en ? "Are you sure?" : "Weet je het zeker?")
+                : (en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?");
+            XDrawString(k->dpy, win, gc, tx, hdrH + Sc(42, s), q, (int)strlen(q));
+            if (k->font) XSetFont(k->dpy, gc, k->font->fid);
+            XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 176, 184, 202));
+            const char *sub = confirm
+                ? (en ? "Karel stays off your screen." : "Karel verschijnt dan niet op je scherm.")
+                : (en ? "Karel lives on your Sticky RP2350." : "Karel woont op je Sticky RP2350-stick.");
+            XDrawString(k->dpy, win, gc, tx, hdrH + Sc(72, s), sub, (int)strlen(sub));
+
+            int btnY = H - Sc(54, s), btnH = Sc(36, s);
+            if (!confirm) {
+                int x1 = P, w1 = Sc(118, s), x2 = P + Sc(128, s), w2 = Sc(198, s), x3 = W - P - Sc(118, s), w3 = Sc(118, s);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 38, 115, 77)); XFillRectangle(k->dpy, win, gc, x1, btnY, (unsigned)w1, (unsigned)btnH);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 42, 48, 66)); XFillRectangle(k->dpy, win, gc, x2, btnY, (unsigned)w2, (unsigned)btnH);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 140, 38, 48)); XFillRectangle(k->dpy, win, gc, x3, btnY, (unsigned)w3, (unsigned)btnH);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
+                if (k->bfont) XSetFont(k->dpy, gc, k->bfont->fid);
+                const char *l1 = en ? "Yes" : "Ja", *l2 = en ? "View README" : "README bekijken", *l3 = en ? "No" : "Nee";
+                XDrawString(k->dpy, win, gc, x1 + Sc(44, s), btnY + Sc(23, s), l1, (int)strlen(l1));
+                XDrawString(k->dpy, win, gc, x2 + Sc(26, s), btnY + Sc(23, s), l2, (int)strlen(l2));
+                XDrawString(k->dpy, win, gc, x3 + Sc(40, s), btnY + Sc(23, s), l3, (int)strlen(l3));
+            } else {
+                int w2 = Sc(218, s), x1 = P, x2 = W - P - w2;
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 38, 115, 77)); XFillRectangle(k->dpy, win, gc, x1, btnY, (unsigned)w2, (unsigned)btnH);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 140, 38, 48)); XFillRectangle(k->dpy, win, gc, x2, btnY, (unsigned)w2, (unsigned)btnH);
+                XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
+                if (k->bfont) XSetFont(k->dpy, gc, k->bfont->fid);
+                const char *l1 = en ? "Actually yes!" : "Toch wel!", *l2 = en ? "Yes, skip" : "Ja, sluit af";
+                XDrawString(k->dpy, win, gc, x1 + Sc(64, s), btnY + Sc(23, s), l1, (int)strlen(l1));
+                XDrawString(k->dpy, win, gc, x2 + Sc(58, s), btnY + Sc(23, s), l2, (int)strlen(l2));
+            }
+        } else if (ev.type == ButtonPress && ev.xbutton.button == Button1) {
+            int cx = ev.xbutton.x, cy = ev.xbutton.y, btnY = H - Sc(54, s), btnH = Sc(36, s);
+            if (cy >= btnY && cy <= btnY + btnH) {
+                if (!confirm) {
+                    int x1 = P, w1 = Sc(118, s), x2 = P + Sc(128, s), w2 = Sc(198, s), x3 = W - P - Sc(118, s), w3 = Sc(118, s);
+                    if (cx >= x1 && cx <= x1 + w1) { res = 1; done = 1; }
+                    else if (cx >= x2 && cx <= x2 + w2) { if (system("xdg-open 'https://github.com/EgonRuiter/karel-de-koala#readme' >/dev/null 2>&1 &") != 0) {} }
+                    else if (cx >= x3 && cx <= x3 + w3) { confirm = 1; XClearArea(k->dpy, win, 0, 0, 0, 0, True); }
+                } else {
+                    int w2 = Sc(218, s), x1 = P, x2 = W - P - w2;
+                    if (cx >= x1 && cx <= x1 + w2) { res = 1; done = 1; }
+                    else if (cx >= x2 && cx <= x2 + w2) { res = 0; done = 1; }
+                }
+            }
+        } else if (ev.type == KeyPress) {
+            KeySym ks = XLookupKeysym(&ev.xkey, 0);
+            if (ks == XK_Escape) { res = 0; done = 1; }
+            else if (ks == XK_Return && !confirm) { res = 1; done = 1; }
+        } else if (ev.type == ClientMessage && (Atom)ev.xclient.data.l[0] == k->wm_del) {
+            res = 0; done = 1;
+        }
+    }
+    XFreeGC(k->dpy, gc);
+    XDestroyWindow(k->dpy, win);
+    XFlush(k->dpy);
+    return res;
+}
+
 #endif /* !KAREL_CORE_TEST */
 
 int main(int argc, char **argv) {
-    int self_test = 0, toggle = 0, no_update = 0;
+    int self_test = 0, toggle = 0, no_update = 0, ask = 0;
     char updated_from[32] = "";
     uint16_t ipc_port = 42421;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--self-test") == 0) self_test = 1;
         else if (strcmp(argv[i], "--no-update") == 0) no_update = 1;
+        else if (strcmp(argv[i], "--ask") == 0) ask = 1;
         else if (strcmp(argv[i], "--toggle") == 0 || strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "t") == 0) toggle = 1;
         else if (strncmp(argv[i], "--updated-from=", 15) == 0) snprintf(updated_from, sizeof(updated_from), "%.31s", argv[i] + 15);
         else if (strncmp(argv[i], "--ipc-port=", 11) == 0) { int p = atoi(argv[i] + 11); if (p > 0 && p < 65536) ipc_port = (uint16_t)p; }
@@ -1906,7 +2013,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.6", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.7", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -1917,7 +2024,7 @@ int main(int argc, char **argv) {
     }
 
 #ifdef KAREL_CORE_TEST
-    (void)toggle; (void)no_update; (void)ipc_port; (void)updated_from;
+    (void)toggle; (void)no_update; (void)ask; (void)ipc_port; (void)updated_from;
     return 0;
 #else
     signal(SIGCHLD, SIG_IGN);
@@ -1925,7 +2032,7 @@ int main(int argc, char **argv) {
     if (toggle) return 0;
 
     static KarelApp k; memset(&k, 0, sizeof(k));
-    k.ser.fd = -1; k.upd_pipe = -1; k.ipc_fd = start_ipc_server(ipc_port);
+    k.ser.fd = -1; k.upd_pipe = -1;
     snprintf(k.updated_from, sizeof(k.updated_from), "%.31s", updated_from);
     ssize_t el = readlink("/proc/self/exe", k.self_exe, sizeof(k.self_exe) - 1);
     if (el > 0) k.self_exe[el] = 0; else snprintf(k.self_exe, sizeof(k.self_exe), "%.500s", argv[0]);
@@ -1947,6 +2054,8 @@ int main(int argc, char **argv) {
     if (!k.bfont) k.bfont = XLoadQueryFont(k.dpy, "fixed");
     k.font = XLoadQueryFont(k.dpy, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*");
     if (!k.font) k.font = k.bfont;
+    if (ask && !run_ask_prompt(&k)) { XCloseDisplay(k.dpy); return 0; }
+    k.ipc_fd = start_ipc_server(ipc_port);
 
     int wx, wy, ww, wh; get_work_area(k.dpy, k.scr, &wx, &wy, &ww, &wh);
     XSetWindowAttributes swa; swa.override_redirect = True; swa.background_pixel = 0;

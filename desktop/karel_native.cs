@@ -653,7 +653,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.1.5";
+        public const string Version = "2.1.6";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -947,7 +947,7 @@ namespace KarelNative {
             } catch { return 1.0f; }
         }
 
-        private static int Sc(int px, float s) { return (int)Math.Round(px * s); }
+        internal static int Sc(int px, float s) { return (int)Math.Round(px * s); }
 
         private void UpdateFormSize() {
             float s = GetDpiScale();
@@ -1665,7 +1665,7 @@ namespace KarelNative {
             );
         }
 
-        private static Button MakeFlatBtn(string text, int x, int y, int w, int h, Color bg, float fontPt) {
+        internal static Button MakeFlatBtn(string text, int x, int y, int w, int h, Color bg, float fontPt) {
             Button b = new Button {
                 Text = text, Location = new Point(x, y), Size = new Size(w, h),
                 FlatStyle = FlatStyle.Flat, BackColor = bg, ForeColor = Color.White,
@@ -1845,9 +1845,120 @@ namespace KarelNative {
             } catch { return false; }
         }
 
+        private static bool ShowAskPrompt() {
+            SaveStore s = new SaveStore();
+            s.Load();
+            bool en = s.GetStr("language", "nl") == "en";
+            SpriteBank bank = SpriteBank.LoadEmbedded();
+            Bitmap sprite = bank.GetFrame("IDLE", 0, s.GetStr("skin", "classic"), s.GetEquippedItem());
+
+            float sc = 1.0f;
+            try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) sc = Math.Max(1.0f, g.DpiX / 96.0f); } catch { }
+            int W = KarelForm.Sc(490, sc), H = KarelForm.Sc(224, sc), P = KarelForm.Sc(18, sc), hdrH = KarelForm.Sc(40, sc);
+
+            using (Form f = new Form()) {
+                f.AutoScaleMode = AutoScaleMode.None;
+                f.Text = "Karel de Koala";
+                f.ClientSize = new Size(W, H);
+                f.FormBorderStyle = FormBorderStyle.FixedDialog;
+                f.MaximizeBox = false;
+                f.MinimizeBox = false;
+                f.StartPosition = FormStartPosition.CenterScreen;
+                f.BackColor = Color.FromArgb(18, 20, 27);
+                f.ForeColor = Color.FromArgb(242, 245, 250);
+                f.TopMost = true;
+                try { f.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+                f.Shown += delegate { f.Activate(); };
+
+                Label hdr = new Label {
+                    Text = "  KAREL DE KOALA  •  STICKY RP2350   v" + AutoUpdater.Version,
+                    Location = new Point(0, 0), Size = new Size(W, hdrH),
+                    BackColor = Color.FromArgb(196, 30, 37), ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
+                };
+                f.Controls.Add(hdr);
+
+                int boxSz = KarelForm.Sc(104, sc);
+                Panel icoBox = new Panel {
+                    Location = new Point(P, hdrH + KarelForm.Sc(16, sc)), Size = new Size(boxSz, boxSz),
+                    BackColor = Color.FromArgb(27, 31, 42)
+                };
+                icoBox.Paint += delegate(object sender, PaintEventArgs pe) {
+                    pe.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+                    pe.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+                    int drawSz = KarelForm.Sc(96, sc);
+                    int off = (boxSz - drawSz) / 2;
+                    pe.Graphics.DrawImage(sprite, off, off, drawSz, drawSz);
+                };
+                f.Controls.Add(icoBox);
+
+                int tx = P + boxSz + KarelForm.Sc(16, sc), tw = W - tx - P;
+                Label titleLbl = new Label {
+                    Text = en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?",
+                    Location = new Point(tx, hdrH + KarelForm.Sc(18, sc)), Size = new Size(tw, KarelForm.Sc(48, sc)),
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(242, 245, 250),
+                    TextAlign = ContentAlignment.TopLeft
+                };
+                Label subLbl = new Label {
+                    Text = en ? "Karel lives on your Sticky RP2350 stick and keeps you company while working." : "Karel woont op je Sticky RP2350-stick en houdt je gezelschap.",
+                    Location = new Point(tx, hdrH + KarelForm.Sc(68, sc)), Size = new Size(tw, KarelForm.Sc(52, sc)),
+                    Font = new Font("Segoe UI", 9.5f), ForeColor = Color.FromArgb(176, 184, 202),
+                    TextAlign = ContentAlignment.TopLeft
+                };
+                f.Controls.Add(titleLbl);
+                f.Controls.Add(subLbl);
+
+                int btnY = H - KarelForm.Sc(54, sc), btnH = KarelForm.Sc(36, sc);
+                Button btnYes = KarelForm.MakeFlatBtn(en ? "Yes" : "Ja", P, btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
+                Button btnReadme = KarelForm.MakeFlatBtn(en ? "View README" : "README bekijken", P + KarelForm.Sc(128, sc), btnY, KarelForm.Sc(198, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
+                Button btnNo = KarelForm.MakeFlatBtn(en ? "No" : "Nee", W - P - KarelForm.Sc(118, sc), btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(140, 38, 48), 9.5f);
+
+                bool confirmStep = false;
+                btnYes.Click += delegate { f.DialogResult = DialogResult.Yes; f.Close(); };
+                btnReadme.Click += delegate {
+                    const string url = "https://github.com/EgonRuiter/karel-de-koala#readme";
+                    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+                    catch {
+                        string localTxt = string.IsNullOrEmpty(s.DriveRoot) ? null : Path.Combine(s.DriveRoot, "README_TEST_STICK.txt");
+                        if (!string.IsNullOrEmpty(localTxt) && File.Exists(localTxt)) {
+                            try { Process.Start(new ProcessStartInfo(localTxt) { UseShellExecute = true }); } catch { }
+                        }
+                    }
+                };
+                btnNo.Click += delegate {
+                    if (!confirmStep) {
+                        confirmStep = true;
+                        f.Text = en ? "Are you sure?" : "Weet je het zeker?";
+                        titleLbl.Text = en ? "Are you sure?" : "Weet je het zeker?";
+                        subLbl.Text = en ? "Karel won't appear on your screen if you choose No." : "Karel verschijnt dan niet op je scherm.";
+                        btnReadme.Visible = false;
+                        btnYes.Text = en ? "Actually yes!" : "Toch wel!";
+                        btnYes.Size = new Size(KarelForm.Sc(218, sc), btnH);
+                        btnYes.Location = new Point(P, btnY);
+                        btnNo.Text = en ? "Yes, skip" : "Ja, sluit af";
+                        btnNo.Size = new Size(KarelForm.Sc(218, sc), btnH);
+                        btnNo.Location = new Point(W - P - KarelForm.Sc(218, sc), btnY);
+                        f.AcceptButton = null;
+                        return;
+                    }
+                    f.DialogResult = DialogResult.No;
+                    f.Close();
+                };
+                f.AcceptButton = btnYes;
+                f.KeyPreview = true;
+                f.KeyDown += delegate(object ks, KeyEventArgs ke) {
+                    if (ke.KeyCode == Keys.Escape) { f.DialogResult = DialogResult.No; f.Close(); }
+                };
+                f.Controls.Add(btnYes);
+                f.Controls.Add(btnReadme);
+                f.Controls.Add(btnNo);
+                return f.ShowDialog() == DialogResult.Yes;
+            }
+        }
+
         [STAThread]
         public static void Main(string[] args) {
-            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false, noShadow = false;
+            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false, noShadow = false, askPrompt = false;
             string updatedFrom = "";
             int ipcPort = 42421;
             for (int i = 0; i < args.Length; i++) {
@@ -1855,6 +1966,7 @@ namespace KarelNative {
                 if (a == "--self-test") selfTest = true;
                 else if (a == "--no-update") noUpdate = true;
                 else if (a == "--no-shadow") noShadow = true;
+                else if (a == "--ask") askPrompt = true;
                 else if (a == "--tray" || a == "--hidden") startHidden = true;
                 else if (a == "--toggle" || a == "-t" || a == "t") toggle = true;
                 else if (a.StartsWith("--updated-from=")) updatedFrom = a.Substring(15);
@@ -1870,7 +1982,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.6", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.1.7", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -1895,6 +2007,7 @@ namespace KarelNative {
             }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            if (askPrompt && !ShowAskPrompt()) return;
             Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
         }
     }

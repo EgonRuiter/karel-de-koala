@@ -69,7 +69,7 @@ PET_COOLDOWN_SEC = 0.40
 # avoids \, ', ", ~, ^, ` (`#` on UK/ISO), bypasses PowerShell/cmd popups via conhost --headless:
 WIN_LAUNCH_CMD = (
     "conhost --headless cmd /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe)"
+    "do if exist %d:/karel_native.exe (cd /d %d:/&start karel_native.exe --ask)"
 )
 WIN_TOGGLE_CMD = (
     "conhost --headless cmd /c for %d in (D E F G H I J K L M)"

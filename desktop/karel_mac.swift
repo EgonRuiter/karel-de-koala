@@ -749,7 +749,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.5"
+    static let version = "2.1.6"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -2017,16 +2017,63 @@ private final class MenuClosureItem: NSMenuItem {
     @objc private func fired() { block() }
 }
 
+private func showAskPrompt() -> Bool {
+    let s = SaveStore(); s.load()
+    let en = s.getStr("language", "nl") == "en"
+    let bank = SpriteBank.loadBundled()
+    let ico = bank.getFrame(state: "IDLE", frameIdx: 0, skin: s.getStr("skin", "classic"), item: s.getEquippedItem())
+    let app = NSApplication.shared
+    app.setActivationPolicy(.regular)
+    app.activate(ignoringOtherApps: true)
+    while true {
+        let a = NSAlert()
+        a.messageText = en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?"
+        a.informativeText = en
+            ? "Karel lives on your Sticky RP2350 stick and keeps you company while working."
+            : "Karel woont op je Sticky RP2350-stick en houdt je gezelschap."
+        a.icon = ico
+        a.addButton(withTitle: en ? "Yes" : "Ja")
+        a.addButton(withTitle: en ? "View README" : "README bekijken")
+        a.addButton(withTitle: en ? "No" : "Nee")
+        let r = a.runModal()
+        if r == .alertFirstButtonReturn {
+            app.setActivationPolicy(.accessory)
+            return true
+        }
+        if r == .alertSecondButtonReturn {
+            if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
+                NSWorkspace.shared.open(url)
+            }
+            continue
+        }
+        let c = NSAlert()
+        c.messageText = en ? "Are you sure?" : "Weet je het zeker?"
+        c.informativeText = en
+            ? "Karel won't appear on your screen if you choose No."
+            : "Karel verschijnt dan niet op je scherm."
+        c.icon = ico
+        c.addButton(withTitle: en ? "Yes, skip" : "Ja, sluit af")
+        c.addButton(withTitle: en ? "Actually yes!" : "Toch wel!")
+        if c.runModal() == .alertSecondButtonReturn {
+            app.setActivationPolicy(.accessory)
+            return true
+        }
+        return false
+    }
+}
+
 // MARK: - Entry Point
 
 var selfTest = false
 var toggle = false
 var noUpdate = false
+var askPrompt = false
 var updatedFrom = ""
 var ipcPort: UInt16 = 42421
 for a in CommandLine.arguments.dropFirst() {
     if a == "--self-test" { selfTest = true }
     else if a == "--no-update" { noUpdate = true }
+    else if a == "--ask" { askPrompt = true }
     else if a == "--toggle" || a == "-t" || a == "t" { toggle = true }
     else if a.hasPrefix("--updated-from=") { updatedFrom = String(a.dropFirst(15)) }
     else if a.hasPrefix("--ipc-port="), let p = UInt16(a.dropFirst(11)), p > 0 { ipcPort = p }
@@ -2035,7 +2082,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.6", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.7", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
@@ -2047,6 +2094,7 @@ if selfTest {
 
 if KarelController.trySignalExisting(toggle: toggle, port: ipcPort) { exit(0) }
 if toggle { exit(0) }
+if askPrompt && !showAskPrompt() { exit(0) }
 
 private let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
