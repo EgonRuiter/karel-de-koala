@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / staging / temporary files
+deploy_stage/
+*.tmp
+*.log
+
+# Per-stick runtime state (generated per board on deployment)
+desktop/save.json
+desktop/.karel_drive
+desktop/.karel_no_hid
+desktop/.karel_mac
+python_extended/save.json
+python_extended/.karel_drive
+python_extended/.karel_no_hid
+
+# OS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini

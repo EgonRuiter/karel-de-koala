@@ -1,0 +1,139 @@
+name: Build & Release Karel de Koala
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build & test Windows companion
+        shell: powershell
+        run: |
+          python desktop/build_native.py
+          .\desktop\karel_native.exe --self-test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows
+          path: |
+            desktop/karel_native.exe
+            desktop/karel_sprites.gz
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & test macOS app (Universal)
+        run: |
+          bash desktop/build_mac.sh
+          ditto -c -k --sequesterRsrc --keepParent desktop/Karel.app desktop/Karel-macOS-App.zip
+          unzip -l desktop/Karel-macOS-App.zip | grep -q "Karel.app/Contents/MacOS/Karel"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-mac
+          path: |
+            desktop/Karel-macOS-App.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & test Linux companion (x86_64)
+        run: |
+          if ! ldconfig -p | grep -q "libX11\.so\.6"; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libx11-dev libxext-dev
+          fi
+          bash desktop/build_linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: |
+            desktop/karel_linux_x86_64
+
+  release:
+    needs: [build-windows, build-mac, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-windows
+          path: release_assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-mac
+          path: release_assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-linux
+          path: release_assets
+      - name: Package version.json & publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cp firmware/code.py release_assets/code.py
+          chmod +x release_assets/karel_linux_x86_64
+          VERSION="$(python3 - <<'PY'
+          import json, hashlib, os, pathlib, re
+
+          def read_ver(path, pat):
+              m = re.search(pat, pathlib.Path(path).read_text(encoding="utf-8"))
+              assert m, f"Version not found in {path}"
+              return m.group(1)
+
+          v_cs = read_ver("desktop/karel_native.cs", r'Version\s*=\s*"([^"]+)"')
+          v_mac = read_ver("desktop/karel_mac.swift", r'version\s*=\s*"([^"]+)"')
+          v_lin = read_ver("desktop/karel_linux.c", r'#define\s+KAREL_VERSION\s+"([^"]+)"')
+          assert v_cs == v_mac == v_lin, f"Version mismatch: cs={v_cs} mac={v_mac} linux={v_lin}"
+
+          base = f"https://github.com/{os.environ['REPO']}/releases/download/v{v_cs}"
+          def sha(fname):
+              return hashlib.sha256(pathlib.Path("release_assets", fname).read_bytes()).hexdigest()
+
+          manifest = {
+              "version": v_cs,
+              "tag": f"v{v_cs}",
+              "exe_url": f"{base}/karel_native.exe",
+              "exe_sha256": sha("karel_native.exe"),
+              "sprites_url": f"{base}/karel_sprites.gz",
+              "sprites_sha256": sha("karel_sprites.gz"),
+              "mac_zip_url": f"{base}/Karel-macOS-App.zip",
+              "mac_zip_sha256": sha("Karel-macOS-App.zip"),
+              "linux_x64_url": f"{base}/karel_linux_x86_64",
+              "linux_x64_sha256": sha("karel_linux_x86_64"),
+              "code_py_url": f"{base}/code.py",
+              "code_py_sha256": sha("code.py"),
+          }
+          pathlib.Path("release_assets/version.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          print(v_cs)
+          PY
+          )"
+          echo "Manifest:"
+          cat release_assets/version.json
+          TAG="v${VERSION}"
+          ASSETS=(
+            release_assets/karel_native.exe
+            release_assets/karel_sprites.gz
+            release_assets/Karel-macOS-App.zip
+            release_assets/karel_linux_x86_64
+            release_assets/code.py
+            release_assets/version.json
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release edit "$TAG" --latest
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --latest --title "Karel de Koala ${TAG}" --notes "Automated multi-platform build for Windows (karel_native.exe), macOS (Karel.app), Linux (karel_linux_x86_64), shared sprites, and RP2350 firmware (code.py)."
+          fi
