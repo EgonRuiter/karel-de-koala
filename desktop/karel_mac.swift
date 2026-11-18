@@ -663,13 +663,20 @@ private final class SerialSync {
 
     private func loop() {
         var lineBuf = ""
+        var hbTicks = 0
         while !stopping {
             lock.lock(); let curFd = fd; lock.unlock()
             if curFd < 0 {
                 lineBuf = ""
+                hbTicks = 0
                 tryConnect()
                 usleep(400_000)
                 continue
+            }
+            hbTicks += 1
+            if hbTicks >= 28 {
+                hbTicks = 0
+                send("KAREL_PING")
             }
             var buf = [UInt8](repeating: 0, count: 256)
             let n = Darwin.read(curFd, &buf, 256)
@@ -697,7 +704,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.2"
+    static let version = "2.1.3"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1981,7 +1988,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.3", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.4", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

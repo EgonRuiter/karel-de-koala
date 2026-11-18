@@ -25,15 +25,15 @@ The **RP2350 SuperMini** typically carries **4 MB (`4,096 KB`) QSPI Flash** (lea
 
 | Drive Path | Source File | Measured Size (Bytes) | Role |
 |---|---|---:|---|
-| `/boot.py` | `firmware/boot.py` | 2,949 B | USB label `KAREL`, host-RW remount, HID + Dual CDC, Dev Mode (`GP0`/`GP24`) |
-| `/code.py` | `firmware/code.py` | 19,639 B | RP2350 SuperMini Check-First `KAREL_PING` + `conhost --headless` `Win+R` launch (skips via `/.karel_no_hid`), Toggle (`GP15`/`GP24`), NeoPixel (`GP16`/`GP23`) |
+| `/boot.py` | `firmware/boot.py` | 3,169 B | USB label `KAREL`, `autoreload=False` (host-RW), HID + Dual CDC, Dev Mode (`GP0`/`GP24`) |
+| `/code.py` | `firmware/code.py` | 19,963 B | RP2350 SuperMini Check-First `KAREL_PING` + `conhost --headless` `Win+R` launch (skips via `/.karel_no_hid`), Toggle (`GP15`/`GP24`), NeoPixel (`GP16`/`GP23`) |
 | `/karel_native.exe` | `desktop/karel_native.exe` | 96,256 B | **Standard Zero-Install** Windows `.NET 4.x` host (54 anims, skins/outfits, Auto-Quiet, Serial LED, Tray, `UMBRELLA` glide, Mini-Hub, optioneel `0-popup` `--tray`, SHA-256 auto-updater) |
 | `/karel_sprites.gz` | `desktop/karel_sprites.gz` | 10,141 B | Shared compressed sprite pack (`54` anims, `194` frames) for macOS, Linux & source rebuilds |
-| `/karel_mac.swift` | `desktop/karel_mac.swift` | 87,966 B | macOS native Cocoa/AppKit mirror of `karel_native.cs` (`v2.1.2` + `CryptoKit` auto-updater) |
+| `/karel_mac.swift` | `desktop/karel_mac.swift` | 88,151 B | macOS native Cocoa/AppKit mirror of `karel_native.cs` (`v2.1.3` + `CryptoKit` auto-updater) |
 | `/build_mac.sh` | `desktop/build_mac.sh` | 3,067 B | Compiles Universal `Karel.app` (`arm64` + `x86_64`) on macOS (or via `.github/workflows/release.yml`) |
 | `/launch_karel.command` | `desktop/launch_karel.command` | 1,662 B | macOS launcher (`Karel.app` prebuilt / auto-build / `--python` fallback) |
 | `/karel_linux_x86_64` | `desktop/karel_linux_x86_64` | 84,240 B | **Prebuilt Zero-Install** Linux x86_64 ELF binary (full Windows/macOS parity + SHA-256 auto-updater) |
-| `/karel_linux.c` | `desktop/karel_linux.c` | 106,215 B | Linux C99 X11/XShape native host (pure C deflate, SHA-256, WAV, POSIX Serial, Mini-Hub, roam modes) |
+| `/karel_linux.c` | `desktop/karel_linux.c` | 106,323 B | Linux C99 X11/XShape native host (pure C deflate, SHA-256, WAV, POSIX Serial, Mini-Hub, roam modes) |
 | `/build_linux.sh` | `desktop/build_linux.sh` | 1,838 B | Compiles `karel_linux_<arch>` (84 KB) on Linux (WSL2 / Ubuntu / GitHub Action) |
 | `/launch_karel.sh` | `desktop/launch_karel.sh` | 1,689 B | Linux launcher (`noexec`-safe `/tmp` staging + `gcc` fallback / `--python`) |
 | `/karel.ico` | `desktop/karel.ico` | 15,086 B | Multi-size pixel Koala icon (`48/32/16`) for Windows Explorer drive branding & tray |

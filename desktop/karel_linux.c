@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.1.2"
+#define KAREL_VERSION "2.1.3"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -935,7 +935,9 @@ static void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev) {
             size_t rem = s->rlen - (size_t)(nl - s->rbuf) - 1;
             memmove(s->rbuf, nl + 1, rem); s->rlen = rem;
         }
-    } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) ser_drop(s);
+    } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) { ser_drop(s); return; }
+    static int hb = 0;
+    if (s->fd >= 0 && ++hb >= 16) { hb = 0; ser_send(s, "KAREL_PING"); }
 }
 
 /* Auto-updater helper: uses curl or wget + pure-C99 SHA-256 verification */
@@ -1904,7 +1906,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.3", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.4", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];

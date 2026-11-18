@@ -597,8 +597,14 @@ namespace KarelNative {
         }
 
         private void Loop() {
+            DateTime lastHb = DateTime.Now;
             while (!stopping) {
                 if (sp == null) { TryConnect(); Thread.Sleep(350); continue; }
+                if ((DateTime.Now - lastHb).TotalSeconds >= 1.0) {
+                    lastHb = DateTime.Now;
+                    Send("KAREL_PING");
+                    if (sp == null) continue;
+                }
                 try {
                     string line = sp.ReadLine();
                     if (!string.IsNullOrEmpty(line)) {
@@ -647,7 +653,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.1.2";
+        public const string Version = "2.1.3";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1863,7 +1869,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.3", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.1.4", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;

@@ -426,29 +426,37 @@ def main():
     if dev_mode:
         print("[KAREL] Dev/Safe Mode active (GP0/GP24). Skipping HID auto-launch.")
     else:
+        is_auto = False
+        try:
+            import supervisor
+            supervisor.runtime.autoreload = False
+            is_auto = supervisor.runtime.run_reason == supervisor.RunReason.AUTO_RELOAD
+        except Exception:
+            pass
         # Check on EVERY plug-in/reset if Karel is already running before firing HID!
         data_port = getattr(usb_cdc, "data", None)
         connected_existing = False
-        ping_deadline = time.monotonic() + (2.8 if rst_boot else 3.2)
+        ping_deadline = time.monotonic() + (2.8 if rst_boot else 4.5)
         extended_for_host = False
         while time.monotonic() < ping_deadline:
             now = time.monotonic()
-            rx_buffer, led_state, burst_type, burst_until, pinged, _ = _poll_serial_cmds(
+            rx_buffer, led_state, burst_type, burst_until, pinged, host_seen = _poll_serial_cmds(
                 rx_buffer, led_state, burst_type, burst_until, now,
             )
-            if pinged:
+            if pinged or host_seen:
                 connected_existing = True
-                send_serial_line("EVENT:RST_BOOP", force=True)
-                burst_type = "BOOP"
-                burst_until = now + 1.5
+                if pinged:
+                    send_serial_line("EVENT:RST_BOOP", force=True)
+                    burst_type = "BOOP"
+                    burst_until = now + 1.5
                 break
             if not extended_for_host and data_port is not None and data_port.connected:
                 extended_for_host = True
-                if now + 1.2 > ping_deadline:
-                    ping_deadline = now + 1.2
+                if now + 1.5 > ping_deadline:
+                    ping_deadline = now + 1.5
             update_led(px, led_state, now, burst_type, burst_until, mono_led)
             time.sleep(0.025)
-        if not connected_existing:
+        if not connected_existing and not is_auto:
             send_hid_autolaunch()
 
     pet_sensor = TouchOrSwitchInput(PET_TOUCH_PIN_NAME)

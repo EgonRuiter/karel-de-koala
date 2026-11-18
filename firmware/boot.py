@@ -85,6 +85,13 @@ if microcontroller is not None:
 
 if dev_mode:
     _flash_boot_cyan()
+else:
+    # Host writes save.json / updates directly onto KAREL USB: prevent endless auto-reload loops.
+    try:
+        import supervisor
+        supervisor.runtime.autoreload = False
+    except Exception:
+        pass
 
 # 2. Enable USB CDC Console (REPL), USB CDC Data Serial, and USB HID Keyboard.
 usb_cdc.enable(console=True, data=True)
