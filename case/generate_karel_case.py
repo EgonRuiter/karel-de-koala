@@ -6,8 +6,8 @@ overhanging USB-C, 1x left BOOT button + right-side GP16 WS2812 RGB LED, no onbo
 - Two-piece snap-fit enclosure (Bottom Base + Top Lid), zero screws/glue, zero supports needed.
 - Reinforced monolithic keychain eyelet (4.6 mm hole) integrated into the Bottom Base.
 - Front USB-C overmold-friendly cutout (12.2 x 5.3 mm, 1.9 mm cradle accommodating ~1.7-1.95 mm USB-C overhang).
-- Official SV Sticky Koala Head ("Kop-logo") debossed -0.6 mm into Top Lid exterior,
-  isolated from the wordmark and broadened slightly for crisp 0.4 mm FDM slicing.
+- Official SV Sticky Kop-logo ("het kwakje met het uitroepteken" — `hoofd_outline_kleur.png` from svsticky.nl/vereniging/huisstijl)
+  debossed -0.6 mm cleanly into the Top Lid exterior, broadened slightly for crisp 0.4 mm FDM slicing.
 - Definitive two-piece snap-fit STL set in case/stl/:
   1. karel_rp2350_bottom.stl: rigid snap-fit tray with 6 compliant crush ribs and monolithic keychain eyelet.
   2. karel_rp2350_top.stl: completely smooth, hole-free exterior with the "-0.6 mm Kop-logo"
@@ -1045,7 +1045,7 @@ def build_top_lid(
     led_cy = pcb_y0 + bcfg["led"][1]
     led_r = bcfg["led"][2]
 
-    # Symmetrically center upright Sticky Koala Kop-logo (11.8 x 19.8 mm) on lid top (X=0.00, Y=+0.20).
+    # Symmetrically center upright SV Sticky Kop-logo (hoofd_outline_kleur.png, 11.8 x 19.8 mm) on lid top (X=0.00, Y=+0.20).
     logo_w = 11.8
     plaque_x0, plaque_x1 = -7.00, 7.00
     plaque_y0, plaque_y1 = -10.80, 11.20
@@ -1054,7 +1054,10 @@ def build_top_lid(
         add_closed_poly(circle_poly(led_cx, led_cy, led_r, n=28))
     if with_boot_hole:
         add_closed_poly(circle_poly(boot_cx, boot_cy, boot_r, n=32))
-    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo_compact_outline_kleur.png")
+    assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+    logo_path = os.path.join(assets_dir, "hoofd_outline_kleur.png")
+    if not os.path.isfile(logo_path):
+        logo_path = os.path.join(assets_dir, "logo_compact_outline_kleur.png")
     p_verts, p_tris, p_in_logo, p_border = build_sticky_plaque_2d_mesh(
         logo_path=logo_path,
         x0=plaque_x0,
