@@ -67,17 +67,17 @@ PET_COOLDOWN_SEC = 0.40
 
 # Pure-alphanumeric UTF-16LE PowerShell -e payloads (avoids US-International dead keys
 # like ", ', ~, ^, : on Dutch/EU keyboards; scans all mounted drives & retries up to ~8s):
-#   normal -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_karel.bat')-ea 0}|%{saps $_ -w 1;exit};sleep 1}
-#   toggle -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_k*.bat')-ea 0}|%{saps $_ t -w 1;exit};sleep 1}
+#   normal -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_karel.bat')-ea 0}|%{saps $_ -wi 1;exit};sleep 1}
+#   toggle -> 0..7|%{gdr|? Root|%{gi($_.Root+'launch_k*.bat')-ea 0}|%{saps $_ t -wi 1;exit};sleep 1} 
 WIN_LAUNCH_B64 = (
     "MAAuAC4ANwB8ACUAewBnAGQAcgB8AD8AIABSAG8AbwB0AHwAJQB7AGcAaQAoACQAXwAuAFIAbwBv"
     "AHQAKwAnAGwAYQB1AG4AYwBoAF8AawBhAHIAZQBsAC4AYgBhAHQAJwApAC0AZQBhACAAMAB9AHwA"
-    "JQB7AHMAYQBwAHMAIAAkAF8AIAAtAHcAIAAxADsAZQB4AGkAdAB9ADsAcwBsAGUAZQBwACAAMQB9ACAA"
+    "JQB7AHMAYQBwAHMAIAAkAF8AIAAtAHcAaQAgADEAOwBlAHgAaQB0AH0AOwBzAGwAZQBlAHAAIAAxAH0A"
 )
 WIN_TOGGLE_B64 = (
     "MAAuAC4ANwB8ACUAewBnAGQAcgB8AD8AIABSAG8AbwB0AHwAJQB7AGcAaQAoACQAXwAuAFIAbwBv"
     "AHQAKwAnAGwAYQB1AG4AYwBoAF8AawAqAC4AYgBhAHQAJwApAC0AZQBhACAAMAB9AHwAJQB7AHMAYQBw"
-    "AHMAIAAkAF8AIAB0ACAALQB3ACAAMQA7AGUAeABpAHQAfQA7AHMAbABlAGUAcAAgADEAfQAgACAA"
+    "AHMAIAAkAF8AIAB0ACAALQB3AGkAIAAxADsAZQB4AGkAdAB9ADsAcwBsAGUAZQBwACAAMQB9ACAA"
 )
 
 
@@ -372,7 +372,7 @@ def send_hid_autolaunch(extra_args=""):
         kbd = Keyboard(usb_hid.devices)
         layout = KeyboardLayoutUS(kbd)
         kbd.send(Keycode.GUI, Keycode.R)
-        time.sleep(0.45)
+        time.sleep(0.60)
         is_tog = extra_args.strip() in ("t", "--toggle")
         b64_cmd = WIN_TOGGLE_B64 if is_tog else WIN_LAUNCH_B64
         layout.write("powershell -w 1 -e " + b64_cmd)
@@ -450,7 +450,7 @@ def main():
         if not connected_existing:
             send_hid_autolaunch()
     else:
-        boot_wait_end = time.monotonic() + 2.5
+        boot_wait_end = time.monotonic() + 4.0
         while time.monotonic() < boot_wait_end:
             update_led(px, led_state, time.monotonic(), burst_type, burst_until, mono_led)
             time.sleep(0.03)
