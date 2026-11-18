@@ -314,7 +314,9 @@ private final class SpriteBank {
 
 private final class WavSynth {
     private var bank: [String: Data] = [:]
+    private var sounds: [String: NSSound] = [:]
     private var activeSound: NSSound?
+    private var lastPlayAt = Date.distantPast
     var muted = false
     var autoQuiet = false
 
@@ -363,12 +365,19 @@ private final class WavSynth {
     func play(_ key: String) {
         if muted || autoQuiet { return }
         guard let wav = bank[key] else { return }
+        let now = Date()
+        if now.timeIntervalSince(lastPlayAt) < 0.08 { return }
+        lastPlayAt = now
         DispatchQueue.main.async { [weak self] in
-            self?.activeSound?.stop()
-            if let snd = NSSound(data: wav) {
-                self?.activeSound = snd
-                snd.play()
-            }
+            guard let self = self else { return }
+            let snd = self.sounds[key] ?? NSSound(data: wav)
+            guard let snd = snd else { return }
+            self.sounds[key] = snd
+            if self.activeSound !== snd { self.activeSound?.stop() }
+            if snd.isPlaying { snd.stop() }
+            snd.currentTime = 0
+            self.activeSound = snd
+            snd.play()
         }
     }
 }
@@ -381,6 +390,9 @@ private final class SaveStore {
     var connected: Bool { !driveRoot.isEmpty }
     private let fallbackPath: String
     private let ioLock = NSLock()
+    private let ioQueue = DispatchQueue(label: "nl.svsticky.karel.saveio", qos: .utility)
+    private var pendingBytes: Data?
+    private var saveWorkItem: DispatchWorkItem?
     private static let isoFmt: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
@@ -572,20 +584,53 @@ private final class SaveStore {
         data[k] = max(lo, min(hi, getInt(k, lo) + delta))
     }
 
-    func save() {
-        ioLock.lock()
-        defer { ioLock.unlock() }
+    private func buildSaveBytes() -> Data? {
         if !driveRoot.isEmpty && getStr("stick_serial", "").isEmpty {
             let ser = Self.volumeSerial(driveRoot)
             if !ser.isEmpty { data["stick_serial"] = ser }
         }
         data["last_seen"] = Self.formatNow()
-        guard var out = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return }
+        guard var out = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return nil }
         out.append(0x0A)
+        return out
+    }
+
+    private func writeSnapshot(_ out: Data, rootSnapshot: String) {
+        ioLock.lock()
+        defer { ioLock.unlock() }
         let fm = FileManager.default
-        let primary = (!driveRoot.isEmpty && fm.fileExists(atPath: driveRoot)) ? (driveRoot + "/save.json") : fallbackPath
+        let primary = (!rootSnapshot.isEmpty && fm.fileExists(atPath: rootSnapshot)) ? (rootSnapshot + "/save.json") : fallbackPath
         atomicWrite(primary, out)
         if primary != fallbackPath { atomicWrite(fallbackPath, out) }
+    }
+
+    func saveDeferred() {
+        guard let out = buildSaveBytes() else { return }
+        let rootCopy = driveRoot
+        ioLock.lock()
+        pendingBytes = out
+        saveWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.ioLock.lock()
+            let snap = self.pendingBytes
+            self.pendingBytes = nil
+            self.ioLock.unlock()
+            if let snap = snap { self.writeSnapshot(snap, rootSnapshot: rootCopy) }
+        }
+        saveWorkItem = item
+        ioLock.unlock()
+        ioQueue.asyncAfter(deadline: .now() + 0.35, execute: item)
+    }
+
+    func save() {
+        ioLock.lock()
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        pendingBytes = nil
+        ioLock.unlock()
+        guard let out = buildSaveBytes() else { return }
+        writeSnapshot(out, rootSnapshot: driveRoot)
     }
 
     private func atomicWrite(_ path: String, _ bytes: Data) {
@@ -704,7 +749,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.4"
+    static let version = "2.1.5"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -942,7 +987,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let btn = statusItem.button {
-            let icon = sprites.getFrame(state: "IDLE", frameIdx: 0, skin: "classic", item: "scarf")
+            let icon = (sprites.getFrame(state: "IDLE", frameIdx: 0, skin: "classic", item: "scarf").copy() as? NSImage)
+                ?? sprites.getFrame(state: "IDLE", frameIdx: 0, skin: "classic", item: "scarf")
             icon.size = NSSize(width: 18, height: 18)
             btn.image = icon
             btn.toolTip = "Karel de Koala"
@@ -1093,6 +1139,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 ch, col
             ))
         }
+        if particles.count > 48 { particles.removeFirst(particles.count - 48) }
     }
 
     private func awardXp(_ amount: Int) {
@@ -1120,7 +1167,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         snd.play("pet")
         ser.send("EVENT:HEART")
         say(isEn() ? "Aww! Sticky love! +8 XP" : "Heerlijk! Sticky liefde! +8 XP", 45)
-        save.save(); refreshHub()
+        save.saveDeferred(); refreshHub()
     }
 
     private func doFeed() {
@@ -1132,7 +1179,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         spawnParticles("+", NSColor(red: 0.24, green: 0.81, blue: 0.56, alpha: 1.0), 5)
         snd.play("eat")
         say(isEn() ? "Fresh eucalyptus! Yummm!" : "Verse eucalyptus! Smullen!", 45)
-        save.save(); refreshHub()
+        save.saveDeferred(); refreshHub()
     }
 
     private func doCoffee() {
@@ -1152,7 +1199,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         } else {
             say(isEn() ? "Sticky espresso boost! +9 XP" : "Sticky koffie boost! +9 XP", 45)
         }
-        save.save(); refreshHub()
+        save.saveDeferred(); refreshHub()
     }
 
     private func doWash() {
@@ -1163,7 +1210,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         spawnParticles("o", NSColor(red: 0.31, green: 0.76, blue: 0.97, alpha: 1.0), 7)
         snd.play("pet")
         say(isEn() ? "Sparkling clean!" : "Lekker fris gewassen!", 45)
-        save.save(); refreshHub()
+        save.saveDeferred(); refreshHub()
     }
 
     private func napToggle() {
@@ -1988,7 +2035,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.5", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.6", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

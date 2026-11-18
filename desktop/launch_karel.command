@@ -34,6 +34,7 @@ if [ ! -d "$APP" ] && [ -f "$BUILD_SH" ] && xcode-select -p >/dev/null 2>&1 && c
 fi
 
 if [ -d "$APP" ]; then
+    chmod +x "$APP/Contents/MacOS/Karel" 2>/dev/null || true
     if [ "$#" -gt 0 ]; then
         open -a "$APP" --args "$@"
     else
