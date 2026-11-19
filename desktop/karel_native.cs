@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.3.1.0")]
-[assembly: AssemblyFileVersion("2.3.1.0")]
+[assembly: AssemblyVersion("2.4.0.0")]
+[assembly: AssemblyFileVersion("2.4.0.0")]
 
 namespace KarelNative {
 
@@ -156,7 +156,14 @@ namespace KarelNative {
         private static readonly HashSet<string> SkipOverlayStates = new HashSet<string>(new string[] {
             "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
             "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-            "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING"
+            "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
+            "CELEBRATE", "JETPACK", "STUDY"
+        });
+        private static readonly HashSet<string> SkipHeadStates = new HashSet<string>(new string[] {
+            "JUMP", "HYPER", "SNEEZE"
+        });
+        private static readonly HashSet<string> SkipTorsoStates = new HashSet<string>(new string[] {
+            "DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL"
         });
 
         public static SpriteBank LoadEmbedded() {
@@ -229,33 +236,67 @@ namespace KarelNative {
 
         private static void ApplyOutfitAndTime(char[,] g, string st, string item, bool tired, bool vm) {
             if (SkipOverlayStates.Contains(st)) return;
-            if (item == "scarf") {
-                FillRect(g, 10, 17, 21, 18, 'r'); FillRect(g, 17, 19, 18, 22, 'r');
+            bool skipHead = SkipHeadStates.Contains(st);
+            bool skipTorso = SkipTorsoStates.Contains(st);
+            if (item == "scarf" && !skipTorso) {
+                FillRect(g, 9, 17, 22, 18, 'r');
+                PutPx(g, 9, 17, 'k'); PutPx(g, 22, 17, 'k');
+                for (int x = 11; x <= 20; x += 3) PutPx(g, x, 17, 'W');
                 for (int x = 10; x <= 21; x += 3) PutPx(g, x, 18, 'R');
-            } else if (item == "stickycap" && st != "JUMP") {
-                FillRect(g, 9, 4, 22, 5, 'r'); FillRect(g, 11, 2, 20, 4, 'r'); FillRect(g, 19, 5, 25, 5, 'R');
-                PutPx(g, 15, 3, 'W'); PutPx(g, 16, 3, 'W');
-            } else if (item == "hoodie") {
-                FillRect(g, 8, 19, 11, 20, 'r'); FillRect(g, 20, 19, 23, 20, 'r'); FillRect(g, 11, 24, 20, 25, 'r');
-            } else if (item == "headphones" && st != "JUMP") {
-                FillRect(g, 3, 7, 4, 11, 'r'); FillRect(g, 27, 7, 28, 11, 'r'); FillRect(g, 7, 4, 24, 4, 'd');
+                FillRect(g, 17, 19, 19, 22, 'r');
+                PutPx(g, 18, 20, 'W'); PutPx(g, 17, 21, 'R'); PutPx(g, 19, 21, 'R');
+                PutPx(g, 17, 23, 'W'); PutPx(g, 19, 23, 'W');
+            } else if (item == "stickycap" && !skipHead) {
+                FillRect(g, 11, 1, 20, 1, 'k');
+                FillRect(g, 10, 2, 21, 4, 'r');
+                PutPx(g, 10, 2, 'k'); PutPx(g, 21, 2, 'k');
+                FillRect(g, 9, 5, 18, 5, 'k');
+                FillRect(g, 19, 5, 25, 5, 'R'); PutPx(g, 25, 5, 'k');
+                PutPx(g, 15, 3, 'W'); PutPx(g, 16, 3, 'W'); PutPx(g, 15, 4, 'W');
+            } else if (item == "hoodie" && !skipTorso) {
+                FillRect(g, 9, 17, 22, 18, 'R');
+                FillRect(g, 10, 18, 21, 24, 'r');
+                FillRect(g, 7, 19, 9, 22, 'r'); FillRect(g, 22, 19, 24, 22, 'r');
+                PutPx(g, 7, 22, 'R'); PutPx(g, 24, 22, 'R');
+                FillRect(g, 13, 21, 18, 23, 'R');
+                FillRect(g, 10, 24, 21, 24, 'R');
+                PutPx(g, 14, 19, 'W'); PutPx(g, 14, 20, 'W');
+                PutPx(g, 17, 19, 'W'); PutPx(g, 17, 20, 'W');
+            } else if (item == "headphones" && !skipHead) {
+                FillRect(g, 8, 3, 23, 3, 's'); FillRect(g, 7, 4, 24, 4, 'd');
                 PutPx(g, 5, 6, 'd'); PutPx(g, 6, 5, 'd'); PutPx(g, 25, 5, 'd'); PutPx(g, 26, 6, 'd');
-            } else if (item == "shades" && st != "JUMP") {
-                FillRect(g, 10, 10, 13, 12, 'k'); FillRect(g, 18, 10, 21, 12, 'k'); FillRect(g, 14, 11, 17, 11, 'd');
-                PutPx(g, 11, 11, 'W'); PutPx(g, 19, 11, 'W');
-            } else if (item == "crown" && st != "JUMP") {
-                FillRect(g, 12, 3, 19, 5, 'y');
-                PutPx(g, 12, 2, 'y'); PutPx(g, 15, 1, 'y'); PutPx(g, 16, 1, 'y'); PutPx(g, 19, 2, 'y');
-                PutPx(g, 15, 4, 'R'); PutPx(g, 16, 4, 'R'); PutPx(g, 11, 5, 'k'); PutPx(g, 20, 5, 'k');
-            } else if (item == "wizard" && st != "JUMP") {
-                FillRect(g, 9, 4, 22, 5, 'm'); FillRect(g, 12, 2, 19, 3, 'm');
-                FillRect(g, 14, 0, 17, 1, 'm'); FillRect(g, 11, 4, 20, 4, 'y');
+                FillRect(g, 2, 7, 4, 11, 'k'); FillRect(g, 27, 7, 29, 11, 'k');
+                FillRect(g, 3, 8, 4, 10, 'r'); FillRect(g, 27, 8, 28, 10, 'r');
+                PutPx(g, 5, 8, 'w'); PutPx(g, 5, 9, 'w'); PutPx(g, 5, 10, 'w');
+                PutPx(g, 26, 8, 'w'); PutPx(g, 26, 9, 'w'); PutPx(g, 26, 10, 'w');
+            } else if (item == "shades" && !skipHead) {
+                FillRect(g, 9, 10, 14, 12, 'k'); FillRect(g, 17, 10, 22, 12, 'k');
+                FillRect(g, 10, 11, 13, 12, 'd'); FillRect(g, 18, 11, 21, 12, 'd');
+                FillRect(g, 14, 10, 17, 10, 'k'); PutPx(g, 8, 10, 'k'); PutPx(g, 23, 10, 'k');
+                PutPx(g, 10, 11, 'W'); PutPx(g, 11, 11, 'W');
+                PutPx(g, 18, 11, 'W'); PutPx(g, 19, 11, 'W');
+            } else if (item == "crown" && !skipHead) {
+                FillRect(g, 11, 5, 20, 5, 'k');
+                FillRect(g, 11, 3, 20, 4, 'y');
+                PutPx(g, 11, 1, 'y'); PutPx(g, 11, 2, 'y');
+                PutPx(g, 15, 1, 'y'); PutPx(g, 16, 1, 'y'); PutPx(g, 15, 2, 'y'); PutPx(g, 16, 2, 'y');
+                PutPx(g, 20, 1, 'y'); PutPx(g, 20, 2, 'y');
+                PutPx(g, 13, 3, 'Y'); PutPx(g, 18, 3, 'Y');
+                PutPx(g, 15, 4, 'R'); PutPx(g, 16, 4, 'R');
+                PutPx(g, 12, 4, 'b'); PutPx(g, 19, 4, 'b');
+            } else if (item == "wizard" && !skipHead) {
+                FillRect(g, 8, 5, 23, 5, 'k');
+                FillRect(g, 9, 4, 22, 4, 'm'); FillRect(g, 11, 4, 20, 4, 'y');
+                FillRect(g, 12, 2, 19, 3, 'm');
+                FillRect(g, 14, 0, 17, 1, 'm'); PutPx(g, 18, 0, 'm');
                 PutPx(g, 15, 2, 'y'); PutPx(g, 16, 1, 'W');
-            } else if (item == "partyhat" && st != "JUMP") {
-                FillRect(g, 13, 3, 18, 5, 'm'); FillRect(g, 14, 1, 17, 2, 'R');
-                PutPx(g, 15, 0, 'y'); PutPx(g, 16, 0, 'y'); PutPx(g, 14, 4, 'y'); PutPx(g, 17, 3, 'b');
+            } else if (item == "partyhat" && !skipHead) {
+                FillRect(g, 12, 5, 19, 5, 'k');
+                FillRect(g, 13, 3, 18, 4, 'm'); FillRect(g, 14, 1, 17, 2, 'R');
+                PutPx(g, 15, 0, 'y'); PutPx(g, 16, 0, 'W');
+                PutPx(g, 14, 4, 'y'); PutPx(g, 17, 4, 'b'); PutPx(g, 15, 2, 'y');
             }
-            if (tired && st != "HYPER" && st != "JUMP") {
+            if (tired && !skipHead) {
                 int[] xs = { 11, 12, 19, 20 }, ys = { 11, 13 };
                 for (int ix = 0; ix < xs.Length; ix++)
                     for (int iy = 0; iy < ys.Length; iy++) PutPx(g, xs[ix], ys[iy], 's');
@@ -787,7 +828,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.3.1";
+        public const string Version = "2.4.0";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -905,7 +946,7 @@ namespace KarelNative {
                     }
                     string cmdPath = Path.Combine(Path.GetTempPath(), "karel_upd.cmd");
                     string script = string.Format(
-                        "@echo off\r\n:wait\r\ntimeout /t 1 /nobreak >nul\r\ncopy /Y \"{0}\" \"{1}\" >nul 2>&1\r\nif errorlevel 1 goto :wait\r\ndel \"{0}\" >nul 2>&1\r\n{2}start \"\" \"{1}\" --updated-from={3}\r\ndel \"%~f0\"\r\n",
+                        "@echo off\r\nset /a n=0\r\n:wait\r\ntimeout /t 1 /nobreak >nul\r\nset /a n+=1\r\ncopy /Y \"{0}\" \"{1}\" >nul 2>&1\r\nif errorlevel 1 if %n% LSS 15 goto :wait\r\ndel \"{0}\" >nul 2>&1\r\n{2}start \"\" \"{1}\" --updated-from={3} --no-ask\r\ndel \"%~f0\"\r\n",
                         stageNew, curExe, usbCopyCmd, remVer
                     );
                     File.WriteAllText(cmdPath, script, Encoding.Default);
@@ -2299,7 +2340,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.3.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.4.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;

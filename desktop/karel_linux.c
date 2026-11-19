@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.3.1"
+#define KAREL_VERSION "2.4.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -367,9 +367,20 @@ static int skip_overlay(const char *st) {
     static const char *skip[] = {
         "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
         "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING", NULL
+        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
+        "CELEBRATE", "JETPACK", "STUDY", NULL
     };
     for (int i = 0; skip[i]; i++) if (strcmp(st, skip[i]) == 0) return 1;
+    return 0;
+}
+
+static int skip_head(const char *st) {
+    return strcmp(st, "JUMP") == 0 || strcmp(st, "HYPER") == 0 || strcmp(st, "SNEEZE") == 0;
+}
+
+static int skip_torso(const char *st) {
+    static const char *sk[] = {"DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", NULL};
+    for (int i = 0; sk[i]; i++) if (strcmp(st, sk[i]) == 0) return 1;
     return 0;
 }
 
@@ -495,33 +506,66 @@ static void render_frame_rgba(const SpriteBank *sb, const char *req_st, int fram
     int vm = lt && lt->tm_wday == 5 && lt->tm_hour >= 16;
 
     if (!skip_overlay(st) && item) {
-        if (strcmp(item, "scarf") == 0) {
-            g_rect(g, 10, 17, 21, 18, 'r'); g_rect(g, 17, 19, 18, 22, 'r');
+        int sk_h = skip_head(st), sk_t = skip_torso(st);
+        if (strcmp(item, "scarf") == 0 && !sk_t) {
+            g_rect(g, 9, 17, 22, 18, 'r');
+            g_px(g, 9, 17, 'k'); g_px(g, 22, 17, 'k');
+            for (int x = 11; x <= 20; x += 3) g_px(g, x, 17, 'W');
             for (int x = 10; x <= 21; x += 3) g_px(g, x, 18, 'R');
-        } else if (strcmp(item, "stickycap") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 9, 4, 22, 5, 'r'); g_rect(g, 11, 2, 20, 4, 'r'); g_rect(g, 19, 5, 25, 5, 'R');
-            g_px(g, 15, 3, 'W'); g_px(g, 16, 3, 'W');
-        } else if (strcmp(item, "hoodie") == 0) {
-            g_rect(g, 8, 19, 11, 20, 'r'); g_rect(g, 20, 19, 23, 20, 'r'); g_rect(g, 11, 24, 20, 25, 'r');
-        } else if (strcmp(item, "headphones") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 3, 7, 4, 11, 'r'); g_rect(g, 27, 7, 28, 11, 'r'); g_rect(g, 7, 4, 24, 4, 'd');
+            g_rect(g, 17, 19, 19, 22, 'r');
+            g_px(g, 18, 20, 'W'); g_px(g, 17, 21, 'R'); g_px(g, 19, 21, 'R');
+            g_px(g, 17, 23, 'W'); g_px(g, 19, 23, 'W');
+        } else if (strcmp(item, "stickycap") == 0 && !sk_h) {
+            g_rect(g, 11, 1, 20, 1, 'k');
+            g_rect(g, 10, 2, 21, 4, 'r');
+            g_px(g, 10, 2, 'k'); g_px(g, 21, 2, 'k');
+            g_rect(g, 9, 5, 18, 5, 'k');
+            g_rect(g, 19, 5, 25, 5, 'R'); g_px(g, 25, 5, 'k');
+            g_px(g, 15, 3, 'W'); g_px(g, 16, 3, 'W'); g_px(g, 15, 4, 'W');
+        } else if (strcmp(item, "hoodie") == 0 && !sk_t) {
+            g_rect(g, 9, 17, 22, 18, 'R');
+            g_rect(g, 10, 18, 21, 24, 'r');
+            g_rect(g, 7, 19, 9, 22, 'r'); g_rect(g, 22, 19, 24, 22, 'r');
+            g_px(g, 7, 22, 'R'); g_px(g, 24, 22, 'R');
+            g_rect(g, 13, 21, 18, 23, 'R');
+            g_rect(g, 10, 24, 21, 24, 'R');
+            g_px(g, 14, 19, 'W'); g_px(g, 14, 20, 'W');
+            g_px(g, 17, 19, 'W'); g_px(g, 17, 20, 'W');
+        } else if (strcmp(item, "headphones") == 0 && !sk_h) {
+            g_rect(g, 8, 3, 23, 3, 's'); g_rect(g, 7, 4, 24, 4, 'd');
             g_px(g, 5, 6, 'd'); g_px(g, 6, 5, 'd'); g_px(g, 25, 5, 'd'); g_px(g, 26, 6, 'd');
-        } else if (strcmp(item, "shades") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 10, 10, 13, 12, 'k'); g_rect(g, 18, 10, 21, 12, 'k'); g_rect(g, 14, 11, 17, 11, 'd');
-            g_px(g, 11, 11, 'W'); g_px(g, 19, 11, 'W');
-        } else if (strcmp(item, "crown") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 12, 3, 19, 5, 'y');
-            g_px(g, 12, 2, 'y'); g_px(g, 15, 1, 'y'); g_px(g, 16, 1, 'y'); g_px(g, 19, 2, 'y');
-            g_px(g, 15, 4, 'R'); g_px(g, 16, 4, 'R'); g_px(g, 11, 5, 'k'); g_px(g, 20, 5, 'k');
-        } else if (strcmp(item, "wizard") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 9, 4, 22, 5, 'm'); g_rect(g, 12, 2, 19, 3, 'm');
-            g_rect(g, 14, 0, 17, 1, 'm'); g_rect(g, 11, 4, 20, 4, 'y');
+            g_rect(g, 2, 7, 4, 11, 'k'); g_rect(g, 27, 7, 29, 11, 'k');
+            g_rect(g, 3, 8, 4, 10, 'r'); g_rect(g, 27, 8, 28, 10, 'r');
+            g_px(g, 5, 8, 'w'); g_px(g, 5, 9, 'w'); g_px(g, 5, 10, 'w');
+            g_px(g, 26, 8, 'w'); g_px(g, 26, 9, 'w'); g_px(g, 26, 10, 'w');
+        } else if (strcmp(item, "shades") == 0 && !sk_h) {
+            g_rect(g, 9, 10, 14, 12, 'k'); g_rect(g, 17, 10, 22, 12, 'k');
+            g_rect(g, 10, 11, 13, 12, 'd'); g_rect(g, 18, 11, 21, 12, 'd');
+            g_rect(g, 14, 10, 17, 10, 'k'); g_px(g, 8, 10, 'k'); g_px(g, 23, 10, 'k');
+            g_px(g, 10, 11, 'W'); g_px(g, 11, 11, 'W');
+            g_px(g, 18, 11, 'W'); g_px(g, 19, 11, 'W');
+        } else if (strcmp(item, "crown") == 0 && !sk_h) {
+            g_rect(g, 11, 5, 20, 5, 'k');
+            g_rect(g, 11, 3, 20, 4, 'y');
+            g_px(g, 11, 1, 'y'); g_px(g, 11, 2, 'y');
+            g_px(g, 15, 1, 'y'); g_px(g, 16, 1, 'y'); g_px(g, 15, 2, 'y'); g_px(g, 16, 2, 'y');
+            g_px(g, 20, 1, 'y'); g_px(g, 20, 2, 'y');
+            g_px(g, 13, 3, 'Y'); g_px(g, 18, 3, 'Y');
+            g_px(g, 15, 4, 'R'); g_px(g, 16, 4, 'R');
+            g_px(g, 12, 4, 'b'); g_px(g, 19, 4, 'b');
+        } else if (strcmp(item, "wizard") == 0 && !sk_h) {
+            g_rect(g, 8, 5, 23, 5, 'k');
+            g_rect(g, 9, 4, 22, 4, 'm'); g_rect(g, 11, 4, 20, 4, 'y');
+            g_rect(g, 12, 2, 19, 3, 'm');
+            g_rect(g, 14, 0, 17, 1, 'm'); g_px(g, 18, 0, 'm');
             g_px(g, 15, 2, 'y'); g_px(g, 16, 1, 'W');
-        } else if (strcmp(item, "partyhat") == 0 && strcmp(st, "JUMP") != 0) {
-            g_rect(g, 13, 3, 18, 5, 'm'); g_rect(g, 14, 1, 17, 2, 'R');
-            g_px(g, 15, 0, 'y'); g_px(g, 16, 0, 'y'); g_px(g, 14, 4, 'y'); g_px(g, 17, 3, 'b');
+        } else if (strcmp(item, "partyhat") == 0 && !sk_h) {
+            g_rect(g, 12, 5, 19, 5, 'k');
+            g_rect(g, 13, 3, 18, 4, 'm'); g_rect(g, 14, 1, 17, 2, 'R');
+            g_px(g, 15, 0, 'y'); g_px(g, 16, 0, 'W');
+            g_px(g, 14, 4, 'y'); g_px(g, 17, 4, 'b'); g_px(g, 15, 2, 'y');
         }
-        if (tired && strcmp(st, "HYPER") != 0 && strcmp(st, "JUMP") != 0) {
+        if (tired && !sk_h) {
             int xs[4] = {11, 12, 19, 20}, ys[2] = {11, 13};
             for (int ix = 0; ix < 4; ix++) for (int iy = 0; iy < 2; iy++) g_px(g, xs[ix], ys[iy], 's');
         }
@@ -998,7 +1042,6 @@ static void start_updater_async(const char *drive_root, const char *self_exe, co
         return;
     }
     close(pfd[0]);
-    sleep_ms(3500);
     size_t mlen = 0;
     uint8_t *mraw = http_get_bytes(KAREL_MANIFEST_URL, &mlen);
     if (mraw && mlen > 10) {
@@ -1018,7 +1061,9 @@ static void start_updater_async(const char *drive_root, const char *self_exe, co
         json_find_str((const char *)mraw, "code_py_sha256", fw_sha, sizeof(fw_sha));
         free(mraw);
 
-        if (*rem_ver && compare_ver(rem_ver, KAREL_VERSION) > 0 && (!*updated_from || compare_ver(rem_ver, updated_from) != 0) && *bin_url && *bin_sha) {
+        if (!*rem_ver || compare_ver(rem_ver, KAREL_VERSION) <= 0 || (*updated_from && compare_ver(rem_ver, updated_from) == 0)) {
+            (void)!write(pfd[1], "UPTODATE", 8);
+        } else if (*bin_url && *bin_sha) {
             if (*drive_root) {
                 char bootp[600], codep[600];
                 snprintf(bootp, sizeof(bootp), "%.500s/boot.py", drive_root);
@@ -1041,17 +1086,23 @@ static void start_updater_async(const char *drive_root, const char *self_exe, co
             if (write_verified_file(self_exe, bin_url, bin_sha, 20000)) {
                 chmod(self_exe, 0755);
                 if (*drive_root) {
-                    char usb_b[600];
-                    snprintf(usb_b, sizeof(usb_b), "%.500s/karel_linux_x86_64", drive_root);
-                    (void)write_verified_file(usb_b, bin_url, bin_sha, 20000);
-                    snprintf(usb_b, sizeof(usb_b), "%.500s/karel_linux", drive_root);
-                    (void)write_verified_file(usb_b, bin_url, bin_sha, 20000);
+                    char usb_dot[600], usb_old[600];
+                    snprintf(usb_dot, sizeof(usb_dot), "%.500s/.karel_linux_x86_64", drive_root);
+                    snprintf(usb_old, sizeof(usb_old), "%.500s/karel_linux_x86_64", drive_root);
+                    (void)write_verified_file(file_exists(usb_dot) || !file_exists(usb_old) ? usb_dot : usb_old, bin_url, bin_sha, 20000);
                 }
-                char msg[48]; snprintf(msg, sizeof(msg), "%.31s", rem_ver);
+                char msg[48]; snprintf(msg, sizeof(msg), "OK:%.31s", rem_ver);
                 (void)!write(pfd[1], msg, strlen(msg));
+            } else {
+                (void)!write(pfd[1], "ERROR", 5);
             }
+        } else {
+            (void)!write(pfd[1], "ERROR", 5);
         }
-    } else free(mraw);
+    } else {
+        free(mraw);
+        (void)!write(pfd[1], "OFFLINE", 7);
+    }
     close(pfd[1]);
     _exit(0);
 }
@@ -1746,13 +1797,26 @@ static void step_physics(KarelApp *k) {
     }
 
     if (k->upd_pipe >= 0) {
-        char buf[32]; ssize_t nr = read(k->upd_pipe, buf, sizeof(buf) - 1);
+        char buf[48]; ssize_t nr = read(k->upd_pipe, buf, sizeof(buf) - 1);
         if (nr > 0) {
-            buf[nr] = 0; snprintf(k->upd_ver, sizeof(k->upd_ver), "%.31s", buf);
-            close(k->upd_pipe); k->upd_pipe = -1; k->quit_req = 2;
-            say_msg(k, is_en(k) ? "Update installed! Restarting..." : "Update klaar! Herstarten...", 50);
-            paint_karel(k); XFlush(k->dpy); sleep_ms(500);
-            return;
+            buf[nr] = 0;
+            close(k->upd_pipe); k->upd_pipe = -1;
+            if (strncmp(buf, "OK:", 3) == 0) {
+                snprintf(k->upd_ver, sizeof(k->upd_ver), "%.31s", buf + 3);
+                k->quit_req = 2;
+                say_msg(k, is_en(k) ? "Update installed! Restarting..." : "Update klaar! Herstarten...", 50);
+                paint_karel(k); XFlush(k->dpy); sleep_ms(500);
+                return;
+            } else if (strcmp(buf, "UPTODATE") == 0) {
+                char um[64]; snprintf(um, sizeof(um), is_en(k) ? "Up to date (v%s)!" : "Al nieuwste versie (v%s)!", KAREL_VERSION);
+                say_msg(k, um, 65);
+            } else if (strcmp(buf, "OFFLINE") == 0) {
+                say_msg(k, is_en(k) ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60);
+            } else {
+                say_msg(k, is_en(k) ? "Update check failed." : "Update-check mislukt.", 60);
+            }
+        } else if (nr == 0) {
+            close(k->upd_pipe); k->upd_pipe = -1;
         }
     }
 
@@ -2021,7 +2085,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.3.2", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.4.1", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];

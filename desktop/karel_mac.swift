@@ -107,8 +107,11 @@ private final class SpriteBank {
     private static let skipOverlayStates: Set<String> = [
         "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
         "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING"
+        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
+        "CELEBRATE", "JETPACK", "STUDY"
     ]
+    private static let skipHeadStates: Set<String> = ["JUMP", "HYPER", "SNEEZE"]
+    private static let skipTorsoStates: Set<String> = ["DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL"]
 
     var states: [String: [[String]]] = [:]
     var animDiv: [String: Int] = [:]
@@ -214,35 +217,69 @@ private final class SpriteBank {
 
     private static func applyOutfitAndTime(_ g: inout [[Character]], st: String, item: String, tired: Bool, vm: Bool) {
         if skipOverlayStates.contains(st) { return }
+        let skipHead = skipHeadStates.contains(st)
+        let skipTorso = skipTorsoStates.contains(st)
         switch item {
-        case "scarf":
-            fillRect(&g, 10, 17, 21, 18, "r"); fillRect(&g, 17, 19, 18, 22, "r")
+        case "scarf" where !skipTorso:
+            fillRect(&g, 9, 17, 22, 18, "r")
+            putPx(&g, 9, 17, "k"); putPx(&g, 22, 17, "k")
+            for x in stride(from: 11, through: 20, by: 3) { putPx(&g, x, 17, "W") }
             for x in stride(from: 10, through: 21, by: 3) { putPx(&g, x, 18, "R") }
-        case "stickycap" where st != "JUMP":
-            fillRect(&g, 9, 4, 22, 5, "r"); fillRect(&g, 11, 2, 20, 4, "r"); fillRect(&g, 19, 5, 25, 5, "R")
-            putPx(&g, 15, 3, "W"); putPx(&g, 16, 3, "W")
-        case "hoodie":
-            fillRect(&g, 8, 19, 11, 20, "r"); fillRect(&g, 20, 19, 23, 20, "r"); fillRect(&g, 11, 24, 20, 25, "r")
-        case "headphones" where st != "JUMP":
-            fillRect(&g, 3, 7, 4, 11, "r"); fillRect(&g, 27, 7, 28, 11, "r"); fillRect(&g, 7, 4, 24, 4, "d")
+            fillRect(&g, 17, 19, 19, 22, "r")
+            putPx(&g, 18, 20, "W"); putPx(&g, 17, 21, "R"); putPx(&g, 19, 21, "R")
+            putPx(&g, 17, 23, "W"); putPx(&g, 19, 23, "W")
+        case "stickycap" where !skipHead:
+            fillRect(&g, 11, 1, 20, 1, "k")
+            fillRect(&g, 10, 2, 21, 4, "r")
+            putPx(&g, 10, 2, "k"); putPx(&g, 21, 2, "k")
+            fillRect(&g, 9, 5, 18, 5, "k")
+            fillRect(&g, 19, 5, 25, 5, "R"); putPx(&g, 25, 5, "k")
+            putPx(&g, 15, 3, "W"); putPx(&g, 16, 3, "W"); putPx(&g, 15, 4, "W")
+        case "hoodie" where !skipTorso:
+            fillRect(&g, 9, 17, 22, 18, "R")
+            fillRect(&g, 10, 18, 21, 24, "r")
+            fillRect(&g, 7, 19, 9, 22, "r"); fillRect(&g, 22, 19, 24, 22, "r")
+            putPx(&g, 7, 22, "R"); putPx(&g, 24, 22, "R")
+            fillRect(&g, 13, 21, 18, 23, "R")
+            fillRect(&g, 10, 24, 21, 24, "R")
+            putPx(&g, 14, 19, "W"); putPx(&g, 14, 20, "W")
+            putPx(&g, 17, 19, "W"); putPx(&g, 17, 20, "W")
+        case "headphones" where !skipHead:
+            fillRect(&g, 8, 3, 23, 3, "s"); fillRect(&g, 7, 4, 24, 4, "d")
             putPx(&g, 5, 6, "d"); putPx(&g, 6, 5, "d"); putPx(&g, 25, 5, "d"); putPx(&g, 26, 6, "d")
-        case "shades" where st != "JUMP":
-            fillRect(&g, 10, 10, 13, 12, "k"); fillRect(&g, 18, 10, 21, 12, "k"); fillRect(&g, 14, 11, 17, 11, "d")
-            putPx(&g, 11, 11, "W"); putPx(&g, 19, 11, "W")
-        case "crown" where st != "JUMP":
-            fillRect(&g, 12, 3, 19, 5, "y")
-            putPx(&g, 12, 2, "y"); putPx(&g, 15, 1, "y"); putPx(&g, 16, 1, "y"); putPx(&g, 19, 2, "y")
-            putPx(&g, 15, 4, "R"); putPx(&g, 16, 4, "R"); putPx(&g, 11, 5, "k"); putPx(&g, 20, 5, "k")
-        case "wizard" where st != "JUMP":
-            fillRect(&g, 9, 4, 22, 5, "m"); fillRect(&g, 12, 2, 19, 3, "m")
-            fillRect(&g, 14, 0, 17, 1, "m"); fillRect(&g, 11, 4, 20, 4, "y")
+            fillRect(&g, 2, 7, 4, 11, "k"); fillRect(&g, 27, 7, 29, 11, "k")
+            fillRect(&g, 3, 8, 4, 10, "r"); fillRect(&g, 27, 8, 28, 10, "r")
+            putPx(&g, 5, 8, "w"); putPx(&g, 5, 9, "w"); putPx(&g, 5, 10, "w")
+            putPx(&g, 26, 8, "w"); putPx(&g, 26, 9, "w"); putPx(&g, 26, 10, "w")
+        case "shades" where !skipHead:
+            fillRect(&g, 9, 10, 14, 12, "k"); fillRect(&g, 17, 10, 22, 12, "k")
+            fillRect(&g, 10, 11, 13, 12, "d"); fillRect(&g, 18, 11, 21, 12, "d")
+            fillRect(&g, 14, 10, 17, 10, "k"); putPx(&g, 8, 10, "k"); putPx(&g, 23, 10, "k")
+            putPx(&g, 10, 11, "W"); putPx(&g, 11, 11, "W")
+            putPx(&g, 18, 11, "W"); putPx(&g, 19, 11, "W")
+        case "crown" where !skipHead:
+            fillRect(&g, 11, 5, 20, 5, "k")
+            fillRect(&g, 11, 3, 20, 4, "y")
+            putPx(&g, 11, 1, "y"); putPx(&g, 11, 2, "y")
+            putPx(&g, 15, 1, "y"); putPx(&g, 16, 1, "y"); putPx(&g, 15, 2, "y"); putPx(&g, 16, 2, "y")
+            putPx(&g, 20, 1, "y"); putPx(&g, 20, 2, "y")
+            putPx(&g, 13, 3, "Y"); putPx(&g, 18, 3, "Y")
+            putPx(&g, 15, 4, "R"); putPx(&g, 16, 4, "R")
+            putPx(&g, 12, 4, "b"); putPx(&g, 19, 4, "b")
+        case "wizard" where !skipHead:
+            fillRect(&g, 8, 5, 23, 5, "k")
+            fillRect(&g, 9, 4, 22, 4, "m"); fillRect(&g, 11, 4, 20, 4, "y")
+            fillRect(&g, 12, 2, 19, 3, "m")
+            fillRect(&g, 14, 0, 17, 1, "m"); putPx(&g, 18, 0, "m")
             putPx(&g, 15, 2, "y"); putPx(&g, 16, 1, "W")
-        case "partyhat" where st != "JUMP":
-            fillRect(&g, 13, 3, 18, 5, "m"); fillRect(&g, 14, 1, 17, 2, "R")
-            putPx(&g, 15, 0, "y"); putPx(&g, 16, 0, "y"); putPx(&g, 14, 4, "y"); putPx(&g, 17, 3, "b")
+        case "partyhat" where !skipHead:
+            fillRect(&g, 12, 5, 19, 5, "k")
+            fillRect(&g, 13, 3, 18, 4, "m"); fillRect(&g, 14, 1, 17, 2, "R")
+            putPx(&g, 15, 0, "y"); putPx(&g, 16, 0, "W")
+            putPx(&g, 14, 4, "y"); putPx(&g, 17, 4, "b"); putPx(&g, 15, 2, "y")
         default: break
         }
-        if tired && st != "HYPER" && st != "JUMP" {
+        if tired && !skipHead {
             for x in [11, 12, 19, 20] { for y in [11, 13] { putPx(&g, x, y, "s") } }
         }
         if vm && st != "EAT" && st != "STUDY" && st != "JUMP" && st != "CLIMB" && st != "BORREL" {
@@ -770,7 +807,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.3.1"
+    static let version = "2.4.0"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -870,9 +907,12 @@ private enum AutoUpdater {
                 if fm.fileExists(atPath: oldName.path) { return oldName }
                 return newName
             }()
+            let instApp = MacStartupHelper.installedAppUrl
+            let syncInst = MacStartupHelper.isEnabled() && instApp.path != appBundle.path
             let swapSh = stageDir.appendingPathComponent("swap.sh")
             let sh = "#!/usr/bin/env bash\nsleep 1\nrm -rf \"\(appBundle.path)\"\nditto \"\(newApp.path)\" \"\(appBundle.path)\"\n"
                 + (usbApp.path != appBundle.path ? "rm -rf \"\(usbApp.path)\" && ditto \"\(newApp.path)\" \"\(usbApp.path)\" || true\n" : "")
+                + (syncInst ? "rm -rf \"\(instApp.path)\" && ditto \"\(newApp.path)\" \"\(instApp.path)\" || true\n" : "")
                 + "xattr -dr com.apple.quarantine \"\(appBundle.path)\" 2>/dev/null || true\nopen -n \"\(appBundle.path)\" --args --updated-from=\(remVer)\nrm -rf \"\(stageDir.path)\"\n"
             try? sh.write(to: swapSh, atomically: true, encoding: .utf8)
             _ = runTool("/bin/chmod", ["+x", swapSh.path])
@@ -924,7 +964,7 @@ private enum MacStartupHelper {
         return base.appendingPathComponent("KarelDeKoala")
     }
 
-    private static var installedAppUrl: URL {
+    static var installedAppUrl: URL {
         return installedDirUrl.appendingPathComponent("Karel.app")
     }
 
@@ -2284,7 +2324,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.3.2", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.4.1", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
