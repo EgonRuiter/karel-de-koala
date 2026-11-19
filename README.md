@@ -17,20 +17,21 @@ Wanneer je het station **`KAREL`** opent, zie je slechts 4 overzichtelijke items
 - **`Lees mij.html`** — detecteert automatisch je besturingssysteem en toont direct het juiste startbestand + uitleg
 
 ### Automatisch openen bij inpluggen & automatisch sluiten bij loskoppelen
-1. De eerste keer dat je Karel opent (als auto-start nog uit staat) vraagt Karel kort: *"Karel voortaan automatisch starten?"* (`Ja, automatisch` / `Nee, alleen nu` / `README`). Kies je **Ja**, dan luistert Karel stil in je systeemvak (Windows) of menubalk (macOS) en klimt hij voortaan automatisch je scherm op zodra je de USB-stick inplugt — helemaal zonder `Win+R`!
-2. **Trek je de USB-stick eruit?** Dan zwaait Karel gedag en duikt hij direct weg van je scherm (en sluit volledig af, of wacht stil in je systeemvak/menubalk als je auto-start aan hebt staan).
-3. *Optionele Python-editie:* [`python_extended/`](python_extended/README.md) blijft los beschikbaar (`--python`, vereist Python 3 + Tk `>= 8.6`).
+1. De eerste keer dat je Karel opent (als auto-start nog uit staat) vraagt Karel kort: *"Karel voortaan automatisch starten?"* (`Ja, automatisch` / `Nee, alleen nu` / `README`). Kies je **Ja**, dan klimt Karel voortaan automatisch je scherm op zodra je de USB-stick inplugt — op Windows met **0% CPU en zonder tray-icoon** via `WM_DEVICECHANGE`, en op macOS zelfs met **0 achtergrondprocessen** via `launchd` `StartOnMount`!
+2. **Trek je de USB-stick eruit?** Dan zwaait Karel gedag en duikt hij direct weg van je scherm.
+3. **Volledig te verwijderen in 1 klik:** via **Verwijder van laptop / Mac** in de Hub of het menu ruim je auto-start, lokale kopie en back-up direct op (de USB-stick blijft onaangetast).
+4. *Optionele Python-editie:* [`python_extended/`](python_extended/README.md) blijft los beschikbaar (`--python`, vereist Python 3 + Tk `>= 8.6`).
 
 ---
 
 ## Zero-Install Standaard
 
-De minimalistische desktop-apps ([`desktop/karel_native.cs`](desktop/karel_native.cs) → `karel_native.exe` voor Windows, [`desktop/karel_mac.swift`](desktop/karel_mac.swift) → `Karel.app` voor macOS en [`desktop/karel_linux.c`](desktop/karel_linux.c) → `karel_linux_x86_64` voor Linux) draaien zonder externe runtime direct vanaf de USB-stick, delen één sprite-archief (`desktop/karel_sprites.gz`) en ondersteunen automatische achtergrond-updates:
+De minimalistische desktop-apps ([`desktop/karel_native.cs`](desktop/karel_native.cs) → `Karel (Windows).exe`, [`desktop/karel_mac.swift`](desktop/karel_mac.swift) → `Karel (Mac).app` en [`desktop/karel_linux.c`](desktop/karel_linux.c) → `Karel (Linux).sh`) draaien zonder externe runtime direct vanaf de USB-stick, delen één sprite-archief (`desktop/karel_sprites.gz`) en maken **0 automatische internetverbindingen**:
 
 - **Alle `54` animaties (`194` frames):** o.a. *IDLE*, *CLIMB*, *DIVE_WAVE*, *EAT*, *COFFEE*, *WASH*, *PET*, *BACKFLIP*, *JETPACK*, *LAPTOP_CODE*, *GUITAR*, *DRUM*, *SNEEZE*, *DANCE* en een zachte **`UMBRELLA`-landing** zodra een actief venster onder Karel wegschuift (*Op Actief Venster*-modus).
 - **Sticky Style & Looks:** `6` koalavachten (`classic`, `sticky`, `mint`, `midnight`, `gold`, `crimson`) en `8` op pixel-niveau getekende accessoires (`scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`; strikt 1 item tegelijk).
-- **Strakke Sticky Mini-Hub & Zwerfgedrag:** Level & XP-balk (`Lv.`), vitals (*Voer / Koffie / Aai / Was / Powernap / Focus 25m*), Stijl-kiezer, **Auto-Stil bij Fullscreen/Meetings**, **Geluid Aan/Uit** (RAM WAV-synth), **NL / EN** wissel, 1-klik **Automatisch openen bij USB** schakelaar, plus rechtermuis-menu voor alle `18` trucjes, `4` zwerf-modi (*Vrij*, *Op Venster*, *Volg Muis*, *Geparkeerd*) en schaal (`2×–5×`).
-- **Automatische Updates via GitHub Releases:** Controleert ~3,5s na opstarten stil op een nieuwere versie via `releases/latest/download/version.json`, verifieert de **SHA-256** checksum en werkt zowel de desktop-app (`karel_native.exe` / `Karel.app` / `karel_linux_x86_64` + `karel_sprites.gz`) als de RP2350-firmware (`code.py` op de stick) atomisch bij met automatische herstart (`--no-update` schakelt dit uit).
+- **Strakke Sticky Mini-Hub & Zwerfgedrag:** Level & XP-balk (`Lv.`), vitals (*Voer / Koffie / Aai / Was / Powernap / Focus 25m*), Stijl-kiezer, **Auto-Stil bij Fullscreen/Meetings**, **Geluid Aan/Uit** (RAM WAV-synth), **NL / EN** wissel, 1-klik **Automatisch openen bij USB**, **Check op updates**, en **Verwijder van laptop / Mac**, plus rechtermuis-menu voor alle `18` trucjes, `4` zwerf-modi (*Vrij*, *Op Venster*, *Volg Muis*, *Geparkeerd*) en schaal (`2×–5×`).
+- **Handmatige Updates via GitHub Releases:** Karel downloadt nooit iets uit zichzelf. Alleen wanneer je zélf op **Check op updates** klikt controleert hij `releases/latest/download/version.json`, verifieert de **SHA-256** checksum en werkt hij de app en RP2350-firmware (`code.py`) netjes bij.
 - **Systeemvak, Sneltoets & Bescherming:** Eigen Tray-icoon / X11-menu, automatisch opslaan bij afsluiten, per-stick `stick_serial`-isolatie, `3×` snelle koffie *Cafeïne Overdosis*, `7×` neusklik *Hatsjoe!*, en *Konami-code* (`↑↑↓↓←→←→BA`) disco!
 
 ---
