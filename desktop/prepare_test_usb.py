@@ -109,6 +109,15 @@ def set_volume_label(root, label="KAREL"):
         return False
 
 
+def _copy_over(src, dst):
+    if os.name == "nt" and os.path.exists(dst):
+        try:
+            ctypes.windll.kernel32.SetFileAttributesW(dst, 0x80)
+        except Exception:
+            pass
+    shutil.copy2(src, dst)
+
+
 def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firmware=None):
     """Copy clean Optie-A Windows, macOS & Linux payload onto target_dir (folder, USB stick, or RP2350)."""
     exe_src = os.path.join(HERE, "karel_native.exe")
@@ -121,7 +130,7 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
         _rm_path(os.path.join(target_dir, old_name))
 
     # Visible root launchers + OS-detecting guide (ONLY 4 visible items!)
-    shutil.copy2(exe_src, os.path.join(target_dir, "Karel (Windows).exe"))
+    _copy_over(exe_src, os.path.join(target_dir, "Karel (Windows).exe"))
     mac_app = os.path.join(HERE, "Karel.app")
     if os.path.isdir(mac_app):
         dst_mac = os.path.join(target_dir, "Karel (Mac).app")
@@ -129,19 +138,19 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
         shutil.copytree(mac_app, dst_mac)
     lin_sh = os.path.join(HERE, "launch_karel.sh")
     if os.path.isfile(lin_sh):
-        shutil.copy2(lin_sh, os.path.join(target_dir, "Karel (Linux).sh"))
+        _copy_over(lin_sh, os.path.join(target_dir, "Karel (Linux).sh"))
     guide_html = os.path.join(HERE, "Lees mij.html")
     if os.path.isfile(guide_html):
-        shutil.copy2(guide_html, os.path.join(target_dir, "Lees mij.html"))
+        _copy_over(guide_html, os.path.join(target_dir, "Lees mij.html"))
 
     # Hidden runtime support files
     spr_src = os.path.join(HERE, "karel_sprites.gz")
     if os.path.isfile(spr_src):
-        shutil.copy2(spr_src, os.path.join(target_dir, "karel_sprites.gz"))
+        _copy_over(spr_src, os.path.join(target_dir, "karel_sprites.gz"))
     for lin_bin in ("karel_linux_x86_64", "karel_linux_aarch64"):
         src = os.path.join(HERE, lin_bin)
         if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(target_dir, "." + lin_bin))
+            _copy_over(src, os.path.join(target_dir, "." + lin_bin))
 
     # Optional / auto-detected RP2350 CircuitPython firmware (boot.py + code.py)
     is_rp2350 = os.path.isfile(os.path.join(target_dir, "boot_out.txt"))
@@ -150,10 +159,18 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
         for fw in ("boot.py", "code.py"):
             src = os.path.join(fw_dir, fw)
             if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(target_dir, fw))
+                _copy_over(src, os.path.join(target_dir, fw))
         # Remove unused adafruit_hid library from RP2350 flash (Zero-HID firmware)
         _rm_path(os.path.join(target_dir, "lib", "adafruit_hid"))
 
+    # Clear Hidden on branding files before write_bundle_state rewrites them on Windows
+    for bf in (".karel_drive", "karel.ico", "AUTORUN.INF", ".VolumeIcon.icns"):
+        bp = os.path.join(target_dir, bf)
+        if os.name == "nt" and os.path.exists(bp):
+            try:
+                ctypes.windll.kernel32.SetFileAttributesW(bp, 0x80)
+            except Exception:
+                pass
     write_bundle_state(target_dir, force=reset_save)
 
     # Mark ONLY the 4 user-facing files visible; hide all firmware/internal/dot files on Windows & macOS
