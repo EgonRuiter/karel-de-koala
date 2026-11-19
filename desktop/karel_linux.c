@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.1.9"
+#define KAREL_VERSION "2.2.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -661,23 +661,6 @@ static void find_usb_drive(char *out, size_t max_out) {
         closedir(dp);
     }
 }
-
-#ifndef KAREL_CORE_TEST
-static int has_no_hid_flag(const SaveStore *s) {
-    if (!s->connected || !*s->drive_root) return 0;
-    char p[600]; snprintf(p, sizeof(p), "%.500s/.karel_no_hid", s->drive_root);
-    return file_exists(p);
-}
-
-static int toggle_no_hid_flag(const SaveStore *s) {
-    if (!s->connected || !*s->drive_root) return -1;
-    char p[600]; snprintf(p, sizeof(p), "%.500s/.karel_no_hid", s->drive_root);
-    if (file_exists(p)) return remove(p) == 0 ? 0 : -1;
-    FILE *fp = fopen(p, "wb"); if (!fp) return -1;
-    fputs("NO_HID=1\n", fp); fclose(fp);
-    return 1;
-}
-#endif
 
 static void save_write_one(const char *path, const SaveStore *s) {
     char tmp[600]; snprintf(tmp, sizeof(tmp), "%.580s.tmp", path);
@@ -1649,15 +1632,12 @@ static void draw_hub(KarelApp *k) {
 
     curY += sh + Sc(12, s);
     if (k->save.connected) {
-        int no_h = has_no_hid_flag(&k->save);
-        const char *hl = no_h ? (en ? "USB Auto-Start: Mac Safe (click = Win+R ON)" : "USB Auto-Start: Mac Veilig (klik = Win+R AAN)")
-                              : (en ? "USB Auto-Start: Win+R ON (click = Mac Safe)" : "USB Auto-Start: Win+R AAN (klik = Mac Veilig)");
-        add_hub_btn(k, P, curY, Win, Sc(32, s), 25);
-        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 20, 104, 158));
-        XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)Sc(32, s));
-        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
-        XDrawString(k->dpy, k->hub_win, k->hub_gc, P + Sc(14, s), curY + Sc(21, s), hl, (int)strlen(hl));
-        curY += Sc(40, s);
+        const char *hl = en ? "USB Safe Mode: Storage + LED Serial (No HID)" : "USB Veilige Modus: Opslag + LED Serial (Geen HID)";
+        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 28, 34, 46));
+        XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)Sc(30, s));
+        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 170, 210, 195));
+        XDrawString(k->dpy, k->hub_win, k->hub_gc, P + Sc(14, s), curY + Sc(20, s), hl, (int)strlen(hl));
+        curY += Sc(38, s);
     }
 
     char foot[700];
@@ -1707,10 +1687,7 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
         else if (b.id == 20) k->muted = !k->muted;
         else if (b.id == 21) { k->save.auto_quiet = !k->save.auto_quiet; save_persist(&k->save); }
         else if (b.id == 22) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); }
-        else if (b.id == 25) {
-            int res = toggle_no_hid_flag(&k->save);
-            if (res >= 0) say_msg(k, res ? "Mac Veilig AAN (geen Win+R)" : "Windows Win+R Auto-Start AAN", 55);
-        } else if (b.id == 30) { trigger_dive(k, "quit"); return; }
+        else if (b.id == 30) { trigger_dive(k, "quit"); return; }
         draw_hub(k); return;
     }
 }
@@ -1966,7 +1943,17 @@ static int run_ask_prompt(KarelApp *k) {
                 if (!confirm) {
                     int x1 = P, w1 = Sc(118, s), x2 = P + Sc(128, s), w2 = Sc(198, s), x3 = W - P - Sc(118, s), w3 = Sc(118, s);
                     if (cx >= x1 && cx <= x1 + w1) { res = 1; done = 1; }
-                    else if (cx >= x2 && cx <= x2 + w2) { if (system("xdg-open 'https://github.com/EgonRuiter/karel-de-koala#readme' >/dev/null 2>&1 &") != 0) {} }
+                    else if (cx >= x2 && cx <= x2 + w2) {
+                        char lhtml[600];
+                        if (k->save.connected && *k->save.drive_root) snprintf(lhtml, sizeof(lhtml), "%.500s/Lees mij.html", k->save.drive_root);
+                        else lhtml[0] = 0;
+                        if (*lhtml && file_exists(lhtml)) {
+                            char cmd[700]; snprintf(cmd, sizeof(cmd), "xdg-open '%.600s' >/dev/null 2>&1 &", lhtml);
+                            if (system(cmd) != 0) {}
+                        } else {
+                            if (system("xdg-open 'https://github.com/EgonRuiter/karel-de-koala#readme' >/dev/null 2>&1 &") != 0) {}
+                        }
+                    }
                     else if (cx >= x3 && cx <= x3 + w3) { confirm = 1; XClearArea(k->dpy, win, 0, 0, 0, 0, True); }
                 } else {
                     int w2 = Sc(218, s), x1 = P, x2 = W - P - w2;
@@ -1991,13 +1978,14 @@ static int run_ask_prompt(KarelApp *k) {
 #endif /* !KAREL_CORE_TEST */
 
 int main(int argc, char **argv) {
-    int self_test = 0, toggle = 0, no_update = 0, ask = 0;
+    int self_test = 0, toggle = 0, no_update = 0, ask = 0, no_ask = 0;
     char updated_from[32] = "";
     uint16_t ipc_port = 42421;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--self-test") == 0) self_test = 1;
         else if (strcmp(argv[i], "--no-update") == 0) no_update = 1;
         else if (strcmp(argv[i], "--ask") == 0) ask = 1;
+        else if (strcmp(argv[i], "--no-ask") == 0) no_ask = 1;
         else if (strcmp(argv[i], "--toggle") == 0 || strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "t") == 0) toggle = 1;
         else if (strncmp(argv[i], "--updated-from=", 15) == 0) snprintf(updated_from, sizeof(updated_from), "%.31s", argv[i] + 15);
         else if (strncmp(argv[i], "--ipc-port=", 11) == 0) { int p = atoi(argv[i] + 11); if (p > 0 && p < 65536) ipc_port = (uint16_t)p; }
@@ -2013,7 +2001,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.1.10", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.2.1", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -2024,7 +2012,7 @@ int main(int argc, char **argv) {
     }
 
 #ifdef KAREL_CORE_TEST
-    (void)toggle; (void)no_update; (void)ask; (void)ipc_port; (void)updated_from;
+    (void)toggle; (void)no_update; (void)ask; (void)no_ask; (void)ipc_port; (void)updated_from;
     return 0;
 #else
     signal(SIGCHLD, SIG_IGN);
@@ -2054,7 +2042,8 @@ int main(int argc, char **argv) {
     if (!k.bfont) k.bfont = XLoadQueryFont(k.dpy, "fixed");
     k.font = XLoadQueryFont(k.dpy, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*");
     if (!k.font) k.font = k.bfont;
-    if (ask && !run_ask_prompt(&k)) { XCloseDisplay(k.dpy); return 0; }
+    int should_ask = ask || (!no_ask && !*updated_from);
+    if (should_ask && !run_ask_prompt(&k)) { XCloseDisplay(k.dpy); return 0; }
     k.ipc_fd = start_ipc_server(ipc_port);
 
     int wx, wy, ww, wh; get_work_area(k.dpy, k.scr, &wx, &wy, &ww, &wh);

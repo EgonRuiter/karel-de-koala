@@ -93,9 +93,10 @@ else:
     except Exception:
         pass
 
-# 2. Enable USB CDC Console (REPL), USB CDC Data Serial, and USB HID Keyboard.
+# 2. Enable USB CDC Console (REPL) and Data Serial, and explicitly DISABLE USB HID.
+#    No simulated keyboard / Win+R injection: the stick is strictly USB storage + LED serial.
 usb_cdc.enable(console=True, data=True)
-usb_hid.enable((usb_hid.Device.KEYBOARD,))
+usb_hid.disable()
 
 # 3. Label USB Mass Storage volume as KAREL and keep CircuitPython read-only
 #    so the host PC has full read/write access to save.json without corruption.

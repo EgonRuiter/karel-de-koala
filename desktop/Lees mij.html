@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Karel de Koala — SV Sticky</title>
+<style>
+  :root {
+    --bg: #12141b;
+    --card: #1b1f2a;
+    --card-hi: #222838;
+    --border: #2c3347;
+    --text: #f2f5fa;
+    --muted: #a9b2c7;
+    --red: #c41e25;
+    --red-soft: rgba(196, 30, 37, 0.16);
+    --green: #3ecf8e;
+    --green-soft: rgba(62, 207, 142, 0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 18px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 22px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #c41e25, #96141a);
+    margin-bottom: 18px;
+  }
+  header h1 { margin: 0; font-size: 21px; letter-spacing: 0.2px; }
+  header p { margin: 2px 0 0; font-size: 13px; opacity: 0.92; }
+  .lang-btn {
+    background: rgba(0, 0, 0, 0.28);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font: 600 13px/1 inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .lang-btn:hover { background: rgba(0, 0, 0, 0.45); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .hero {
+    border-color: var(--red);
+    background: linear-gradient(180deg, var(--red-soft), var(--card) 65%);
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: var(--green-soft);
+    color: var(--green);
+    margin-bottom: 10px;
+  }
+  h2 { margin: 0 0 10px; font-size: 17px; }
+  .launch-file {
+    display: inline-block;
+    margin: 6px 0 10px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--card-hi);
+    border: 1px solid var(--red);
+    font: 700 16px/1.2 Consolas, "SF Mono", Menlo, monospace;
+    color: #fff;
+  }
+  .os-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .os-item {
+    background: var(--card-hi);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .os-item.active {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px rgba(62, 207, 142, 0.35);
+  }
+  .os-item strong { display: block; margin-bottom: 4px; font-size: 14px; }
+  code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font: 13px/1.4 Consolas, "SF Mono", Menlo, monospace;
+  }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li { margin: 6px 0; color: var(--muted); }
+  li strong { color: var(--text); }
+  .muted { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
+  a { color: #7db4ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Karel de Koala</h1>
+      <p data-nl="Studievereniging Sticky · RP2350 USB-companion" data-en="Study Association Sticky · RP2350 USB Companion">Studievereniging Sticky · RP2350 USB-companion</p>
+    </div>
+    <button class="lang-btn" id="langBtn" type="button">EN</button>
+  </header>
+
+  <section class="card hero">
+    <div class="badge" id="osBadge">Besturingssysteem gedetecteerd</div>
+    <h2 data-nl="Zo start je Karel op jouw computer" data-en="How to start Karel on your computer">Zo start je Karel op jouw computer</h2>
+    <p class="muted" id="osLead"></p>
+    <div class="launch-file" id="osFile">Karel (Windows).exe</div>
+    <p class="muted" id="osNote"></p>
+
+    <div class="os-grid">
+      <div class="os-item" id="card-win">
+        <strong>Windows</strong>
+        <code>Karel (Windows).exe</code>
+      </div>
+      <div class="os-item" id="card-mac">
+        <strong>macOS (Apple Silicon &amp; Intel)</strong>
+        <code>Karel (Mac).app</code>
+      </div>
+      <div class="os-item" id="card-lin">
+        <strong>Linux (X11)</strong>
+        <code>Karel (Linux).sh</code>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 data-nl="Veilig &amp; 100% open-source" data-en="Safe &amp; 100% open-source">Veilig &amp; 100% open-source</h2>
+    <ul>
+      <li data-nl="<strong>Geen USB-toetsenbord of automatische commando's:</strong> de USB-stick voert niets uit zichzelf uit. USB HID staat op hardware-niveau uit; het bordje is puur USB-opslag + een seriële verbinding voor het RGB-lampje."
+          data-en="<strong>No USB keyboard or automatic commands:</strong> the stick never runs anything by itself. USB HID is disabled in firmware; the board is strictly USB storage + a serial link for the RGB LED."></li>
+      <li data-nl="<strong>Volledig open-source:</strong> bekijk de complete broncode van zowel de firmware als de desktop-apps op <a href='https://github.com/EgonRuiter/karel-de-koala' target='_blank' rel='noopener'>github.com/EgonRuiter/karel-de-koala</a>."
+          data-en="<strong>Fully open-source:</strong> inspect the complete source code for both the firmware and desktop apps at <a href='https://github.com/EgonRuiter/karel-de-koala' target='_blank' rel='noopener'>github.com/EgonRuiter/karel-de-koala</a>."></li>
+      <li data-nl="<strong>Optioneel automatisch openen bij inpluggen:</strong> in het startschermpje (en via rechtsklik op Karel) kun je zélf aanvinken dat Karel voortaan automatisch verschijnt zodra je de USB-stick inplugt — helemaal zonder toetsenbord-emulatie."
+          data-en="<strong>Optional auto-open on plug-in:</strong> in the welcome prompt (or Karel's right-click menu) you can opt in to have Karel appear automatically whenever you plug in the USB stick — without any keyboard emulation."></li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2 data-nl="Snel aan de slag" data-en="Quick controls">Snel aan de slag</h2>
+    <ul>
+      <li data-nl="<strong>Klik op Karel:</strong> open het Karel-paneel (voeren, koffie, vacht, outfits &amp; 25 min Focus-timer)."
+          data-en="<strong>Click Karel:</strong> open the Karel Hub (feed, coffee, coat, outfits &amp; 25 min Focus timer)."></li>
+      <li data-nl="<strong>Dubbelklik op Karel:</strong> aai Karel (+XP &amp; hartjes op het RGB-lampje)."
+          data-en="<strong>Double-click Karel:</strong> pet Karel (+XP &amp; heart glow on the RGB LED)."></li>
+      <li data-nl="<strong>Sleep &amp; gooi Karel:</strong> jetpack-vlucht over je bureaublad."
+          data-en="<strong>Drag &amp; toss Karel:</strong> jetpack flight across your desktop."></li>
+      <li data-nl="<strong>Rechtsklik (of systeemvak / menubalk):</strong> verbergen, automatisch openen bij USB aan/uit, of afsluiten."
+          data-en="<strong>Right-click (or tray / menu bar):</strong> hide, toggle auto-open on USB plug-in, or quit."></li>
+    </ul>
+  </section>
+
+  <footer>SV Sticky · Utrecht University · <a href="https://github.com/EgonRuiter/karel-de-koala" target="_blank" rel="noopener">GitHub</a></footer>
+</div>
+
+<script>
+(function () {
+  var ua = (navigator.userAgent || "").toLowerCase();
+  var plat = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "").toLowerCase();
+  var os = "win";
+  if (plat.indexOf("mac") !== -1 || ua.indexOf("mac os") !== -1) os = "mac";
+  else if (plat.indexOf("linux") !== -1 || ua.indexOf("linux") !== -1) os = "lin";
+
+  var lang = (navigator.language || "nl").toLowerCase().indexOf("nl") === 0 ? "nl" : "en";
+
+  var copy = {
+    nl: {
+      win: {
+        badge: "Windows gedetecteerd",
+        lead: "Ga terug naar de USB-map KAREL en dubbelklik op:",
+        file: "Karel (Windows).exe",
+        note: "Geen installatie nodig — je voortgang wordt automatisch op deze USB-stick bewaard."
+      },
+      mac: {
+        badge: "macOS gedetecteerd",
+        lead: "Ga terug naar de USB-map KAREL in Finder en dubbelklik op:",
+        file: "Karel (Mac).app",
+        note: "Tip: geeft macOS een melding over een onbekende ontwikkelaar? Klik met rechts op Karel (Mac).app → Open."
+      },
+      lin: {
+        badge: "Linux gedetecteerd",
+        lead: "Open een terminal in de USB-map KAREL en voer uit:",
+        file: 'bash "Karel (Linux).sh"',
+        note: "Het script kiest automatisch de juiste binary voor jouw architectuur (x86_64 / ARM)."
+      }
+    },
+    en: {
+      win: {
+        badge: "Windows detected",
+        lead: "Go back to the KAREL USB folder and double-click:",
+        file: "Karel (Windows).exe",
+        note: "No installation required — your progress is saved directly on this USB stick."
+      },
+      mac: {
+        badge: "macOS detected",
+        lead: "Go back to the KAREL USB folder in Finder and double-click:",
+        file: "Karel (Mac).app",
+        note: "Tip: if macOS warns about an unidentified developer, right-click Karel (Mac).app → Open."
+      },
+      lin: {
+        badge: "Linux detected",
+        lead: "Open a terminal in the KAREL USB folder and run:",
+        file: 'bash "Karel (Linux).sh"',
+        note: "The script automatically picks the right binary for your CPU architecture."
+      }
+    }
+  };
+
+  function render() {
+    document.documentElement.lang = lang;
+    document.getElementById("langBtn").textContent = lang === "nl" ? "EN" : "NL";
+    var info = copy[lang][os];
+    document.getElementById("osBadge").textContent = info.badge;
+    document.getElementById("osLead").textContent = info.lead;
+    document.getElementById("osFile").textContent = info.file;
+    document.getElementById("osNote").textContent = info.note;
+
+    ["win", "mac", "lin"].forEach(function (k) {
+      document.getElementById("card-" + k).classList.toggle("active", k === os);
+    });
+    document.querySelectorAll("[data-nl]").forEach(function (el) {
+      el.innerHTML = el.getAttribute("data-" + lang);
+    });
+  }
+
+  document.getElementById("langBtn").addEventListener("click", function () {
+    lang = lang === "nl" ? "en" : "nl";
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

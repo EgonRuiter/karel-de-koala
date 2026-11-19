@@ -11,24 +11,69 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from generate_initial_save import write_bundle_state  # noqa: E402
 
-TEST_README = """Karel de Koala - USB Test-Stick (Zero-Install)
+TEST_README = """Karel de Koala - USB Stick (Optie A — Zero-HID)
 ===============================================
-
-Deze gewone USB-stick boots niet als microcontroller (geen RP2350-chip),
-maar gedraagt zich verder exact als de uiteindelijke Karel-stick:
-
-1. Steek de USB-stick in willekeurige Windows-laptops/pc's, MacBooks of Linux-laptops.
-2. Open het station `KAREL` (met eigen koala-icoon in Verkenner / Finder).
-3. Start op Windows `launch_karel.bat`, op macOS `launch_karel.command` / `Karel.app`, op Linux `bash launch_karel.sh`.
-4. Je XP, level, vacht, outfit en stats worden direct op DEZE stick
-   opgeslagen in `save.json` en per stick-serienummer (`stick_serial`)
-   gescheiden gehouden.
-
-Wat er met de echte RP2350 SuperMini bordjes straks bijkomt:
-- Automatisch starten ~2,5s na inpluggen via USB HID (Win+R)
-- Live meeblinkende Sticky RGB LED op GP16 + optionele knop/touch
-- Automatische stille SHA-256 updates via GitHub Releases (desktop + code.py)
+Open 'Lees mij.html' voor uitleg per besturingssysteem, of start direct:
+- Windows : Karel (Windows).exe
+- macOS   : Karel (Mac).app
+- Linux   : bash "Karel (Linux).sh"
 """
+
+VISIBLE_ROOT_ITEMS = {
+    "Karel (Windows).exe",
+    "Karel (Mac).app",
+    "Karel (Linux).sh",
+    "Lees mij.html",
+}
+
+OBSOLETE_ROOT_ITEMS = (
+    "karel_native.exe",
+    "launch_karel.bat",
+    "launch_karel.command",
+    "launch_karel.sh",
+    "karel_mac.swift",
+    "build_mac.sh",
+    "karel_linux.c",
+    "build_linux.sh",
+    "karel_linux",
+    "karel_linux_x86_64",
+    "karel_linux_aarch64",
+    "Karel.app",
+    "README_TEST_STICK.txt",
+    "save.json.tmp",
+    ".karel_no_hid",
+    "AVG sandbox",
+    "avast! sandbox",
+)
+
+
+def _set_hidden_attr(path, hidden=True):
+    """Set or clear the FAT/Windows HIDDEN attribute (hides files on both Windows & macOS)."""
+    if os.name != "nt" or not os.path.exists(path):
+        return
+    try:
+        k32 = ctypes.windll.kernel32
+        attrs = k32.GetFileAttributesW(path)
+        if attrs == -1:
+            return
+        FILE_ATTRIBUTE_HIDDEN = 0x02
+        new_attrs = (attrs | FILE_ATTRIBUTE_HIDDEN) if hidden else (attrs & ~FILE_ATTRIBUTE_HIDDEN)
+        if new_attrs != attrs:
+            k32.SetFileAttributesW(path, new_attrs)
+    except Exception:
+        pass
+
+
+def _rm_path(path):
+    if not os.path.lexists(path):
+        return
+    try:
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            os.remove(path)
+    except OSError:
+        pass
 
 
 def find_removable_drives():
@@ -62,28 +107,58 @@ def set_volume_label(root, label="KAREL"):
         return False
 
 
-def populate_test_usb(target_dir, set_label=True, reset_save=False):
-    """Copy Zero-Install Windows, macOS & Linux payload cleanly onto target_dir (folder or USB root)."""
+def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firmware=None):
+    """Copy clean Optie-A Windows, macOS & Linux payload onto target_dir (folder, USB stick, or RP2350)."""
     exe_src = os.path.join(HERE, "karel_native.exe")
     if not os.path.isfile(exe_src):
         raise FileNotFoundError(f"Niet gevonden: {exe_src}")
     os.makedirs(target_dir, exist_ok=True)
-    files = (
-        "karel_native.exe", "launch_karel.bat", "karel_sprites.gz",
-        "karel_mac.swift", "build_mac.sh", "launch_karel.command",
-        "karel_linux.c", "build_linux.sh", "launch_karel.sh",
-        "karel_linux", "karel_linux_x86_64", "karel_linux_aarch64",
-    )
-    for fname in files:
-        src = os.path.join(HERE, fname)
-        if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(target_dir, fname))
+
+    # Remove old/cluttered root items before writing the clean 4-item Optie A layout.
+    for old_name in OBSOLETE_ROOT_ITEMS:
+        _rm_path(os.path.join(target_dir, old_name))
+
+    # Visible root launchers + OS-detecting guide (ONLY 4 visible items!)
+    shutil.copy2(exe_src, os.path.join(target_dir, "Karel (Windows).exe"))
     mac_app = os.path.join(HERE, "Karel.app")
     if os.path.isdir(mac_app):
-        shutil.copytree(mac_app, os.path.join(target_dir, "Karel.app"), dirs_exist_ok=True)
+        dst_mac = os.path.join(target_dir, "Karel (Mac).app")
+        _rm_path(dst_mac)
+        shutil.copytree(mac_app, dst_mac)
+    lin_sh = os.path.join(HERE, "launch_karel.sh")
+    if os.path.isfile(lin_sh):
+        shutil.copy2(lin_sh, os.path.join(target_dir, "Karel (Linux).sh"))
+    guide_html = os.path.join(HERE, "Lees mij.html")
+    if os.path.isfile(guide_html):
+        shutil.copy2(guide_html, os.path.join(target_dir, "Lees mij.html"))
+
+    # Hidden runtime support files
+    spr_src = os.path.join(HERE, "karel_sprites.gz")
+    if os.path.isfile(spr_src):
+        shutil.copy2(spr_src, os.path.join(target_dir, "karel_sprites.gz"))
+    for lin_bin in ("karel_linux_x86_64", "karel_linux_aarch64"):
+        src = os.path.join(HERE, lin_bin)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(target_dir, "." + lin_bin))
+
+    # Optional / auto-detected RP2350 CircuitPython firmware (boot.py + code.py)
+    is_rp2350 = os.path.isfile(os.path.join(target_dir, "boot_out.txt"))
+    if include_firmware is True or (include_firmware is None and is_rp2350):
+        fw_dir = os.path.join(os.path.dirname(HERE), "firmware")
+        for fw in ("boot.py", "code.py"):
+            src = os.path.join(fw_dir, fw)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(target_dir, fw))
+        # Remove unused adafruit_hid library from RP2350 flash (Zero-HID firmware)
+        _rm_path(os.path.join(target_dir, "lib", "adafruit_hid"))
+
     write_bundle_state(target_dir, force=reset_save)
-    with open(os.path.join(target_dir, "README_TEST_STICK.txt"), "w", encoding="utf-8", newline="\n") as f:
-        f.write(TEST_README)
+
+    # Mark ONLY the 4 user-facing files visible; hide all firmware/internal/dot files on Windows & macOS
+    for entry in os.listdir(target_dir):
+        full = os.path.join(target_dir, entry)
+        _set_hidden_attr(full, hidden=(entry not in VISIBLE_ROOT_ITEMS))
+
     labeled = set_volume_label(target_dir, "KAREL") if (set_label and len(target_dir) <= 3) else False
     return labeled
 

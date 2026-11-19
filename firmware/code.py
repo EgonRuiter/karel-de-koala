@@ -29,7 +29,6 @@ import board
 import digitalio
 import touchio
 import usb_cdc
-import usb_hid
 
 try:
     import microcontroller
@@ -40,14 +39,6 @@ try:
     import neopixel
 except ImportError:
     neopixel = None
-
-try:
-    from adafruit_hid.keyboard import Keyboard
-    from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
-    from adafruit_hid.keycode import Keycode
-    HAS_HID = True
-except ImportError:
-    HAS_HID = False
 
 # ==============================================================================
 # Hardware Configuration (1-line toggle: "GP16" RP2350 SuperMini / "GP23" clone)
@@ -64,17 +55,6 @@ LONG_PRESS_SEC = 1.5
 DOUBLE_PRESS_WINDOW_SEC = 0.30
 DEBOUNCE_SEC = 0.03
 PET_COOLDOWN_SEC = 0.40
-
-# Cross-layout-safe (US / nl-NL US-Intl / UK ISO) headless Run commands:
-# avoids \, ', ", ~, ^, ` (`#` on UK/ISO), bypasses PowerShell/cmd popups via conhost --headless:
-WIN_LAUNCH_CMD = (
-    "cmd /q /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/karel_native.exe %d:/karel_native.exe --ask"
-)
-WIN_TOGGLE_CMD = (
-    "cmd /q /c for %d in (D E F G H I J K L M)"
-    "do if exist %d:/karel_native.exe %d:/karel_native.exe t"
-)
 
 
 def resolve_pin(pin_name):
@@ -348,87 +328,6 @@ def send_serial_line(line, force=False):
         pass
 
 
-def _has_flag_file(path):
-    """Return True if a config flag file exists in the CircuitPython drive root."""
-    try:
-        with open(path, "rb"):
-            return True
-    except OSError:
-        return False
-
-
-def _host_supports_numlock_led(kbd):
-    """Return False on macOS (ignores NumLock LED reports) so Cmd+R is never fired there."""
-    try:
-        before = kbd.led_on(Keyboard.LED_NUM_LOCK)
-        if before:
-            return True
-        kbd.send(Keycode.KEYPAD_NUMLOCK)
-        deadline = time.monotonic() + 0.14
-        flipped = False
-        while time.monotonic() < deadline:
-            if kbd.led_on(Keyboard.LED_NUM_LOCK) != before:
-                flipped = True
-                break
-            time.sleep(0.01)
-        if flipped:
-            kbd.send(Keycode.KEYPAD_NUMLOCK)
-            time.sleep(0.02)
-        return flipped
-    except Exception:
-        return True
-
-
-def _fast_type(kbd, layout, text):
-    """Send 1 HID report per character unless consecutive modifier shifts or repeats require a break."""
-    dev = getattr(kbd, "_keyboard_device", None)
-    if dev is None:
-        layout.write(text)
-        return
-    zero = bytearray(8)
-    buf = bytearray(8)
-    prev_mod = -1
-    prev_kc = -1
-    for ch in text:
-        codes = layout.keycodes(ch)
-        mod = 0
-        kc = codes[-1]
-        for c in codes[:-1]:
-            if c >= 224:
-                mod |= 1 << (c - 224)
-        if mod != prev_mod or kc == prev_kc:
-            dev.send_report(zero)
-        buf[0] = mod
-        buf[2] = kc
-        dev.send_report(buf)
-        prev_mod = mod
-        prev_kc = kc
-    dev.send_report(zero)
-
-
-def send_hid_autolaunch(extra_args=""):
-    """Send Windows GUI+R layout-safe launcher keystrokes after OS & flag checks."""
-    if not HAS_HID or not usb_hid.devices:
-        return
-    if _has_flag_file("/.karel_no_hid") or _has_flag_file("/.karel_mac"):
-        print("[KAREL] HID auto-launch disabled by /.karel_no_hid flag (macOS-safe).")
-        return
-    try:
-        kbd = Keyboard(usb_hid.devices)
-        if not _host_supports_numlock_led(kbd):
-            print("[KAREL] macOS host detected (no NumLock LED); skipping Win+R.")
-            return
-        layout = KeyboardLayoutUS(kbd)
-        kbd.send(Keycode.GUI, Keycode.R)
-        time.sleep(0.24)
-        is_tog = extra_args.strip() in ("t", "--toggle")
-        _fast_type(kbd, layout, WIN_TOGGLE_CMD if is_tog else WIN_LAUNCH_CMD)
-        time.sleep(0.02)
-        kbd.send(Keycode.ENTER)
-    except Exception as exc:
-        print("[KAREL] HID launch skipped:", exc)
-
-
 def _poll_serial_cmds(rx_buffer, led_state, burst_type, burst_until, now):
     """Read incoming serial lines; return (rx_buffer, led_state, burst_type, burst_until, pinged, host_seen)."""
     pinged = False
@@ -476,40 +375,29 @@ def main():
     update_led(px, led_state, time.monotonic(), burst_type, burst_until, mono_led)
 
     if dev_mode:
-        print("[KAREL] Dev/Safe Mode active (GP0/GP24). Skipping HID auto-launch.")
+        print("[KAREL] Dev/Safe Mode active (GP0/GP24).")
     else:
-        is_auto = False
         try:
             import supervisor
             supervisor.runtime.autoreload = False
-            is_auto = supervisor.runtime.run_reason == supervisor.RunReason.AUTO_RELOAD
         except Exception:
             pass
-        # Check on EVERY plug-in/reset if Karel is already running before firing HID!
-        data_port = getattr(usb_cdc, "data", None)
-        connected_existing = False
-        ping_deadline = time.monotonic() + (2.8 if rst_boot else 4.5)
-        extended_for_host = False
+        # Briefly listen for an already-running desktop companion (or opt-in tray watcher)
+        # so re-plugging triggers an immediate hardware boop + LED greeting.
+        ping_deadline = time.monotonic() + (2.0 if rst_boot else 2.5)
         while time.monotonic() < ping_deadline:
             now = time.monotonic()
             rx_buffer, led_state, burst_type, burst_until, pinged, host_seen = _poll_serial_cmds(
                 rx_buffer, led_state, burst_type, burst_until, now,
             )
             if pinged or host_seen:
-                connected_existing = True
                 if pinged:
                     send_serial_line("EVENT:RST_BOOP", force=True)
                     burst_type = "BOOP"
                     burst_until = now + 1.5
                 break
-            if not extended_for_host and data_port is not None and data_port.connected:
-                extended_for_host = True
-                if now + 1.5 > ping_deadline:
-                    ping_deadline = now + 1.5
             update_led(px, led_state, now, burst_type, burst_until, mono_led)
             time.sleep(0.025)
-        if not connected_existing and not is_auto:
-            send_hid_autolaunch()
 
     pet_sensor = TouchOrSwitchInput(PET_TOUCH_PIN_NAME)
     backup_action_sensor = TouchOrSwitchInput(BACKUP_TOUCH_PIN_NAME)
@@ -548,11 +436,11 @@ def main():
                 led_state = "BYE"
                 burst_type = "HEART"
                 burst_until = now + 0.55
-            elif not dev_mode:
+            else:
+                send_serial_line("EVENT:TOGGLE_KAREL", force=True)
                 led_state = "HAPPY"
                 burst_type = "BOOP"
                 burst_until = now + 0.8
-                send_hid_autolaunch("--toggle")
 
         pet_now = pet_sensor.active
         if pet_now and not prev_pet and (now - last_pet_time) >= PET_COOLDOWN_SEC:

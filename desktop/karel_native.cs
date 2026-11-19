@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.1.9.0")]
-[assembly: AssemblyFileVersion("2.1.9.0")]
+[assembly: AssemblyVersion("2.2.0.0")]
+[assembly: AssemblyFileVersion("2.2.0.0")]
 
 namespace KarelNative {
 
@@ -639,15 +639,20 @@ namespace KarelNative {
             } catch { return false; }
         }
 
-        public static bool Toggle() {
-            bool on = !IsEnabled();
+        public static string InstalledExePath() {
+            string localDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
+            return Path.Combine(localDir, "karel_native.exe");
+        }
+
+        public static bool SetEnabled(bool on) {
             try {
-                string localDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
-                string dstExe = Path.Combine(localDir, "karel_native.exe");
+                string dstExe = InstalledExePath();
+                string localDir = Path.GetDirectoryName(dstExe);
                 using (RegistryKey k = Registry.CurrentUser.CreateSubKey(RunKey)) {
                     if (on) {
                         Directory.CreateDirectory(localDir);
-                        File.Copy(Application.ExecutablePath, dstExe, true);
+                        if (!string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(dstExe), StringComparison.OrdinalIgnoreCase))
+                            File.Copy(Application.ExecutablePath, dstExe, true);
                         string srcSpr = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "karel_sprites.gz");
                         if (File.Exists(srcSpr)) File.Copy(srcSpr, Path.Combine(localDir, "karel_sprites.gz"), true);
                         k.SetValue(AppName, "\"" + dstExe + "\" --tray");
@@ -658,10 +663,14 @@ namespace KarelNative {
                 return on;
             } catch { return IsEnabled(); }
         }
+
+        public static bool Toggle() {
+            return SetEnabled(!IsEnabled());
+        }
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.1.9";
+        public const string Version = "2.2.0";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -769,9 +778,16 @@ namespace KarelNative {
 
                     string usbCopyCmd = "";
                     if (save.Connected) {
-                        string usbExe = Path.Combine(save.DriveRoot, "karel_native.exe");
+                        string winExe = Path.Combine(save.DriveRoot, "Karel (Windows).exe");
+                        string oldExe = Path.Combine(save.DriveRoot, "karel_native.exe");
+                        string usbExe = File.Exists(winExe) ? winExe : (File.Exists(oldExe) ? oldExe : winExe);
                         if (!string.Equals(Path.GetFullPath(curExe), Path.GetFullPath(usbExe), StringComparison.OrdinalIgnoreCase))
-                            usbCopyCmd = string.Format("copy /Y \"{0}\" \"{1}\" >nul 2>&1\r\n", curExe, usbExe);
+                            usbCopyCmd += string.Format("copy /Y \"{0}\" \"{1}\" >nul 2>&1\r\n", curExe, usbExe);
+                    }
+                    if (StartupHelper.IsEnabled()) {
+                        string instExe = StartupHelper.InstalledExePath();
+                        if (!string.Equals(Path.GetFullPath(curExe), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase))
+                            usbCopyCmd += string.Format("copy /Y \"{0}\" \"{1}\" >nul 2>&1\r\n", curExe, instExe);
                     }
                     string cmdPath = Path.Combine(Path.GetTempPath(), "karel_upd.cmd");
                     string script = string.Format(
@@ -1549,11 +1565,12 @@ namespace KarelNative {
             m.Items.Add(en ? "Language: NL / EN" : "Taal: NL / EN", null, delegate {
                 save.Data["language"] = en ? "nl" : "en"; save.Save(); RefreshHub();
             });
-            ToolStripMenuItem bgIt = new ToolStripMenuItem(en ? "Silent Windows Auto-Start (0 popups)" : "Stil mee-opstarten (0 popups)");
+            ToolStripMenuItem bgIt = new ToolStripMenuItem(en ? "Auto-open on USB plug-in" : "Automatisch openen bij USB");
             bgIt.Checked = StartupHelper.IsEnabled();
             bgIt.Click += delegate {
                 bool on = StartupHelper.Toggle();
-                Say(on ? (en ? "0-popup auto-start ON!" : "Stil mee-opstarten AAN (0 popups)!") : (en ? "Auto-start OFF." : "Stil mee-opstarten UIT."), 55);
+                Say(on ? (en ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (en ? "Auto-open on USB OFF." : "Automatisch openen bij USB UIT."), 55);
+                RefreshHub();
             };
             m.Items.Add(bgIt);
             m.Items.Add(new ToolStripSeparator());
@@ -1629,10 +1646,10 @@ namespace KarelNative {
             Control usb = hubForm.Controls["usbLbl"];
             Control hidBtn = hubForm.Controls["hidBtn"];
             if (hidBtn != null && usb != null) {
-                hidBtn.Visible = save.Connected;
+                hidBtn.Visible = true;
                 hidBtn.Text = HidFlagLabel();
                 usb.Text = HubUsbLine();
-                usb.Top = save.Connected ? (hidBtn.Bottom + Sc(8, GetDpiScale())) : hidBtn.Top;
+                usb.Top = hidBtn.Bottom + Sc(8, GetDpiScale());
                 int targetH = usb.Bottom + Sc(14, GetDpiScale());
                 if (hubForm.ClientSize.Height != targetH)
                     hubForm.ClientSize = new Size(hubForm.ClientSize.Width, targetH);
@@ -1649,10 +1666,10 @@ namespace KarelNative {
         }
 
         private string HidFlagLabel() {
-            bool noHid = save.HasNoHidFlag();
-            return noHid
-                ? (IsEn() ? "USB Auto-Start: Mac Safe (click = Win+R ON)" : "USB Auto-Start: Mac Veilig (klik = Win+R AAN)")
-                : (IsEn() ? "USB Auto-Start: Win+R ON (click = Mac Safe)" : "USB Auto-Start: Win+R AAN (klik = Mac Veilig)");
+            bool on = StartupHelper.IsEnabled();
+            return on
+                ? (IsEn() ? "Auto-open on USB plug-in: ON" : "Automatisch openen bij USB: AAN")
+                : (IsEn() ? "Auto-open on USB plug-in: OFF" : "Automatisch openen bij USB: UIT");
         }
 
         private string HubUsbLine() {
@@ -1820,10 +1837,9 @@ namespace KarelNative {
             curY += sh + Sc(12, s);
             Button hidBtn = MakeFlatBtn(HidFlagLabel(), P, curY, Win, Sc(32, s), Color.FromArgb(20, 104, 158), 8.5f);
             hidBtn.Name = "hidBtn";
-            hidBtn.Visible = save.Connected;
             hidBtn.Click += delegate {
-                bool? res = save.ToggleNoHidFlag();
-                if (res.HasValue) Say(res.Value ? "Mac Veilig AAN (geen Win+R)" : "Windows Win+R Auto-Start AAN", 55);
+                bool on = StartupHelper.Toggle();
+                Say(on ? (IsEn() ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (IsEn() ? "Auto-open on USB OFF." : "Automatisch openen bij USB UIT."), 55);
                 RefreshHub();
             };
             f.Controls.Add(hidBtn);
@@ -1862,7 +1878,7 @@ namespace KarelNative {
 
             float sc = 1.0f;
             try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) sc = Math.Max(1.0f, g.DpiX / 96.0f); } catch { }
-            int W = KarelForm.Sc(490, sc), H = KarelForm.Sc(224, sc), P = KarelForm.Sc(18, sc), hdrH = KarelForm.Sc(40, sc);
+            int W = KarelForm.Sc(490, sc), H = KarelForm.Sc(256, sc), P = KarelForm.Sc(18, sc), hdrH = KarelForm.Sc(40, sc);
 
             using (Form f = new Form()) {
                 f.AutoScaleMode = AutoScaleMode.None;
@@ -1916,22 +1932,41 @@ namespace KarelNative {
                 f.Controls.Add(titleLbl);
                 f.Controls.Add(subLbl);
 
+                CheckBox cbAuto = new CheckBox {
+                    Text = en ? "Open Karel automatically when I plug in the USB stick" : "Open Karel voortaan automatisch bij het inpluggen van de USB",
+                    Checked = StartupHelper.IsEnabled(),
+                    Location = new Point(P, hdrH + KarelForm.Sc(128, sc)),
+                    Size = new Size(W - 2 * P, KarelForm.Sc(24, sc)),
+                    ForeColor = Color.FromArgb(204, 212, 228),
+                    BackColor = Color.FromArgb(18, 20, 27),
+                    Font = new Font("Segoe UI", 9f)
+                };
+                f.Controls.Add(cbAuto);
+
                 int btnY = H - KarelForm.Sc(54, sc), btnH = KarelForm.Sc(36, sc);
                 Button btnYes = KarelForm.MakeFlatBtn(en ? "Yes" : "Ja", P, btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
                 Button btnReadme = KarelForm.MakeFlatBtn(en ? "View README" : "README bekijken", P + KarelForm.Sc(128, sc), btnY, KarelForm.Sc(198, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
                 Button btnNo = KarelForm.MakeFlatBtn(en ? "No" : "Nee", W - P - KarelForm.Sc(118, sc), btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(140, 38, 48), 9.5f);
 
                 bool confirmStep = false;
-                btnYes.Click += delegate { f.DialogResult = DialogResult.Yes; f.Close(); };
+                btnYes.Click += delegate {
+                    if (cbAuto.Checked != StartupHelper.IsEnabled()) StartupHelper.SetEnabled(cbAuto.Checked);
+                    f.DialogResult = DialogResult.Yes;
+                    f.Close();
+                };
                 btnReadme.Click += delegate {
-                    const string url = "https://github.com/EgonRuiter/karel-de-koala#readme";
-                    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-                    catch {
-                        string localTxt = string.IsNullOrEmpty(s.DriveRoot) ? null : Path.Combine(s.DriveRoot, "README_TEST_STICK.txt");
-                        if (!string.IsNullOrEmpty(localTxt) && File.Exists(localTxt)) {
-                            try { Process.Start(new ProcessStartInfo(localTxt) { UseShellExecute = true }); } catch { }
+                    string exeDir = Path.GetDirectoryName(Application.ExecutablePath) ?? "";
+                    string[] localCands = {
+                        string.IsNullOrEmpty(s.DriveRoot) ? "" : Path.Combine(s.DriveRoot, "Lees mij.html"),
+                        Path.Combine(exeDir, "Lees mij.html"),
+                    };
+                    for (int ci = 0; ci < localCands.Length; ci++) {
+                        if (!string.IsNullOrEmpty(localCands[ci]) && File.Exists(localCands[ci])) {
+                            try { Process.Start(new ProcessStartInfo(localCands[ci]) { UseShellExecute = true }); return; } catch { }
                         }
                     }
+                    const string url = "https://github.com/EgonRuiter/karel-de-koala#readme";
+                    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
                 };
                 btnNo.Click += delegate {
                     if (!confirmStep) {
@@ -1939,6 +1974,7 @@ namespace KarelNative {
                         f.Text = en ? "Are you sure?" : "Weet je het zeker?";
                         titleLbl.Text = en ? "Are you sure?" : "Weet je het zeker?";
                         subLbl.Text = en ? "Karel won't appear on your screen if you choose No." : "Karel verschijnt dan niet op je scherm.";
+                        cbAuto.Visible = false;
                         btnReadme.Visible = false;
                         btnYes.Text = en ? "Actually yes!" : "Toch wel!";
                         btnYes.Size = new Size(KarelForm.Sc(218, sc), btnH);
@@ -1966,7 +2002,7 @@ namespace KarelNative {
 
         [STAThread]
         public static void Main(string[] args) {
-            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false, noShadow = false, askPrompt = false;
+            bool selfTest = false, toggle = false, noUpdate = false, startHidden = false, noShadow = false, askPrompt = false, noAsk = false;
             string updatedFrom = "";
             int ipcPort = 42421;
             for (int i = 0; i < args.Length; i++) {
@@ -1975,6 +2011,7 @@ namespace KarelNative {
                 else if (a == "--no-update") noUpdate = true;
                 else if (a == "--no-shadow") noShadow = true;
                 else if (a == "--ask") askPrompt = true;
+                else if (a == "--no-ask") noAsk = true;
                 else if (a == "--tray" || a == "--hidden") startHidden = true;
                 else if (a == "--toggle" || a == "-t" || a == "t") toggle = true;
                 else if (a.StartsWith("--updated-from=")) updatedFrom = a.Substring(15);
@@ -1990,7 +2027,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.1.10", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.2.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -2001,7 +2038,8 @@ namespace KarelNative {
             if (noShadow) { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            if (askPrompt && !ShowAskPrompt()) return;
+            bool shouldAsk = askPrompt || (!noAsk && !startHidden && string.IsNullOrEmpty(updatedFrom));
+            if (shouldAsk && !ShowAskPrompt()) return;
             Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
         }
     }

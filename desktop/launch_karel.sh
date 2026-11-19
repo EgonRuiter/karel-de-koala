@@ -20,6 +20,8 @@ done
 
 BIN=""
 for CAND in \
+    "$HERE/.karel_linux_${ARCH}" \
+    "$HERE/.karel_linux" \
     "$HERE/karel_linux_${ARCH}" \
     "$HERE/karel_linux" \
     "$HERE/desktop/karel_linux_${ARCH}" \

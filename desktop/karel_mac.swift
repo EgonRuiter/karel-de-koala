@@ -749,7 +749,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.1.9"
+    static let version = "2.2.0"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -838,7 +838,15 @@ private enum AutoUpdater {
             guard fm.fileExists(atPath: newApp.path) else { return }
             _ = runTool("/usr/bin/xattr", ["-dr", "com.apple.quarantine", newApp.path])
 
-            let usbApp = save.connected ? URL(fileURLWithPath: save.driveRoot).appendingPathComponent("Karel.app") : appBundle
+            let usbApp: URL = {
+                guard save.connected else { return appBundle }
+                let root = URL(fileURLWithPath: save.driveRoot)
+                let newName = root.appendingPathComponent("Karel (Mac).app")
+                let oldName = root.appendingPathComponent("Karel.app")
+                if fm.fileExists(atPath: newName.path) { return newName }
+                if fm.fileExists(atPath: oldName.path) { return oldName }
+                return newName
+            }()
             let swapSh = stageDir.appendingPathComponent("swap.sh")
             let sh = "#!/usr/bin/env bash\nsleep 1\nrm -rf \"\(appBundle.path)\"\nditto \"\(newApp.path)\" \"\(appBundle.path)\"\n"
                 + (usbApp.path != appBundle.path ? "rm -rf \"\(usbApp.path)\" && ditto \"\(newApp.path)\" \"\(usbApp.path)\" || true\n" : "")
@@ -908,9 +916,8 @@ private enum MacStartupHelper {
     }
 
     @discardableResult
-    static func toggle() -> Bool {
+    static func setEnabled(_ on: Bool) -> Bool {
         let fm = FileManager.default
-        let on = !isEnabled()
         if on {
             let appDst = installedAppUrl
             let dir = appDst.deletingLastPathComponent()
@@ -939,6 +946,11 @@ private enum MacStartupHelper {
             try? fm.removeItem(at: plistUrl)
         }
         return isEnabled()
+    }
+
+    @discardableResult
+    static func toggle() -> Bool {
+        return setEnabled(!isEnabled())
     }
 }
 
@@ -1812,12 +1824,13 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             s.save.data["language"] = s.isEn() ? "nl" : "en"; s.save.save(); s.refreshHub()
         }
         let stOn = MacStartupHelper.isEnabled()
-        addMenuItem(m, (stOn ? "✓ " : "") + (en ? "Auto-start on Login (Mac)" : "Automatisch mee-opstarten (Mac)")) { [weak self] in
+        addMenuItem(m, (stOn ? "✓ " : "") + (en ? "Auto-open on USB plug-in" : "Automatisch openen bij USB")) { [weak self] in
             let on = MacStartupHelper.toggle()
             let msg = on
-                ? (self?.isEn() == true ? "Auto-start ON (Mac)" : "Auto-start AAN (Mac)")
-                : (self?.isEn() == true ? "Auto-start OFF" : "Auto-start UIT")
+                ? (self?.isEn() == true ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!")
+                : (self?.isEn() == true ? "Auto-open on USB OFF" : "Automatisch openen bij USB UIT")
             self?.say(msg, 45)
+            self?.refreshHub()
         }
         m.addItem(.separator())
         addMenuItem(m, trayHidden ? (en ? "Wake Karel" : "Wek Karel") : (en ? "Hide Behind Dock" : "Verberg achter Dock")) { [weak self] in self?.enqueue("EVENT:TRAY_TOGGLE") }
@@ -1957,10 +1970,9 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         y += 48
         hubHidBtn = makeFlatBtn("", frame: NSRect(x: P, y: y, width: Win, height: 32), bg: NSColor(red: 0.08, green: 0.41, blue: 0.62, alpha: 1.0)) { [weak self] in
             guard let s = self else { return }
-            if let res = s.save.toggleNoHidFlag() {
-                s.say(res ? "Mac Veilig AAN (geen Win+R)" : "Windows Win+R Auto-Start AAN", 55)
-                s.refreshHub()
-            }
+            let on = MacStartupHelper.toggle()
+            s.say(on ? (s.isEn() ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (s.isEn() ? "Auto-open on USB OFF" : "Automatisch openen bij USB UIT"), 55)
+            s.refreshHub()
         }
         hubUsbLbl = NSTextField(labelWithString: "")
         hubUsbLbl.frame = NSRect(x: P, y: y, width: Win, height: 24)
@@ -2023,21 +2035,19 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         let aq = save.getBool("auto_quiet_fullscreen", true)
         (hubAqBtn as? ActionButton)?.setStyledTitle((en ? "Quiet: " : "Auto-Stil: ") + (aq ? (en ? "ON" : "AAN") : (en ? "OFF" : "UIT")), size: 12)
 
-        hubHidBtn.isHidden = !save.connected
-        if save.connected {
-            let noHid = save.hasNoHidFlag()
-            (hubHidBtn as? ActionButton)?.setStyledTitle(
-                noHid ? (en ? "USB Auto-Start: Mac Safe (click = Win+R ON)" : "USB Auto-Start: Mac Veilig (klik = Win+R AAN)")
-                      : (en ? "USB Auto-Start: Win+R ON (click = Mac Safe)" : "USB Auto-Start: Win+R AAN (klik = Mac Veilig)"),
-                size: 11.5
-            )
-        }
+        hubHidBtn.isHidden = false
+        let stOn = MacStartupHelper.isEnabled()
+        (hubHidBtn as? ActionButton)?.setStyledTitle(
+            stOn ? (en ? "Auto-open on USB plug-in: ON" : "Automatisch openen bij USB: AAN")
+                 : (en ? "Auto-open on USB plug-in: OFF" : "Automatisch openen bij USB: UIT"),
+            size: 11.5
+        )
         let usbTxt = save.connected ? "● USB: KAREL (\(save.driveRoot))" : (en ? "○ Memory mode (no USB)" : "○ Geheugen-modus (geen USB)")
         let serTxt = ser.portName.isEmpty ? (en ? "Serial: waiting..." : "Serial: wachten...") : "RP2350 @ \(ser.portName)"
         hubUsbLbl.stringValue = "\(usbTxt)   |   \(serTxt)"
 
         var uFrame = hubUsbLbl.frame
-        uFrame.origin.y = save.connected ? (hubHidBtn.frame.maxY + 8) : hubHidBtn.frame.minY
+        uFrame.origin.y = hubHidBtn.frame.maxY + 8
         hubUsbLbl.frame = uFrame
         let targetH = uFrame.maxY + 14
         if abs(root.frame.height - targetH) > 1 {
@@ -2107,6 +2117,7 @@ private func showAskPrompt() -> Bool {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
     app.activate(ignoringOtherApps: true)
+    var wantAuto = MacStartupHelper.isEnabled()
     while true {
         let a = NSAlert()
         a.messageText = en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?"
@@ -2114,16 +2125,29 @@ private func showAskPrompt() -> Bool {
             ? "Karel lives on your Sticky RP2350 stick and keeps you company while working."
             : "Karel woont op je Sticky RP2350-stick en houdt je gezelschap."
         a.icon = ico
+        let cb = NSButton(
+            checkboxWithTitle: en ? "Open Karel automatically when I plug in the USB stick" : "Open Karel voortaan automatisch bij het inpluggen van de USB",
+            target: nil,
+            action: nil
+        )
+        cb.state = wantAuto ? .on : .off
+        cb.sizeToFit()
+        a.accessoryView = cb
         a.addButton(withTitle: en ? "Yes" : "Ja")
         a.addButton(withTitle: en ? "View README" : "README bekijken")
         a.addButton(withTitle: en ? "No" : "Nee")
         let r = a.runModal()
+        wantAuto = (cb.state == .on)
         if r == .alertFirstButtonReturn {
+            if wantAuto != MacStartupHelper.isEnabled() { MacStartupHelper.setEnabled(wantAuto) }
             app.setActivationPolicy(.accessory)
             return true
         }
         if r == .alertSecondButtonReturn {
-            if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
+            let localHtml = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/Lees mij.html")
+            if !localHtml.isEmpty && FileManager.default.fileExists(atPath: localHtml) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: localHtml))
+            } else if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
                 NSWorkspace.shared.open(url)
             }
             continue
@@ -2137,6 +2161,7 @@ private func showAskPrompt() -> Bool {
         c.addButton(withTitle: en ? "Yes, skip" : "Ja, sluit af")
         c.addButton(withTitle: en ? "Actually yes!" : "Toch wel!")
         if c.runModal() == .alertSecondButtonReturn {
+            if wantAuto != MacStartupHelper.isEnabled() { MacStartupHelper.setEnabled(wantAuto) }
             app.setActivationPolicy(.accessory)
             return true
         }
@@ -2170,7 +2195,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.1.10", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.1", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
