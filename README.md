@@ -16,9 +16,9 @@ Wanneer je het station **`KAREL`** opent, zie je slechts 4 overzichtelijke items
 - **`Karel (Linux).sh`** — starten op Linux (`bash "Karel (Linux).sh"`, kiest zelf de juiste architectuur)
 - **`Lees mij.html`** — detecteert automatisch je besturingssysteem en toont direct het juiste startbestand + uitleg
 
-### Welkomstscherm & optioneel automatisch openen bij inpluggen
-1. Bij het openen toont Karel eerst een vriendelijke Sticky pop-up: *"Wil je een koala op je scherm hebben?"* met knoppen **Ja**, **README bekijken** en **Nee** (gevolgd door *"Weet je het zeker?"*).
-2. Wil je dat Karel voortaan **wél automatisch op je scherm klimt** zodra je de USB-stick inplugt? Vink dan zélf in het startschermpje (of later via het menu / Hub) **"Open Karel voortaan automatisch bij het inpluggen van de USB"** aan. Karel luistert dan stil in je systeemvak (Windows) of menubalk (macOS) naar de `KAREL`-stick — zonder toetsenbord-emulatie!
+### Automatisch openen bij inpluggen & automatisch sluiten bij loskoppelen
+1. De eerste keer dat je Karel opent (als auto-start nog uit staat) vraagt Karel kort: *"Karel voortaan automatisch starten?"* (`Ja, automatisch` / `Nee, alleen nu` / `README`). Kies je **Ja**, dan luistert Karel stil in je systeemvak (Windows) of menubalk (macOS) en klimt hij voortaan automatisch je scherm op zodra je de USB-stick inplugt — helemaal zonder `Win+R`!
+2. **Trek je de USB-stick eruit?** Dan zwaait Karel gedag en duikt hij direct weg van je scherm (en sluit volledig af, of wacht stil in je systeemvak/menubalk als je auto-start aan hebt staan).
 3. *Optionele Python-editie:* [`python_extended/`](python_extended/README.md) blijft los beschikbaar (`--python`, vereist Python 3 + Tk `>= 8.6`).
 
 ---

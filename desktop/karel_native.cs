@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.2.1.0")]
-[assembly: AssemblyFileVersion("2.2.1.0")]
+[assembly: AssemblyVersion("2.2.2.0")]
+[assembly: AssemblyFileVersion("2.2.2.0")]
 
 namespace KarelNative {
 
@@ -701,7 +701,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.2.1";
+        public const string Version = "2.2.2";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1927,7 +1927,7 @@ namespace KarelNative {
             } catch { return false; }
         }
 
-        private static bool ShowAskPrompt() {
+        private static bool ShowAutoStartPrompt() {
             SaveStore s = new SaveStore();
             s.Load();
             bool en = s.GetStr("language", "nl") == "en";
@@ -1936,7 +1936,7 @@ namespace KarelNative {
 
             float sc = 1.0f;
             try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) sc = Math.Max(1.0f, g.DpiX / 96.0f); } catch { }
-            int W = KarelForm.Sc(490, sc), H = KarelForm.Sc(256, sc), P = KarelForm.Sc(18, sc), hdrH = KarelForm.Sc(40, sc);
+            int W = KarelForm.Sc(490, sc), H = KarelForm.Sc(224, sc), P = KarelForm.Sc(18, sc), hdrH = KarelForm.Sc(40, sc);
 
             using (Form f = new Form()) {
                 f.AutoScaleMode = AutoScaleMode.None;
@@ -1976,40 +1976,34 @@ namespace KarelNative {
 
                 int tx = P + boxSz + KarelForm.Sc(16, sc), tw = W - tx - P;
                 Label titleLbl = new Label {
-                    Text = en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?",
-                    Location = new Point(tx, hdrH + KarelForm.Sc(18, sc)), Size = new Size(tw, KarelForm.Sc(48, sc)),
+                    Text = en ? "Auto-start Karel on USB plug-in?" : "Karel voortaan automatisch starten?",
+                    Location = new Point(tx, hdrH + KarelForm.Sc(18, sc)), Size = new Size(tw, KarelForm.Sc(46, sc)),
                     Font = new Font("Segoe UI", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(242, 245, 250),
                     TextAlign = ContentAlignment.TopLeft
                 };
                 Label subLbl = new Label {
-                    Text = en ? "Karel lives on your Sticky RP2350 stick and keeps you company while working." : "Karel woont op je Sticky RP2350-stick en houdt je gezelschap.",
-                    Location = new Point(tx, hdrH + KarelForm.Sc(68, sc)), Size = new Size(tw, KarelForm.Sc(52, sc)),
+                    Text = en
+                        ? "Should Karel automatically appear whenever you plug in this USB stick? (You can change this anytime in the menu.)"
+                        : "Wil je dat Karel voortaan vanzelf verschijnt zodra je deze USB-stick inplugt? (Altijd weer uit te zetten in het menu.)",
+                    Location = new Point(tx, hdrH + KarelForm.Sc(64, sc)), Size = new Size(tw, KarelForm.Sc(58, sc)),
                     Font = new Font("Segoe UI", 9.5f), ForeColor = Color.FromArgb(176, 184, 202),
                     TextAlign = ContentAlignment.TopLeft
                 };
                 f.Controls.Add(titleLbl);
                 f.Controls.Add(subLbl);
 
-                CheckBox cbAuto = new CheckBox {
-                    Text = en ? "Open Karel automatically when I plug in the USB stick" : "Open Karel voortaan automatisch bij het inpluggen van de USB",
-                    Checked = StartupHelper.IsEnabled(),
-                    Location = new Point(P, hdrH + KarelForm.Sc(128, sc)),
-                    Size = new Size(W - 2 * P, KarelForm.Sc(24, sc)),
-                    ForeColor = Color.FromArgb(204, 212, 228),
-                    BackColor = Color.FromArgb(18, 20, 27),
-                    Font = new Font("Segoe UI", 9f)
-                };
-                f.Controls.Add(cbAuto);
-
                 int btnY = H - KarelForm.Sc(54, sc), btnH = KarelForm.Sc(36, sc);
-                Button btnYes = KarelForm.MakeFlatBtn(en ? "Yes" : "Ja", P, btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
-                Button btnReadme = KarelForm.MakeFlatBtn(en ? "View README" : "README bekijken", P + KarelForm.Sc(128, sc), btnY, KarelForm.Sc(198, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
-                Button btnNo = KarelForm.MakeFlatBtn(en ? "No" : "Nee", W - P - KarelForm.Sc(118, sc), btnY, KarelForm.Sc(118, sc), btnH, Color.FromArgb(140, 38, 48), 9.5f);
+                Button btnYes = KarelForm.MakeFlatBtn(en ? "Yes, auto-start" : "Ja, automatisch", P, btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
+                Button btnNo = KarelForm.MakeFlatBtn(en ? "No, just start" : "Nee, alleen nu", P + KarelForm.Sc(172, sc), btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
+                Button btnReadme = KarelForm.MakeFlatBtn("README", W - P - KarelForm.Sc(110, sc), btnY, KarelForm.Sc(110, sc), btnH, Color.FromArgb(32, 37, 52), 9.5f);
 
-                bool confirmStep = false;
                 btnYes.Click += delegate {
-                    if (cbAuto.Checked != StartupHelper.IsEnabled()) StartupHelper.SetEnabled(cbAuto.Checked);
+                    StartupHelper.SetEnabled(true);
                     f.DialogResult = DialogResult.Yes;
+                    f.Close();
+                };
+                btnNo.Click += delegate {
+                    f.DialogResult = DialogResult.No;
                     f.Close();
                 };
                 btnReadme.Click += delegate {
@@ -2026,35 +2020,16 @@ namespace KarelNative {
                     const string url = "https://github.com/EgonRuiter/karel-de-koala#readme";
                     try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
                 };
-                btnNo.Click += delegate {
-                    if (!confirmStep) {
-                        confirmStep = true;
-                        f.Text = en ? "Are you sure?" : "Weet je het zeker?";
-                        titleLbl.Text = en ? "Are you sure?" : "Weet je het zeker?";
-                        subLbl.Text = en ? "Karel won't appear on your screen if you choose No." : "Karel verschijnt dan niet op je scherm.";
-                        cbAuto.Visible = false;
-                        btnReadme.Visible = false;
-                        btnYes.Text = en ? "Actually yes!" : "Toch wel!";
-                        btnYes.Size = new Size(KarelForm.Sc(218, sc), btnH);
-                        btnYes.Location = new Point(P, btnY);
-                        btnNo.Text = en ? "Yes, skip" : "Ja, sluit af";
-                        btnNo.Size = new Size(KarelForm.Sc(218, sc), btnH);
-                        btnNo.Location = new Point(W - P - KarelForm.Sc(218, sc), btnY);
-                        f.AcceptButton = null;
-                        return;
-                    }
-                    f.DialogResult = DialogResult.No;
-                    f.Close();
-                };
                 f.AcceptButton = btnYes;
                 f.KeyPreview = true;
                 f.KeyDown += delegate(object ks, KeyEventArgs ke) {
                     if (ke.KeyCode == Keys.Escape) { f.DialogResult = DialogResult.No; f.Close(); }
                 };
                 f.Controls.Add(btnYes);
-                f.Controls.Add(btnReadme);
                 f.Controls.Add(btnNo);
-                return f.ShowDialog() == DialogResult.Yes;
+                f.Controls.Add(btnReadme);
+                DialogResult dr = f.ShowDialog();
+                return dr == DialogResult.Yes || dr == DialogResult.No;
             }
         }
 
@@ -2085,7 +2060,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.2.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.2.3", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -2096,8 +2071,8 @@ namespace KarelNative {
             if (noShadow) { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            bool shouldAsk = askPrompt || (!noAsk && !startHidden && string.IsNullOrEmpty(updatedFrom));
-            if (shouldAsk && !ShowAskPrompt()) return;
+            bool shouldAsk = askPrompt || (!noAsk && !startHidden && string.IsNullOrEmpty(updatedFrom) && !StartupHelper.IsEnabled());
+            if (shouldAsk && !ShowAutoStartPrompt()) return;
             Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
         }
     }

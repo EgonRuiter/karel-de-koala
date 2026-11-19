@@ -770,7 +770,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.2.1"
+    static let version = "2.2.2"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -2142,7 +2142,7 @@ private final class MenuClosureItem: NSMenuItem {
     @objc private func fired() { block() }
 }
 
-private func showAskPrompt() -> Bool {
+private func showAutoStartPrompt() {
     let s = SaveStore(); s.load()
     let en = s.getStr("language", "nl") == "en"
     let bank = SpriteBank.loadBundled()
@@ -2150,55 +2150,32 @@ private func showAskPrompt() -> Bool {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
     app.activate(ignoringOtherApps: true)
-    var wantAuto = MacStartupHelper.isEnabled()
     while true {
         let a = NSAlert()
-        a.messageText = en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?"
+        a.messageText = en ? "Auto-start Karel on USB plug-in?" : "Karel voortaan automatisch starten?"
         a.informativeText = en
-            ? "Karel lives on your Sticky RP2350 stick and keeps you company while working."
-            : "Karel woont op je Sticky RP2350-stick en houdt je gezelschap."
+            ? "Should Karel automatically appear whenever you plug in this USB stick? (You can change this anytime in the menu.)"
+            : "Wil je dat Karel voortaan vanzelf verschijnt zodra je deze USB-stick inplugt? (Altijd weer uit te zetten in het menu.)"
         a.icon = ico
-        let cb = NSButton(
-            checkboxWithTitle: en ? "Open Karel automatically when I plug in the USB stick" : "Open Karel voortaan automatisch bij het inpluggen van de USB",
-            target: nil,
-            action: nil
-        )
-        cb.state = wantAuto ? .on : .off
-        cb.sizeToFit()
-        a.accessoryView = cb
-        a.addButton(withTitle: en ? "Yes" : "Ja")
-        a.addButton(withTitle: en ? "View README" : "README bekijken")
-        a.addButton(withTitle: en ? "No" : "Nee")
+        a.addButton(withTitle: en ? "Yes, auto-start" : "Ja, automatisch")
+        a.addButton(withTitle: en ? "No, just start" : "Nee, alleen nu")
+        a.addButton(withTitle: "README")
         let r = a.runModal()
-        wantAuto = (cb.state == .on)
         if r == .alertFirstButtonReturn {
-            if wantAuto != MacStartupHelper.isEnabled() { MacStartupHelper.setEnabled(wantAuto) }
+            MacStartupHelper.setEnabled(true)
             app.setActivationPolicy(.accessory)
-            return true
+            return
         }
         if r == .alertSecondButtonReturn {
-            let localHtml = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/Lees mij.html")
-            if !localHtml.isEmpty && FileManager.default.fileExists(atPath: localHtml) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: localHtml))
-            } else if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
-                NSWorkspace.shared.open(url)
-            }
-            continue
-        }
-        let c = NSAlert()
-        c.messageText = en ? "Are you sure?" : "Weet je het zeker?"
-        c.informativeText = en
-            ? "Karel won't appear on your screen if you choose No."
-            : "Karel verschijnt dan niet op je scherm."
-        c.icon = ico
-        c.addButton(withTitle: en ? "Yes, skip" : "Ja, sluit af")
-        c.addButton(withTitle: en ? "Actually yes!" : "Toch wel!")
-        if c.runModal() == .alertSecondButtonReturn {
-            if wantAuto != MacStartupHelper.isEnabled() { MacStartupHelper.setEnabled(wantAuto) }
             app.setActivationPolicy(.accessory)
-            return true
+            return
         }
-        return false
+        let localHtml = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/Lees mij.html")
+        if !localHtml.isEmpty && FileManager.default.fileExists(atPath: localHtml) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: localHtml))
+        } else if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 
@@ -2228,7 +2205,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.2", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.3", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
@@ -2254,9 +2231,6 @@ if !noShadow && curBundle.pathExtension == "app" && curBundle.path.hasPrefix("/V
             for a in CommandLine.arguments.dropFirst() where a != "--no-shadow" && !a.hasPrefix("-psn_") {
                 passArgs.append(a)
             }
-            if !passArgs.contains("--ask") && !noAsk && !startHidden && updatedFrom.isEmpty {
-                passArgs.append("--ask")
-            }
             let p = Process()
             p.executableURL = liveExe
             p.arguments = passArgs
@@ -2266,8 +2240,8 @@ if !noShadow && curBundle.pathExtension == "app" && curBundle.path.hasPrefix("/V
     } catch { }
 }
 
-let shouldAsk = askPrompt || (!noAsk && !startHidden && updatedFrom.isEmpty)
-if shouldAsk && !showAskPrompt() { exit(0) }
+let shouldAsk = askPrompt || (!noAsk && !startHidden && updatedFrom.isEmpty && !MacStartupHelper.isEnabled())
+if shouldAsk { showAutoStartPrompt() }
 
 private let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
