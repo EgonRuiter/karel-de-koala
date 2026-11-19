@@ -27,14 +27,23 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.3.0.0")]
-[assembly: AssemblyFileVersion("2.3.0.0")]
+[assembly: AssemblyVersion("2.3.1.0")]
+[assembly: AssemblyFileVersion("2.3.1.0")]
 
 namespace KarelNative {
 
     internal static class NativeWin {
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left, Top, Right, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DEV_BROADCAST_DEVICEINTERFACE {
+            public int dbcc_size;
+            public int dbcc_devicetype;
+            public int dbcc_reserved;
+            public Guid dbcc_classguid;
+            public short dbcc_name;
+        }
 
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
         [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
@@ -46,8 +55,30 @@ namespace KarelNative {
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder sb, int max);
         [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
         [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr RegisterDeviceNotification(IntPtr hRecipient, IntPtr notificationFilter, int flags);
+        [DllImport("user32.dll", SetLastError = true)] public static extern bool UnregisterDeviceNotification(IntPtr handle);
+        [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         public static extern bool GetVolumeInformation(string root, StringBuilder name, int nameLen, out uint serial, out uint maxComp, out uint flags, StringBuilder fs, int fsLen);
+
+        public static IntPtr RegisterVolumeNotify(IntPtr hWnd) {
+            try {
+                DEV_BROADCAST_DEVICEINTERFACE dbi = new DEV_BROADCAST_DEVICEINTERFACE {
+                    dbcc_size = Marshal.SizeOf(typeof(DEV_BROADCAST_DEVICEINTERFACE)),
+                    dbcc_devicetype = 5,
+                    dbcc_reserved = 0,
+                    dbcc_classguid = new Guid("53f5630d-b6bf-11d0-94f2-00a0c91efb8b"),
+                    dbcc_name = 0
+                };
+                IntPtr buf = Marshal.AllocHGlobal(dbi.dbcc_size);
+                try {
+                    Marshal.StructureToPtr(dbi, buf, false);
+                    return RegisterDeviceNotification(hWnd, buf, 0);
+                } finally {
+                    Marshal.FreeHGlobal(buf);
+                }
+            } catch { return IntPtr.Zero; }
+        }
 
         private static readonly string[] MeetingMarkers = {
             "zoom meeting", "meeting | microsoft teams", "vergadering | microsoft teams",
@@ -756,7 +787,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.3.0";
+        public const string Version = "2.3.1";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -899,6 +930,8 @@ namespace KarelNative {
         private readonly Random rng = new Random();
         private TcpListener ipcSrv;
         private Form hubForm;
+        private IntPtr devNotifyHandle = IntPtr.Zero;
+        private int usbProbeLeft = 0;
 
         private string state = "IDLE", roamMode = "free", bubble = "";
         private int scale = 3, frameIdx = 0, actTicks = 0, bubbleTicks = 0, discoTicks = 0, hyperTicks = 0, noseClicks = 0;
@@ -996,10 +1029,18 @@ namespace KarelNative {
             updatedFromVer = updatedFrom ?? "";
             tick.Interval = 62;
             tick.Tick += OnTick;
-            usbDebounce.Interval = 700;
+            usbDebounce.Interval = 500;
             usbDebounce.Tick += delegate {
-                usbDebounce.Stop();
-                if (usbSleeping && save.PollUsb() == "on") WakeFromUsbSleep();
+                if (!usbSleeping) { usbDebounce.Stop(); usbProbeLeft = 0; return; }
+                string usb = save.PollUsb();
+                if (usb == "on" || save.Connected) {
+                    usbDebounce.Stop();
+                    usbProbeLeft = 0;
+                    WakeFromUsbSleep();
+                    return;
+                }
+                usbProbeLeft--;
+                if (usbProbeLeft <= 0) usbDebounce.Stop();
             };
             if (startHidden && !save.Connected) {
                 trayHidden = true;
@@ -1034,15 +1075,26 @@ namespace KarelNative {
             base.OnHandleCreated(e);
             try { NativeWin.RegisterHotKey(Handle, 1, 0x4003, (uint)Keys.K); }
             catch { try { NativeWin.RegisterHotKey(Handle, 1, 0x0003, (uint)Keys.K); } catch { } }
+            if (devNotifyHandle == IntPtr.Zero) devNotifyHandle = NativeWin.RegisterVolumeNotify(Handle);
         }
 
         protected override void WndProc(ref Message m) {
             if (m.Msg == 0x0312 && m.WParam == (IntPtr)1) { Enqueue("EVENT:TRAY_TOGGLE"); return; }
             if (m.Msg == 0x0219 && usbSleeping) {
-                int wp = m.WParam.ToInt32();
+                int wp = unchecked((int)m.WParam.ToInt64());
                 if (wp == 0x8000 || wp == 0x0007) {
-                    if (save.PollUsb() == "on") WakeFromUsbSleep();
-                    else { usbDebounce.Stop(); usbDebounce.Start(); }
+                    BeginInvoke(new Action(delegate {
+                        if (!usbSleeping) return;
+                        string usb = save.PollUsb();
+                        if (usb == "on" || save.Connected) {
+                            WakeFromUsbSleep();
+                        } else {
+                            // RP2350 CircuitPython takes ~1.5-4s to mount FAT after USB arrival: probe 14 x 500ms (7s), then 0% CPU again.
+                            usbProbeLeft = 14;
+                            usbDebounce.Stop();
+                            usbDebounce.Start();
+                        }
+                    }));
                 }
             }
             if (m.Msg == 0x0011 || (m.Msg == 0x0016 && m.WParam != IntPtr.Zero)) { if (!uninstalling) save.Save(); m.Result = (IntPtr)1; return; }
@@ -1216,6 +1268,7 @@ namespace KarelNative {
 
         private void TriggerClimb(string msg) {
             Rectangle wa = CurWork();
+            closing = false; closeStep = 0;
             flying = false; umbrellaFall = false; jumpY = 0;
             wy = GroundY(wa);
             wx = Math.Max(MinX(wa), Math.Min(MaxX(wa), wx));
@@ -1226,7 +1279,14 @@ namespace KarelNative {
         }
 
         private void WakeFromTray() {
-            if (trayHidden) { trayHidden = false; Opacity = 1.0; Show(); TopMost = true; }
+            closing = false; closeStep = 0;
+            if (trayHidden || !Visible) {
+                trayHidden = false;
+                Opacity = 1.0;
+                Show();
+                TopMost = true;
+                try { NativeWin.SetWindowPos(Handle, (IntPtr)(-1), (int)Math.Round(wx), (int)Math.Round(wy), Width, Height, 0x0050); } catch { }
+            }
             TriggerClimb(IsEn() ? "I'm back! (Ctrl+Alt+K)" : "Daar ben ik weer! (Ctrl+Alt+K)");
         }
 
@@ -1256,19 +1316,29 @@ namespace KarelNative {
 
         private void WakeFromUsbSleep() {
             usbDebounce.Stop();
+            usbProbeLeft = 0;
             usbSleeping = false;
             trayHidden = false;
+            closing = false;
+            closeStep = 0;
             ser.SetPaused(false);
             try { trayIcon.Visible = true; } catch { }
             save.Load();
             scale = Math.Max(2, Math.Min(5, save.GetInt("karel_scale", 3)));
             UpdateFormSize();
+            Rectangle wa = CurWork();
+            wy = GroundY(wa);
+            wx = Math.Max(MinX(wa), Math.Min(MaxX(wa), wx));
+            Location = new Point((int)Math.Round(wx), (int)Math.Round(wy));
             RefreshHub();
             Opacity = 1.0;
+            Visible = true;
             Show();
             TopMost = true;
+            try { NativeWin.SetWindowPos(Handle, (IntPtr)(-1), (int)Math.Round(wx), (int)Math.Round(wy), Width, Height, 0x0050); } catch { }
             tick.Start();
             TriggerClimb(IsEn() ? "KAREL USB connected!" : "KAREL USB verbonden!");
+            Invalidate();
         }
 
         private void CheckForUpdatesManual() {
@@ -1324,6 +1394,7 @@ namespace KarelNative {
             if (!uninstalling) save.Save();
             ser.Stop();
             try { NativeWin.UnregisterHotKey(Handle, 1); } catch { }
+            if (devNotifyHandle != IntPtr.Zero) { try { NativeWin.UnregisterDeviceNotification(devNotifyHandle); } catch { } devNotifyHandle = IntPtr.Zero; }
             if (ipcSrv != null) { try { ipcSrv.Stop(); } catch { } ipcSrv = null; }
             trayIcon.Visible = false;
             trayIcon.Dispose();
@@ -2228,7 +2299,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.3.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.3.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
