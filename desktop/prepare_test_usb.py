@@ -68,6 +68,8 @@ def _rm_path(path):
     if not os.path.lexists(path):
         return
     try:
+        if os.name == "nt":
+            ctypes.windll.kernel32.SetFileAttributesW(path, 0x80)
         if os.path.isdir(path) and not os.path.islink(path):
             shutil.rmtree(path, ignore_errors=True)
         else:

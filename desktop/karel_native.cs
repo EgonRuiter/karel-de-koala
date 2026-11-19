@@ -534,10 +534,20 @@ namespace KarelNative {
             try {
                 string dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                bool keepHidden = File.Exists(path) && ((File.GetAttributes(path) & FileAttributes.Hidden) != 0);
                 string tmp = path + ".tmp";
+                if (File.Exists(tmp)) {
+                    try { File.SetAttributes(tmp, FileAttributes.Normal); File.Delete(tmp); } catch { }
+                }
                 File.WriteAllText(tmp, txt, Encoding.UTF8);
-                if (File.Exists(path)) File.Delete(path);
+                if (File.Exists(path)) {
+                    try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
+                    File.Delete(path);
+                }
                 File.Move(tmp, path);
+                if (keepHidden) {
+                    try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); } catch { }
+                }
             } catch { }
         }
     }
