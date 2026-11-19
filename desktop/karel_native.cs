@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.2.2.0")]
-[assembly: AssemblyFileVersion("2.2.2.0")]
+[assembly: AssemblyVersion("2.2.3.0")]
+[assembly: AssemblyFileVersion("2.2.3.0")]
 
 namespace KarelNative {
 
@@ -701,7 +701,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.2.2";
+        public const string Version = "2.2.3";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -942,7 +942,7 @@ namespace KarelNative {
             tick.Interval = 62;
             tick.Tick += OnTick;
             tick.Start();
-            if (startHidden) {
+            if (startHidden && !save.Connected) {
                 trayHidden = true;
                 Opacity = 0;
                 Shown += delegate { Hide(); Opacity = 1.0; };
@@ -1176,22 +1176,24 @@ namespace KarelNative {
         }
 
         private void HandoffToLocalWatcher() {
-            string instExe = StartupHelper.InstalledExePath();
-            if (File.Exists(instExe) && !string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase)) {
-                try { Process.Start(new ProcessStartInfo(instExe, "--tray") { UseShellExecute = false }); } catch { }
-            }
-            FinalizeQuit();
+            FinalizeQuit(true);
         }
 
-        private void FinalizeQuit() {
+        private void FinalizeQuit(bool spawnLocalTray = false) {
             tick.Stop();
             ser.Send("STATE:BYE");
             save.Save();
             ser.Stop();
             try { NativeWin.UnregisterHotKey(Handle, 1); } catch { }
-            if (ipcSrv != null) { try { ipcSrv.Stop(); } catch { } }
+            if (ipcSrv != null) { try { ipcSrv.Stop(); } catch { } ipcSrv = null; }
             trayIcon.Visible = false;
             trayIcon.Dispose();
+            if (spawnLocalTray) {
+                string instExe = StartupHelper.InstalledExePath();
+                if (File.Exists(instExe) && !string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase)) {
+                    try { Process.Start(new ProcessStartInfo(instExe, "--tray") { UseShellExecute = false }); } catch { }
+                }
+            }
             Application.Exit();
         }
 
@@ -2060,7 +2062,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.2.3", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.2.4", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
@@ -2068,11 +2070,22 @@ namespace KarelNative {
             NativeWin.EnableDpi();
             if (TrySignalExisting(toggle, ipcPort)) return;
             if (toggle) return;
-            if (noShadow) { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             bool shouldAsk = askPrompt || (!noAsk && !startHidden && string.IsNullOrEmpty(updatedFrom) && !StartupHelper.IsEnabled());
             if (shouldAsk && !ShowAutoStartPrompt()) return;
+            if (!noShadow && StartupHelper.IsEnabled()) {
+                string instExe = StartupHelper.InstalledExePath();
+                if (!string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase)) {
+                    StartupHelper.SetEnabled(true);
+                    if (File.Exists(instExe)) {
+                        string pass = startHidden ? "--tray --no-shadow" : "--no-ask --no-shadow";
+                        if (noUpdate) pass += " --no-update";
+                        if (!string.IsNullOrEmpty(updatedFrom)) pass += " --updated-from=" + updatedFrom;
+                        try { Process.Start(new ProcessStartInfo(instExe, pass) { UseShellExecute = false }); return; } catch { }
+                    }
+                }
+            }
             Application.Run(new KarelForm(ipcPort, noUpdate, updatedFrom, startHidden));
         }
     }

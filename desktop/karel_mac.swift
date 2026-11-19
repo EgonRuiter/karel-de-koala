@@ -770,7 +770,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.2.2"
+    static let version = "2.2.3"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1080,7 +1080,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         wy = groundY(wa)
         roamTx = wx; roamTy = wy
         applyPanelPosition()
-        if startHidden {
+        if startHidden && !save.connected {
             trayHidden = true
             panel.orderOut(nil)
         } else {
@@ -1109,7 +1109,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         tickTimer = Timer.scheduledTimer(withTimeInterval: 0.062, repeats: true) { [weak self] _ in
             self?.onTick()
         }
-        if !startHidden {
+        if !trayHidden {
             triggerClimb(isEn() ? "Karel climbed onto your Mac desktop!" : "Karel klimt je Dock op!")
         }
         if !noUpdate {
@@ -2205,7 +2205,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.3", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.4", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
