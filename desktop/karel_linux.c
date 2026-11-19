@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.2.4"
+#define KAREL_VERSION "2.3.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -1644,11 +1644,12 @@ static void draw_hub(KarelApp *k) {
     }
 
     curY += sh + Sc(12, s);
-    if (k->save.connected) {
-        const char *hl = en ? "USB Safe Mode: Storage + LED Serial (No HID)" : "USB Veilige Modus: Opslag + LED Serial (Geen HID)";
-        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 28, 34, 46));
+    {
+        const char *hl = en ? "Check for updates (GitHub)" : "Check op updates (GitHub)";
+        add_hub_btn(k, P, curY, Win, Sc(30, s), 26);
+        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 28, 42, 62));
         XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)Sc(30, s));
-        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 170, 210, 195));
+        XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 220, 232, 250));
         XDrawString(k->dpy, k->hub_win, k->hub_gc, P + Sc(14, s), curY + Sc(20, s), hl, (int)strlen(hl));
         curY += Sc(38, s);
     }
@@ -1700,7 +1701,10 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
         else if (b.id == 20) k->muted = !k->muted;
         else if (b.id == 21) { k->save.auto_quiet = !k->save.auto_quiet; save_persist(&k->save); }
         else if (b.id == 22) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); }
-        else if (b.id == 30) { trigger_dive(k, "quit"); return; }
+        else if (b.id == 26) {
+            say_msg(k, is_en(k) ? "Checking GitHub for updates..." : "Controleren op updates...", 60);
+            if (k->upd_pipe < 0) start_updater_async(k->save.drive_root, k->self_exe, k->updated_from, &k->upd_pipe);
+        } else if (b.id == 30) { trigger_dive(k, "quit"); return; }
         draw_hub(k); return;
     }
 }
@@ -2017,7 +2021,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.2.5", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.3.1", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -2072,8 +2076,8 @@ int main(int argc, char **argv) {
     XSelectInput(k.dpy, k.karel_win, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | KeyPressMask);
     k.karel_gc = XCreateGC(k.dpy, k.karel_win, 0, NULL);
     XMapRaised(k.dpy, k.karel_win);
+    (void)no_update;
     trigger_climb(&k, is_en(&k) ? "Karel climbed onto your Linux desktop!" : "Karel klimt je Linux bureaublad op!");
-    if (!no_update) start_updater_async(k.save.drive_root, k.self_exe, k.updated_from, &k.upd_pipe);
 
     while (!k.quit_req) {
         while (XPending(k.dpy)) {

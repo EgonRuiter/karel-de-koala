@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.2.4.0")]
-[assembly: AssemblyFileVersion("2.2.4.0")]
+[assembly: AssemblyVersion("2.3.0.0")]
+[assembly: AssemblyFileVersion("2.3.0.0")]
 
 namespace KarelNative {
 
@@ -577,6 +577,8 @@ namespace KarelNative {
         private SerialPort sp;
         private string lastState = "";
         private volatile bool stopping;
+        private volatile bool paused;
+        private readonly AutoResetEvent wakeEv = new AutoResetEvent(false);
         public string PortName = "";
         private readonly Action<string> onEvent;
 
@@ -585,6 +587,12 @@ namespace KarelNative {
             Thread t = new Thread(new ThreadStart(Loop));
             t.IsBackground = true;
             t.Start();
+        }
+
+        public void SetPaused(bool p) {
+            paused = p;
+            if (p) Drop();
+            else { try { wakeEv.Set(); } catch { } }
         }
 
         public void Send(string line) {
@@ -638,6 +646,7 @@ namespace KarelNative {
         private void Loop() {
             DateTime lastHb = DateTime.Now;
             while (!stopping) {
+                if (paused) { wakeEv.WaitOne(); continue; }
                 if (sp == null) { TryConnect(); Thread.Sleep(350); continue; }
                 if ((DateTime.Now - lastHb).TotalSeconds >= 1.0) {
                     lastHb = DateTime.Now;
@@ -655,7 +664,7 @@ namespace KarelNative {
             }
         }
 
-        public void Stop() { stopping = true; Drop(); }
+        public void Stop() { stopping = true; Drop(); try { wakeEv.Set(); } catch { } }
     }
 
     internal static class StartupHelper {
@@ -670,15 +679,36 @@ namespace KarelNative {
             } catch { return false; }
         }
 
+        public static string InstalledDir() {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
+        }
+
         public static string InstalledExePath() {
-            string localDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
-            return Path.Combine(localDir, "karel_native.exe");
+            return Path.Combine(InstalledDir(), "karel_native.exe");
+        }
+
+        public static bool IsRunningInstalled() {
+            try {
+                return string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(InstalledExePath()), StringComparison.OrdinalIgnoreCase);
+            } catch { return false; }
+        }
+
+        public static void ScheduleRemoveInstalledDir() {
+            string dir = InstalledDir();
+            if (!Directory.Exists(dir)) return;
+            try {
+                Process.Start(new ProcessStartInfo("cmd.exe", "/c timeout /t 2 /nobreak >nul & rmdir /s /q \"" + dir + "\"") {
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+            } catch { }
         }
 
         public static bool SetEnabled(bool on) {
             try {
                 string dstExe = InstalledExePath();
-                string localDir = Path.GetDirectoryName(dstExe);
+                string localDir = InstalledDir();
                 using (RegistryKey k = Registry.CurrentUser.CreateSubKey(RunKey)) {
                     if (on) {
                         Directory.CreateDirectory(localDir);
@@ -692,10 +722,32 @@ namespace KarelNative {
                         k.SetValue(AppName, "\"" + dstExe + "\" --tray");
                     } else {
                         k.DeleteValue(AppName, false);
+                        if (!IsRunningInstalled() && Directory.Exists(localDir)) {
+                            try { Directory.Delete(localDir, true); } catch { }
+                        }
                     }
                 }
                 return on;
             } catch { return IsEnabled(); }
+        }
+
+        public static void UninstallFromPc(string fallbackSavePath) {
+            try {
+                using (RegistryKey k = Registry.CurrentUser.CreateSubKey(RunKey)) {
+                    if (k != null) k.DeleteValue(AppName, false);
+                }
+            } catch { }
+            try {
+                if (!string.IsNullOrEmpty(fallbackSavePath)) {
+                    if (File.Exists(fallbackSavePath)) File.Delete(fallbackSavePath);
+                    if (File.Exists(fallbackSavePath + ".tmp")) File.Delete(fallbackSavePath + ".tmp");
+                }
+            } catch { }
+            string dir = InstalledDir();
+            if (Directory.Exists(dir)) {
+                if (IsRunningInstalled()) ScheduleRemoveInstalledDir();
+                else { try { Directory.Delete(dir, true); } catch { ScheduleRemoveInstalledDir(); } }
+            }
         }
 
         public static bool Toggle() {
@@ -704,7 +756,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.2.4";
+        public const string Version = "2.3.0";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -766,49 +818,46 @@ namespace KarelNative {
                 byte[] next = FetchBytes(codeUrl, 10000);
                 if (next == null || next.Length < 500) return false;
                 if (!string.Equals(Sha256Hex(next), codeSha.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-                string tmp = codeP + ".tmp";
-                File.WriteAllBytes(tmp, next);
-                File.Delete(codeP);
-                File.Move(tmp, codeP);
+                bool keepHidden = (File.GetAttributes(codeP) & FileAttributes.Hidden) != 0;
+                try { File.SetAttributes(codeP, FileAttributes.Normal); } catch { }
+                using (FileStream fs = new FileStream(codeP, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+                    fs.Write(next, 0, next.Length);
+                    fs.Flush(true);
+                }
+                if (keepHidden) { try { File.SetAttributes(codeP, File.GetAttributes(codeP) | FileAttributes.Hidden); } catch { } }
                 return true;
             } catch { return false; }
         }
 
-        public static void StartAsync(SaveStore save, string updatedFrom, Action<string, string> onReady) {
+        public static void CheckNowAsync(SaveStore save, string updatedFrom, Action<string, string> onReady, Action<string> onStatus) {
             Thread t = new Thread(new ThreadStart(delegate {
                 try {
-                    Thread.Sleep(3500);
-                    byte[] raw = FetchBytes(ManifestUrl, 5000);
-                    if (raw == null || raw.Length == 0) return;
+                    byte[] raw = FetchBytes(ManifestUrl, 6000);
+                    if (raw == null || raw.Length == 0) { if (onStatus != null) onStatus("offline"); return; }
                     JavaScriptSerializer ser = new JavaScriptSerializer();
                     Dictionary<string, object> man = ser.DeserializeObject(Encoding.UTF8.GetString(raw)) as Dictionary<string, object>;
-                    if (man == null) return;
+                    if (man == null) { if (onStatus != null) onStatus("error"); return; }
                     string remVer = SaveStore.GetStrFrom(man, "version", "");
-                    if (CompareVer(remVer, Version) <= 0) return;
-                    if (!string.IsNullOrEmpty(updatedFrom) && CompareVer(remVer, updatedFrom) == 0) return;
+                    if (CompareVer(remVer, Version) <= 0 || (!string.IsNullOrEmpty(updatedFrom) && CompareVer(remVer, updatedFrom) == 0)) {
+                        if (onStatus != null) onStatus("uptodate");
+                        return;
+                    }
 
+                    if (onStatus != null) onStatus("downloading:" + remVer);
                     string exeUrl = SaveStore.GetStrFrom(man, "exe_url", "");
                     string exeSha = SaveStore.GetStrFrom(man, "exe_sha256", "");
-                    if (string.IsNullOrEmpty(exeUrl) || string.IsNullOrEmpty(exeSha)) return;
+                    if (string.IsNullOrEmpty(exeUrl) || string.IsNullOrEmpty(exeSha)) { if (onStatus != null) onStatus("error"); return; }
                     byte[] exeBytes = FetchBytes(exeUrl, 15000);
-                    if (exeBytes == null || exeBytes.Length < 20000) return;
-                    if (!string.Equals(Sha256Hex(exeBytes), exeSha.Trim(), StringComparison.OrdinalIgnoreCase)) return;
+                    if (exeBytes == null || exeBytes.Length < 20000 || !string.Equals(Sha256Hex(exeBytes), exeSha.Trim(), StringComparison.OrdinalIgnoreCase)) {
+                        if (onStatus != null) onStatus("error");
+                        return;
+                    }
 
                     UpdateFirmwareIfNeeded(save, SaveStore.GetStrFrom(man, "code_py_url", ""), SaveStore.GetStrFrom(man, "code_py_sha256", ""));
 
                     string curExe = Application.ExecutablePath;
                     string stageNew = Path.Combine(Path.GetTempPath(), "karel_native_" + remVer + ".exe");
                     File.WriteAllBytes(stageNew, exeBytes);
-
-                    string sprUrl = SaveStore.GetStrFrom(man, "sprites_url", "");
-                    string sprSha = SaveStore.GetStrFrom(man, "sprites_sha256", "");
-                    if (!string.IsNullOrEmpty(sprUrl) && !string.IsNullOrEmpty(sprSha)) {
-                        byte[] sb = FetchBytes(sprUrl, 8000);
-                        if (sb != null && sb.Length > 1000 && string.Equals(Sha256Hex(sb), sprSha.Trim(), StringComparison.OrdinalIgnoreCase)) {
-                            string spDst = Path.Combine(Path.GetDirectoryName(curExe), "karel_sprites.gz");
-                            try { File.WriteAllBytes(spDst + ".tmp", sb); if (File.Exists(spDst)) File.Delete(spDst); File.Move(spDst + ".tmp", spDst); } catch { }
-                        }
-                    }
 
                     string usbCopyCmd = "";
                     if (save.Connected) {
@@ -830,7 +879,7 @@ namespace KarelNative {
                     );
                     File.WriteAllText(cmdPath, script, Encoding.Default);
                     if (onReady != null) onReady(remVer, cmdPath);
-                } catch { }
+                } catch { if (onStatus != null) onStatus("error"); }
             }));
             t.IsBackground = true;
             t.Start();
@@ -846,6 +895,7 @@ namespace KarelNative {
         private readonly object rxLock = new object();
         private readonly NotifyIcon trayIcon;
         private readonly System.Windows.Forms.Timer tick = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer usbDebounce = new System.Windows.Forms.Timer();
         private readonly Random rng = new Random();
         private TcpListener ipcSrv;
         private Form hubForm;
@@ -855,7 +905,8 @@ namespace KarelNative {
         private int climbStep = 0, closeStep = 0, roamTicks = 0, roamWait = 120, ledgeTicks = 0;
         private double wx, wy, roamTx, roamTy, jumpY = 0, jumpVy = 0, flingVx = 0, flingVy = 0, closeStartY = 0;
         private bool dragging = false, flying = false, climbing = false, closing = false, autoPaused = false;
-        private bool umbrellaFall = false, trayHidden = false, focusActive = false;
+        private bool umbrellaFall = false, trayHidden = false, usbSleeping = false, uninstalling = false, updateBusy = false, focusActive = false;
+        private readonly string updatedFromVer = "";
         private string diveMode = "quit", climbMsg = "", pendingUpdateCmd = "", pendingUpdateVer = "";
         private double preQuietX = 0, preQuietY = 0;
         private bool hasPreQuiet = false;
@@ -942,22 +993,24 @@ namespace KarelNative {
             MouseUp += OnMouseUpHandler;
             DoubleClick += delegate { DoPet(); };
 
+            updatedFromVer = updatedFrom ?? "";
             tick.Interval = 62;
             tick.Tick += OnTick;
-            tick.Start();
+            usbDebounce.Interval = 700;
+            usbDebounce.Tick += delegate {
+                usbDebounce.Stop();
+                if (usbSleeping && save.PollUsb() == "on") WakeFromUsbSleep();
+            };
             if (startHidden && !save.Connected) {
                 trayHidden = true;
+                usbSleeping = true;
+                ser.SetPaused(true);
+                trayIcon.Visible = false;
                 Opacity = 0;
                 Shown += delegate { Hide(); Opacity = 1.0; };
             } else {
+                tick.Start();
                 TriggerClimb(IsEn() ? "Karel climbed onto your desktop!" : "Karel klimt je bureau op!");
-            }
-            if (!noUpdate) {
-                AutoUpdater.StartAsync(save, updatedFrom, delegate(string ver, string cmd) {
-                    pendingUpdateVer = ver;
-                    pendingUpdateCmd = cmd;
-                    Enqueue("EVENT:APPLY_UPDATE");
-                });
             }
         }
 
@@ -985,7 +1038,14 @@ namespace KarelNative {
 
         protected override void WndProc(ref Message m) {
             if (m.Msg == 0x0312 && m.WParam == (IntPtr)1) { Enqueue("EVENT:TRAY_TOGGLE"); return; }
-            if (m.Msg == 0x0011 || (m.Msg == 0x0016 && m.WParam != IntPtr.Zero)) { save.Save(); m.Result = (IntPtr)1; return; }
+            if (m.Msg == 0x0219 && usbSleeping) {
+                int wp = m.WParam.ToInt32();
+                if (wp == 0x8000 || wp == 0x0007) {
+                    if (save.PollUsb() == "on") WakeFromUsbSleep();
+                    else { usbDebounce.Stop(); usbDebounce.Start(); }
+                }
+            }
+            if (m.Msg == 0x0011 || (m.Msg == 0x0016 && m.WParam != IntPtr.Zero)) { if (!uninstalling) save.Save(); m.Result = (IntPtr)1; return; }
             base.WndProc(ref m);
         }
 
@@ -1013,7 +1073,12 @@ namespace KarelNative {
             Size = new Size(Math.Max(Sc(250, s), p + Sc(124, s)), p + Sc(78, s));
         }
 
-        private void Enqueue(string ev) { lock (rxLock) rxQueue.Enqueue(ev); }
+        private void Enqueue(string ev) {
+            lock (rxLock) rxQueue.Enqueue(ev);
+            if (usbSleeping && IsHandleCreated) {
+                try { BeginInvoke(new Action(delegate { if (usbSleeping) WakeFromUsbSleep(); })); } catch { }
+            }
+        }
 
         private void StartIpc(int ipcPort) {
             Thread t = new Thread(new ThreadStart(delegate {
@@ -1178,19 +1243,93 @@ namespace KarelNative {
             snd.Play("dive");
         }
 
+        private void EnterUsbSleep() {
+            closing = false;
+            trayHidden = true;
+            usbSleeping = true;
+            tick.Stop();
+            usbDebounce.Stop();
+            ser.SetPaused(true);
+            try { trayIcon.Visible = false; } catch { }
+            Hide();
+        }
+
+        private void WakeFromUsbSleep() {
+            usbDebounce.Stop();
+            usbSleeping = false;
+            trayHidden = false;
+            ser.SetPaused(false);
+            try { trayIcon.Visible = true; } catch { }
+            save.Load();
+            scale = Math.Max(2, Math.Min(5, save.GetInt("karel_scale", 3)));
+            UpdateFormSize();
+            RefreshHub();
+            Opacity = 1.0;
+            Show();
+            TopMost = true;
+            tick.Start();
+            TriggerClimb(IsEn() ? "KAREL USB connected!" : "KAREL USB verbonden!");
+        }
+
+        private void CheckForUpdatesManual() {
+            if (updateBusy) return;
+            updateBusy = true;
+            Say(IsEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55);
+            AutoUpdater.CheckNowAsync(save, updatedFromVer,
+                delegate(string ver, string cmd) {
+                    pendingUpdateVer = ver;
+                    pendingUpdateCmd = cmd;
+                    Enqueue("EVENT:APPLY_UPDATE");
+                },
+                delegate(string status) {
+                    try {
+                        BeginInvoke(new Action(delegate {
+                            if (status.StartsWith("downloading:")) {
+                                Say(string.Format(IsEn() ? "Downloading v{0}..." : "Downloaden v{0}...", status.Substring(12)), 90);
+                                return;
+                            }
+                            updateBusy = false;
+                            if (status == "uptodate") Say(string.Format(IsEn() ? "Up to date (v{0})!" : "Al de nieuwste versie (v{0})!", AutoUpdater.Version), 65);
+                            else if (status == "offline") Say(IsEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60);
+                            else Say(IsEn() ? "Update check failed." : "Update-check mislukt.", 60);
+                        }));
+                    } catch { updateBusy = false; }
+                });
+        }
+
+        private void DoUninstallFromPc() {
+            bool en = IsEn();
+            DialogResult r = MessageBox.Show(
+                en ? "Remove all Karel files from this PC (auto-start, local copy & local backup)?\nYour USB stick will NOT be touched."
+                   : "Alle Karel-bestanden van deze laptop verwijderen (auto-start, lokale kopie & lokale back-up)?\nJe USB-stick blijft gewoon bewaard.",
+                en ? "Uninstall Karel from this PC" : "Karel verwijderen van deze laptop",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
+            if (r != DialogResult.Yes) return;
+            uninstalling = true;
+            if (hubForm != null && !hubForm.IsDisposed) { try { hubForm.Close(); } catch { } }
+            StartupHelper.UninstallFromPc(save.FallbackPath);
+            FinalizeQuit(false);
+        }
+
         private void HandoffToLocalWatcher() {
             FinalizeQuit(true);
         }
 
         private void FinalizeQuit(bool spawnLocalTray = false) {
             tick.Stop();
+            usbDebounce.Stop();
             ser.Send("STATE:BYE");
-            save.Save();
+            if (!uninstalling) save.Save();
             ser.Stop();
             try { NativeWin.UnregisterHotKey(Handle, 1); } catch { }
             if (ipcSrv != null) { try { ipcSrv.Stop(); } catch { } ipcSrv = null; }
             trayIcon.Visible = false;
             trayIcon.Dispose();
+            if (!uninstalling && !StartupHelper.IsEnabled() && StartupHelper.IsRunningInstalled()) {
+                StartupHelper.ScheduleRemoveInstalledDir();
+            }
             if (spawnLocalTray) {
                 string instExe = StartupHelper.InstalledExePath();
                 if (File.Exists(instExe) && !string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase)) {
@@ -1267,11 +1406,16 @@ namespace KarelNative {
                 if (usb == "off") {
                     if (hubForm != null && !hubForm.IsDisposed) { try { hubForm.Close(); } catch { } }
                     bool autoOn = StartupHelper.IsEnabled();
-                    bool onLocal = string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(StartupHelper.InstalledExePath()), StringComparison.OrdinalIgnoreCase);
+                    bool onLocal = StartupHelper.IsRunningInstalled();
                     if (trayHidden) {
-                        if (autoOn && !onLocal) { HandoffToLocalWatcher(); return; }
+                        if (autoOn) {
+                            if (onLocal) EnterUsbSleep();
+                            else { HandoffToLocalWatcher(); return; }
+                        } else {
+                            FinalizeQuit(false); return;
+                        }
                     } else if (autoOn) {
-                        TriggerDive(onLocal ? "tray" : "handoff", IsEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!");
+                        TriggerDive(onLocal ? "usb_sleep" : "handoff", IsEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!");
                     } else {
                         TriggerDive("quit", IsEn() ? "USB unplugged! Bye!" : "USB los! Doei!");
                     }
@@ -1307,7 +1451,8 @@ namespace KarelNative {
                 else if (closeStep <= 13) { wy = gy; jumpY = -14.0 * Math.Sin((closeStep - 9) * Math.PI / 4.0); }
                 else { wy = gy; jumpY = 0; }
                 if (closeStep >= 27) {
-                    if (diveMode == "tray") { closing = false; trayHidden = true; save.Save(); Hide(); }
+                    if (diveMode == "usb_sleep") { save.Save(); EnterUsbSleep(); return; }
+                    else if (diveMode == "tray") { closing = false; trayHidden = true; save.Save(); Hide(); }
                     else if (diveMode == "handoff") { HandoffToLocalWatcher(); return; }
                     else { FinalizeQuit(); return; }
                 }
@@ -1636,6 +1781,8 @@ namespace KarelNative {
                 RefreshHub();
             };
             m.Items.Add(bgIt);
+            m.Items.Add(en ? "Check for updates" : "Check op updates", null, delegate { CheckForUpdatesManual(); });
+            m.Items.Add(en ? "Uninstall from this PC..." : "Verwijder van deze laptop...", null, delegate { DoUninstallFromPc(); });
             m.Items.Add(new ToolStripSeparator());
             m.Items.Add(en ? "Hide Behind Taskbar (Ctrl+Alt+K)" : "Verberg achter Taakbalk (Ctrl+Alt+K)", null, delegate { Enqueue("EVENT:TRAY_TOGGLE"); });
             m.Items.Add(en ? "Dive & Quit" : "Duik achter Taakbalk & Sluit", null, delegate { Enqueue("EVENT:QUIT_NOW"); });
@@ -1708,11 +1855,16 @@ namespace KarelNative {
             if (sndBtn != null) sndBtn.Text = SoundLabel();
             Control usb = hubForm.Controls["usbLbl"];
             Control hidBtn = hubForm.Controls["hidBtn"];
+            Control updBtn = hubForm.Controls["updBtn"];
+            Control uninstBtn = hubForm.Controls["uninstBtn"];
             if (hidBtn != null && usb != null) {
                 hidBtn.Visible = true;
                 hidBtn.Text = HidFlagLabel();
+                if (updBtn != null) updBtn.Text = en ? "Check for updates" : "Check op updates";
+                if (uninstBtn != null) uninstBtn.Text = en ? "Uninstall from PC" : "Verwijder van laptop";
                 usb.Text = HubUsbLine();
-                usb.Top = hidBtn.Bottom + Sc(8, GetDpiScale());
+                int anchorBottom = (updBtn != null) ? updBtn.Bottom : hidBtn.Bottom;
+                usb.Top = anchorBottom + Sc(8, GetDpiScale());
                 int targetH = usb.Bottom + Sc(14, GetDpiScale());
                 if (hubForm.ClientSize.Height != targetH)
                     hubForm.ClientSize = new Size(hubForm.ClientSize.Width, targetH);
@@ -1907,8 +2059,19 @@ namespace KarelNative {
             };
             f.Controls.Add(hidBtn);
 
+            curY += Sc(38, s);
+            int halfW = (Win - gap) / 2;
+            Button updBtn = MakeFlatBtn("", P, curY, halfW, Sc(30, s), Color.FromArgb(42, 48, 66), 8.5f);
+            updBtn.Name = "updBtn";
+            updBtn.Click += delegate { CheckForUpdatesManual(); };
+            Button uninstBtn = MakeFlatBtn("", P + halfW + gap, curY, Win - halfW - gap, Sc(30, s), Color.FromArgb(120, 36, 44), 8.5f);
+            uninstBtn.Name = "uninstBtn";
+            uninstBtn.Click += delegate { DoUninstallFromPc(); };
+            f.Controls.Add(updBtn);
+            f.Controls.Add(uninstBtn);
+
             Label usbLbl = new Label {
-                Name = "usbLbl", Text = HubUsbLine(), Location = new Point(P, curY), Size = new Size(Win, Sc(26, s)),
+                Name = "usbLbl", Text = HubUsbLine(), Location = new Point(P, curY + Sc(38, s)), Size = new Size(Win, Sc(26, s)),
                 Font = new Font("Consolas", 8.5f), ForeColor = Color.FromArgb(62, 207, 142), TextAlign = ContentAlignment.MiddleLeft
             };
             f.Controls.Add(usbLbl);
@@ -2065,7 +2228,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.2.5", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.3.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;

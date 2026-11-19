@@ -770,7 +770,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.2.4"
+    static let version = "2.3.0"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -824,20 +824,22 @@ private enum AutoUpdater {
         try? next.write(to: URL(fileURLWithPath: codeP), options: .atomic)
     }
 
-    static func startAsync(save: SaveStore, updatedFrom: String, onReady: @escaping (String, String) -> Void) {
-        DispatchQueue.global(qos: .background).async {
-            usleep(3_500_000)
-            guard let raw = fetchData(manifestUrl, timeout: 5.0),
-                  let man = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { return }
+    static func checkNowAsync(save: SaveStore, updatedFrom: String, onReady: @escaping (String, String) -> Void, onStatus: @escaping (String) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let raw = fetchData(manifestUrl, timeout: 6.0) else { onStatus("offline"); return }
+            guard let man = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { onStatus("error"); return }
             let remVer = (man["version"] as? String) ?? ""
-            if compareVer(remVer, version) <= 0 { return }
-            if !updatedFrom.isEmpty && compareVer(remVer, updatedFrom) == 0 { return }
+            if compareVer(remVer, version) <= 0 || (!updatedFrom.isEmpty && compareVer(remVer, updatedFrom) == 0) {
+                onStatus("uptodate")
+                return
+            }
 
+            onStatus("downloading:\(remVer)")
             let zipUrl = (man["mac_zip_url"] as? String) ?? ""
             let zipSha = (man["mac_zip_sha256"] as? String) ?? ""
             guard !zipUrl.isEmpty, !zipSha.isEmpty,
                   let zipData = fetchData(zipUrl, timeout: 15.0), zipData.count > 10000,
-                  sha256Hex(zipData).lowercased() == zipSha.lowercased() else { return }
+                  sha256Hex(zipData).lowercased() == zipSha.lowercased() else { onStatus("error"); return }
 
             updateFirmwareIfNeeded(
                 save: save,
@@ -846,17 +848,17 @@ private enum AutoUpdater {
             )
 
             let appBundle = Bundle.main.bundleURL
-            guard appBundle.pathExtension == "app" else { return }
+            guard appBundle.pathExtension == "app" else { onStatus("error"); return }
             let stageDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("karel_mac_upd_\(remVer)")
             let zipFile = stageDir.appendingPathComponent("Karel-macOS-App.zip")
             let fm = FileManager.default
             try? fm.removeItem(at: stageDir)
             try? fm.createDirectory(at: stageDir, withIntermediateDirectories: true)
-            do { try zipData.write(to: zipFile) } catch { return }
-            if runTool("/usr/bin/unzip", ["-oq", zipFile.path, "-d", stageDir.path]) != 0 { return }
+            do { try zipData.write(to: zipFile) } catch { onStatus("error"); return }
+            if runTool("/usr/bin/unzip", ["-oq", zipFile.path, "-d", stageDir.path]) != 0 { onStatus("error"); return }
 
             let newApp = stageDir.appendingPathComponent("Karel.app")
-            guard fm.fileExists(atPath: newApp.path) else { return }
+            guard fm.fileExists(atPath: newApp.path) else { onStatus("error"); return }
             _ = runTool("/usr/bin/xattr", ["-dr", "com.apple.quarantine", newApp.path])
 
             let usbApp: URL = {
@@ -916,10 +918,14 @@ private enum MacStartupHelper {
             .appendingPathComponent("Library/LaunchAgents/\(label).plist")
     }
 
-    private static var installedAppUrl: URL {
+    private static var installedDirUrl: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("KarelDeKoala/Karel.app")
+        return base.appendingPathComponent("KarelDeKoala")
+    }
+
+    private static var installedAppUrl: URL {
+        return installedDirUrl.appendingPathComponent("Karel.app")
     }
 
     static func isEnabled() -> Bool {
@@ -941,7 +947,7 @@ private enum MacStartupHelper {
         let fm = FileManager.default
         if on {
             let appDst = installedAppUrl
-            let dir = appDst.deletingLastPathComponent()
+            let dir = installedDirUrl
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             let curApp = Bundle.main.bundleURL
             if curApp.pathExtension == "app" && curApp.path != appDst.path {
@@ -952,10 +958,12 @@ private enum MacStartupHelper {
             guard fm.isExecutableFile(atPath: exePath) else { return false }
             let laDir = plistUrl.deletingLastPathComponent()
             try? fm.createDirectory(at: laDir, withIntermediateDirectories: true)
+            // StartOnMount: 0 background processes & 0 MB RAM while USB stick is unplugged!
             let dict: [String: Any] = [
                 "Label": label,
-                "ProgramArguments": [exePath, "--tray"],
-                "RunAtLoad": true,
+                "ProgramArguments": [exePath, "--on-mount"],
+                "StartOnMount": true,
+                "RunAtLoad": false,
             ]
             if let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) {
                 try? data.write(to: plistUrl, options: .atomic)
@@ -965,8 +973,26 @@ private enum MacStartupHelper {
         } else {
             runLaunchctl(["unload", "-w", plistUrl.path])
             try? fm.removeItem(at: plistUrl)
+            if Bundle.main.bundleURL.path != installedAppUrl.path {
+                try? fm.removeItem(at: installedAppUrl)
+            }
         }
         return isEnabled()
+    }
+
+    static func uninstallFromMac() {
+        let fm = FileManager.default
+        runLaunchctl(["unload", "-w", plistUrl.path])
+        try? fm.removeItem(at: plistUrl)
+        let dirPath = installedDirUrl.path
+        let tmpBase = NSTemporaryDirectory()
+        let cmd = "sleep 1; rm -rf \"\(dirPath)\" \"\(tmpBase)/Karel_live.app\" \"\(tmpBase)\"/karel_mac_upd_* 2>/dev/null || true"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", cmd]
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        try? p.run()
     }
 
     @discardableResult
@@ -1002,11 +1028,13 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private var hubAqBtn: NSButton!
     private var hubLangBtn: NSButton!
     private var hubHidBtn: NSButton!
+    private var hubUpdBtn: NSButton!
+    private var hubUninstBtn: NSButton!
     private var hubUsbLbl: NSTextField!
 
     private var state = "IDLE", roamMode = "free", bubble = "", diveMode = "quit", climbMsg = ""
     private var pendingUpdateSh = "", pendingUpdateVer = "", updatedFrom = ""
-    private var noUpdate = false, startHidden = false
+    private var noUpdate = false, startHidden = false, uninstalling = false, updateBusy = false
     private var scale = 3, frameIdx = 0, actTicks = 0, bubbleTicks = 0, discoTicks = 0, hyperTicks = 0
     private var noseClicks = 0, climbStep = 0, closeStep = 0, roamTicks = 0, roamWait = 120, ledgeTicks = 0
     private var wx = 200.0, wy = 200.0, roamTx = 200.0, roamTy = 200.0, jumpY = 0.0, jumpVy = 0.0
@@ -1112,17 +1140,10 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         if !trayHidden {
             triggerClimb(isEn() ? "Karel climbed onto your Mac desktop!" : "Karel klimt je Dock op!")
         }
-        if !noUpdate {
-            AutoUpdater.startAsync(save: save, updatedFrom: updatedFrom) { [weak self] ver, sh in
-                self?.pendingUpdateVer = ver
-                self?.pendingUpdateSh = sh
-                self?.enqueue("EVENT:APPLY_UPDATE")
-            }
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        save.save()
+        if !uninstalling { save.save() }
         ser?.stop()
         if ipcSock >= 0 { Darwin.close(ipcSock) }
     }
@@ -1379,10 +1400,53 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         snd.play("dive")
     }
 
+    private func checkForUpdatesManual() {
+        if updateBusy { return }
+        updateBusy = true
+        say(isEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55)
+        AutoUpdater.checkNowAsync(save: save, updatedFrom: updatedFrom,
+            onReady: { [weak self] ver, sh in
+                self?.pendingUpdateVer = ver
+                self?.pendingUpdateSh = sh
+                self?.enqueue("EVENT:APPLY_UPDATE")
+            },
+            onStatus: { [weak self] status in
+                DispatchQueue.main.async {
+                    guard let s = self else { return }
+                    if status.hasPrefix("downloading:") {
+                        let ver = String(status.dropFirst(12))
+                        s.say(s.isEn() ? "Downloading v\(ver)..." : "Downloaden v\(ver)...", 90)
+                        return
+                    }
+                    s.updateBusy = false
+                    if status == "uptodate" { s.say(s.isEn() ? "Up to date (v\(AutoUpdater.version))!" : "Al de nieuwste versie (v\(AutoUpdater.version))!", 65) }
+                    else if status == "offline" { s.say(s.isEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60) }
+                    else { s.say(s.isEn() ? "Update check failed." : "Update-check mislukt.", 60) }
+                }
+            })
+    }
+
+    private func doUninstallFromMac() {
+        let en = isEn()
+        let a = NSAlert()
+        a.messageText = en ? "Uninstall Karel from this Mac?" : "Karel verwijderen van deze Mac?"
+        a.informativeText = en
+            ? "Removes auto-start (LaunchAgent), local app copy and local backup from this Mac. Your USB stick will NOT be touched."
+            : "Verwijdert auto-start (LaunchAgent), lokale app-kopie en lokale back-up van deze Mac. Je USB-stick blijft gewoon bewaard."
+        a.addButton(withTitle: en ? "Uninstall" : "Verwijderen")
+        a.addButton(withTitle: en ? "Cancel" : "Annuleren")
+        NSApp.activate(ignoringOtherApps: true)
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        uninstalling = true
+        hubWin?.close()
+        MacStartupHelper.uninstallFromMac()
+        finalizeQuit()
+    }
+
     private func finalizeQuit() {
         tickTimer?.invalidate()
         ser.send("STATE:BYE")
-        save.save()
+        if !uninstalling { save.save() }
         ser.stop()
         if ipcSock >= 0 { Darwin.close(ipcSock); ipcSock = -1 }
         NSApp.terminate(nil)
@@ -1463,12 +1527,13 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             let usb = save.pollUsb()
             if usb == "off" {
                 hubWin?.close()
-                if !trayHidden {
-                    if MacStartupHelper.isEnabled() {
-                        triggerDive("tray", customMsg: isEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!")
-                    } else {
-                        triggerDive("quit", customMsg: isEn() ? "USB unplugged! Bye!" : "USB los! Doei!")
-                    }
+                // On macOS, StartOnMount relaunches Karel automatically on next plug-in,
+                // so always exit completely on unplug (0 background processes & 0 menu bar icon!).
+                if trayHidden {
+                    finalizeQuit()
+                    return
+                } else {
+                    triggerDive("quit", customMsg: isEn() ? "USB unplugged! Bye!" : "USB los! Doei!")
                 }
             } else if usb == "on" {
                 save.load()
@@ -1865,6 +1930,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             self?.say(msg, 45)
             self?.refreshHub()
         }
+        addMenuItem(m, en ? "Check for updates" : "Check op updates") { [weak self] in self?.checkForUpdatesManual() }
+        addMenuItem(m, en ? "Uninstall from this Mac..." : "Verwijder van deze Mac...") { [weak self] in self?.doUninstallFromMac() }
         m.addItem(.separator())
         addMenuItem(m, trayHidden ? (en ? "Wake Karel" : "Wek Karel") : (en ? "Hide Behind Dock" : "Verberg achter Dock")) { [weak self] in self?.enqueue("EVENT:TRAY_TOGGLE") }
         addMenuItem(m, en ? "Dive & Quit" : "Duik weg & Sluit") { [weak self] in self?.enqueue("EVENT:QUIT_NOW") }
@@ -2007,11 +2074,19 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             s.say(on ? (s.isEn() ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (s.isEn() ? "Auto-open on USB OFF" : "Automatisch openen bij USB UIT"), 55)
             s.refreshHub()
         }
+        y += 38
+        let halfW = (Win - gap) / 2
+        hubUpdBtn = makeFlatBtn("", frame: NSRect(x: P, y: y, width: halfW, height: 30), bg: darkBtn) { [weak self] in
+            self?.checkForUpdatesManual()
+        }
+        hubUninstBtn = makeFlatBtn("", frame: NSRect(x: P + halfW + gap, y: y, width: Win - halfW - gap, height: 30), bg: NSColor(red: 0.47, green: 0.14, blue: 0.17, alpha: 1.0)) { [weak self] in
+            self?.doUninstallFromMac()
+        }
         hubUsbLbl = NSTextField(labelWithString: "")
-        hubUsbLbl.frame = NSRect(x: P, y: y, width: Win, height: 24)
+        hubUsbLbl.frame = NSRect(x: P, y: y + 38, width: Win, height: 24)
         hubUsbLbl.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
         hubUsbLbl.textColor = NSColor(red: 0.24, green: 0.81, blue: 0.56, alpha: 1.0)
-        root.addSubview(hubHidBtn); root.addSubview(hubUsbLbl)
+        root.addSubview(hubHidBtn); root.addSubview(hubUpdBtn); root.addSubview(hubUninstBtn); root.addSubview(hubUsbLbl)
 
         refreshHub()
         w.makeKeyAndOrderFront(nil)
@@ -2075,12 +2150,14 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                  : (en ? "Auto-open on USB plug-in: OFF" : "Automatisch openen bij USB: UIT"),
             size: 11.5
         )
+        (hubUpdBtn as? ActionButton)?.setStyledTitle(en ? "Check for updates" : "Check op updates", size: 11.5)
+        (hubUninstBtn as? ActionButton)?.setStyledTitle(en ? "Uninstall from Mac" : "Verwijder van Mac", size: 11.5)
         let usbTxt = save.connected ? "● USB: KAREL (\(save.driveRoot))" : (en ? "○ Memory mode (no USB)" : "○ Geheugen-modus (geen USB)")
         let serTxt = ser.portName.isEmpty ? (en ? "Serial: waiting..." : "Serial: wachten...") : "RP2350 @ \(ser.portName)"
         hubUsbLbl.stringValue = "\(usbTxt)   |   \(serTxt)"
 
         var uFrame = hubUsbLbl.frame
-        uFrame.origin.y = hubHidBtn.frame.maxY + 8
+        uFrame.origin.y = hubUpdBtn.frame.maxY + 8
         hubUsbLbl.frame = uFrame
         let targetH = uFrame.maxY + 14
         if abs(root.frame.height - targetH) > 1 {
@@ -2187,6 +2264,7 @@ var noUpdate = false
 var askPrompt = false
 var noAsk = false
 var startHidden = false
+var onMount = false
 var noShadow = false
 var updatedFrom = ""
 var ipcPort: UInt16 = 42421
@@ -2196,6 +2274,7 @@ for a in CommandLine.arguments.dropFirst() {
     else if a == "--ask" { askPrompt = true }
     else if a == "--no-ask" { noAsk = true }
     else if a == "--no-shadow" { noShadow = true }
+    else if a == "--on-mount" { onMount = true; noAsk = true }
     else if a == "--tray" || a == "--hidden" { startHidden = true }
     else if a == "--toggle" || a == "-t" || a == "t" { toggle = true }
     else if a.hasPrefix("--updated-from=") { updatedFrom = String(a.dropFirst(15)) }
@@ -2205,7 +2284,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.5", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.3.1", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }
@@ -2213,6 +2292,15 @@ if selfTest {
     let s = SaveStore(); s.load()
     print("SELF_TEST_OK version=\(AutoUpdater.version) states=\(bank.states.count) xp=\(s.getInt("xp", 0)) has_synth=true")
     exit(0)
+}
+
+if onMount {
+    var found = false
+    for _ in 0..<12 {
+        if !SaveStore.findUsbDrive().isEmpty { found = true; break }
+        usleep(100_000)
+    }
+    if !found { exit(0) }
 }
 
 if KarelController.trySignalExisting(toggle: toggle, port: ipcPort) { exit(0) }
