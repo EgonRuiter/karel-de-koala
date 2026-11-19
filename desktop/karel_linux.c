@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.2.0"
+#define KAREL_VERSION "2.2.1"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -599,27 +599,34 @@ static time_t parse_iso_local(const char *s) {
 static int read_save_file(const char *path, SaveStore *out) {
     FILE *fp = fopen(path, "rb"); if (!fp) return 0;
     char buf[8192]; size_t n = fread(buf, 1, sizeof(buf) - 1, fp); fclose(fp);
-    if (n == 0) return 0;
+    if (n < 2) return 0;
+    size_t off = (n >= 3 && (unsigned char)buf[0] == 0xEF && (unsigned char)buf[1] == 0xBB && (unsigned char)buf[2] == 0xBF) ? 3 : 0;
+    for (size_t i = off; i < n; i++) {
+        unsigned char c = (unsigned char)buf[i];
+        if (c == 0xFF || c == 0x00) return 0;
+    }
     buf[n] = 0;
+    const char *jb = buf + off;
+    if (!strchr(jb, '{') || !strchr(jb, '}')) return 0;
     save_defaults(out);
-    json_find_int(buf, "hunger", &out->hunger);
-    json_find_int(buf, "happiness", &out->happiness);
-    json_find_int(buf, "energy", &out->energy);
-    json_find_int(buf, "hygiene", &out->hygiene);
-    json_find_int(buf, "caffeine", &out->caffeine);
-    json_find_int(buf, "xp", &out->xp);
-    json_find_int(buf, "total_pets", &out->total_pets);
-    json_find_int(buf, "karel_scale", &out->karel_scale);
-    json_find_int(buf, "auto_quiet_fullscreen", &out->auto_quiet);
-    json_find_str(buf, "roam_mode", out->roam_mode, sizeof(out->roam_mode));
-    json_find_str(buf, "skin", out->skin, sizeof(out->skin));
-    if (!json_find_str(buf, "equipped", out->equipped, sizeof(out->equipped))) {
-        char *ep = strstr(buf, "\"equipped\"");
+    json_find_int(jb, "hunger", &out->hunger);
+    json_find_int(jb, "happiness", &out->happiness);
+    json_find_int(jb, "energy", &out->energy);
+    json_find_int(jb, "hygiene", &out->hygiene);
+    json_find_int(jb, "caffeine", &out->caffeine);
+    json_find_int(jb, "xp", &out->xp);
+    json_find_int(jb, "total_pets", &out->total_pets);
+    json_find_int(jb, "karel_scale", &out->karel_scale);
+    json_find_int(jb, "auto_quiet_fullscreen", &out->auto_quiet);
+    json_find_str(jb, "roam_mode", out->roam_mode, sizeof(out->roam_mode));
+    json_find_str(jb, "skin", out->skin, sizeof(out->skin));
+    if (!json_find_str(jb, "equipped", out->equipped, sizeof(out->equipped))) {
+        const char *ep = strstr(jb, "\"equipped\"");
         if (ep && strstr(ep, "[]")) out->equipped[0] = 0;
     }
-    json_find_str(buf, "language", out->language, sizeof(out->language));
-    json_find_str(buf, "stick_serial", out->stick_serial, sizeof(out->stick_serial));
-    json_find_str(buf, "last_seen", out->last_seen, sizeof(out->last_seen));
+    json_find_str(jb, "language", out->language, sizeof(out->language));
+    json_find_str(jb, "stick_serial", out->stick_serial, sizeof(out->stick_serial));
+    json_find_str(jb, "last_seen", out->last_seen, sizeof(out->last_seen));
     return 1;
 }
 
@@ -662,9 +669,11 @@ static void find_usb_drive(char *out, size_t max_out) {
     }
 }
 
-static void save_write_one(const char *path, const SaveStore *s) {
-    char tmp[600]; snprintf(tmp, sizeof(tmp), "%.580s.tmp", path);
-    FILE *fp = fopen(tmp, "wb"); if (!fp) return;
+static void save_write_one(const char *path, const SaveStore *s, int direct) {
+    char tmp[600];
+    const char *target = path;
+    if (!direct) { snprintf(tmp, sizeof(tmp), "%.580s.tmp", path); target = tmp; }
+    FILE *fp = fopen(target, "wb"); if (!fp) return;
     fprintf(fp,
         "{\n  \"name\": \"Karel\",\n"
         "  \"hunger\": %d,\n  \"happiness\": %d,\n  \"energy\": %d,\n  \"hygiene\": %d,\n  \"caffeine\": %d,\n"
@@ -677,19 +686,23 @@ static void save_write_one(const char *path, const SaveStore *s) {
         s->skin, *s->equipped ? "[\"" : "[", *s->equipped ? s->equipped : "", *s->equipped ? "\"]" : "]",
         s->roam_mode, s->karel_scale, s->auto_quiet ? "true" : "false",
         s->language, s->stick_serial, s->last_seen);
+    fflush(fp);
+#if !defined(_WIN32) && !defined(KAREL_CORE_TEST)
+    fsync(fileno(fp));
+#endif
     fclose(fp);
-    rename(tmp, path);
+    if (!direct) rename(tmp, path);
 }
 
 static void save_persist(SaveStore *s) {
     if (s->connected && !*s->stick_serial) get_volume_serial(s->drive_root, s->stick_serial);
     time_t now = time(NULL); struct tm *lt = localtime(&now);
     if (lt) strftime(s->last_seen, sizeof(s->last_seen), "%Y-%m-%dT%H:%M:%S", lt);
+    if (*s->fallback_path) save_write_one(s->fallback_path, s, 0);
     if (s->connected && *s->drive_root) {
         char usb_p[600]; snprintf(usb_p, sizeof(usb_p), "%.500s/save.json", s->drive_root);
-        save_write_one(usb_p, s);
+        save_write_one(usb_p, s, 1);
     }
-    if (*s->fallback_path) save_write_one(s->fallback_path, s);
 }
 
 static void save_load(SaveStore *s) {
@@ -1721,8 +1734,11 @@ static void step_physics(KarelApp *k) {
             else if (!busy && k->auto_paused) { k->auto_paused = 0; if (k->has_pq) { k->wx = k->pq_x; k->wy = k->pq_y; k->has_pq = 0; } }
         } else k->auto_paused = 0;
         int usb = poll_usb(&k->save);
-        if (usb < 0) { say_msg(k, is_en(k) ? "USB unplugged! Memory mode." : "USB los! Geheugen-modus.", 60); draw_hub(k); }
-        else if (usb > 0) { trigger_climb(k, is_en(k) ? "KAREL USB reconnected!" : "KAREL USB herverbonden!"); draw_hub(k); }
+        if (usb < 0) {
+            if (k->hub_win) XUnmapWindow(k->dpy, k->hub_win);
+            say_msg(k, is_en(k) ? "USB unplugged! Bye!" : "USB los! Doei!", 45);
+            trigger_dive(k, "quit");
+        } else if (usb > 0) { trigger_climb(k, is_en(k) ? "KAREL USB reconnected!" : "KAREL USB herverbonden!"); draw_hub(k); }
     }
 
     if (k->upd_pipe >= 0) {
@@ -2001,7 +2017,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.2.1", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.2.2", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];

@@ -473,8 +473,12 @@ private final class SaveStore {
 
     private static func readDict(_ path: String?) -> [String: Any]? {
         guard let p = path, FileManager.default.fileExists(atPath: p),
-              let raw = try? Data(contentsOf: URL(fileURLWithPath: p)),
-              let obj = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { return nil }
+              var raw = try? Data(contentsOf: URL(fileURLWithPath: p)), raw.count >= 2 else { return nil }
+        if raw.count >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF {
+            raw = raw.subdata(in: 3..<raw.count)
+        }
+        if raw.contains(0xFF) || raw.contains(0x00) { return nil }
+        guard let obj = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { return nil }
         return obj
     }
 
@@ -599,9 +603,10 @@ private final class SaveStore {
         ioLock.lock()
         defer { ioLock.unlock() }
         let fm = FileManager.default
-        let primary = (!rootSnapshot.isEmpty && fm.fileExists(atPath: rootSnapshot)) ? (rootSnapshot + "/save.json") : fallbackPath
-        atomicWrite(primary, out)
-        if primary != fallbackPath { atomicWrite(fallbackPath, out) }
+        atomicWrite(fallbackPath, out)
+        if connected && !rootSnapshot.isEmpty && fm.fileExists(atPath: rootSnapshot) {
+            writeUsbFlush(rootSnapshot + "/save.json", out)
+        }
     }
 
     func saveDeferred() {
@@ -631,6 +636,22 @@ private final class SaveStore {
         ioLock.unlock()
         guard let out = buildSaveBytes() else { return }
         writeSnapshot(out, rootSnapshot: driveRoot)
+    }
+
+    private func writeUsbFlush(_ path: String, _ bytes: Data) {
+        let fd = Darwin.open(path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+        guard fd >= 0 else { return }
+        defer { Darwin.close(fd) }
+        bytes.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            var off = 0
+            while off < raw.count {
+                let n = Darwin.write(fd, base.advanced(by: off), raw.count - off)
+                if n <= 0 { break }
+                off += n
+            }
+        }
+        _ = Darwin.fsync(fd)
     }
 
     private func atomicWrite(_ path: String, _ bytes: Data) {
@@ -749,7 +770,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.2.0"
+    static let version = "2.2.1"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1345,14 +1366,14 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         triggerClimb(isEn() ? "I'm back!" : "Daar ben ik weer!")
     }
 
-    private func triggerDive(_ mode: String) {
+    private func triggerDive(_ mode: String, customMsg: String? = nil) {
         if closing { return }
         diveMode = mode; closing = true; closeStep = 0
         climbing = false; flying = false; dragging = false; umbrellaFall = false
         jumpY = 0; closeStartY = wy; actTicks = 0
-        let msg = mode == "tray"
+        let msg = customMsg ?? (mode == "tray"
             ? (isEn() ? "Napping in menu bar!" : "Even dutten in de menubalk!")
-            : (isEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!")
+            : (isEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!"))
         say(msg, 40)
         spawnParticles("*", NSColor(red: 1.0, green: 0.48, blue: 0.56, alpha: 1.0), 4)
         snd.play("dive")
@@ -1440,8 +1461,20 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 applyAutoQuiet("", wa)
             }
             let usb = save.pollUsb()
-            if usb == "off" { say(isEn() ? "USB unplugged! Memory mode." : "USB los! Geheugen-modus.", 60) }
-            else if usb == "on" {
+            if usb == "off" {
+                hubWin?.close()
+                if !trayHidden {
+                    if MacStartupHelper.isEnabled() {
+                        triggerDive("tray", customMsg: isEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!")
+                    } else {
+                        triggerDive("quit", customMsg: isEn() ? "USB unplugged! Bye!" : "USB los! Doei!")
+                    }
+                }
+            } else if usb == "on" {
+                save.load()
+                scale = max(2, min(5, save.getInt("karel_scale", 3)))
+                updatePanelSize()
+                refreshHub()
                 if trayHidden { wakeFromTray() }
                 else { triggerClimb(isEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!") }
             }
@@ -2195,7 +2228,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.1", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.2.2", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

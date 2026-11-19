@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.2.0.0")]
-[assembly: AssemblyFileVersion("2.2.0.0")]
+[assembly: AssemblyVersion("2.2.1.0")]
+[assembly: AssemblyFileVersion("2.2.1.0")]
 
 namespace KarelNative {
 
@@ -406,10 +406,20 @@ namespace KarelNative {
             return lvl;
         }
 
+        private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
+
         private Dictionary<string, object> ReadDict(string path) {
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
             try {
-                object obj = json.DeserializeObject(File.ReadAllText(path, Encoding.UTF8));
+                byte[] raw = File.ReadAllBytes(path);
+                if (raw.Length < 2) return null;
+                int start = (raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF) ? 3 : 0;
+                for (int i = start; i < raw.Length; i++) {
+                    if (raw[i] == 0xFF || raw[i] == 0x00) return null;
+                }
+                string text = Utf8NoBom.GetString(raw, start, raw.Length - start).Trim();
+                if (!text.StartsWith("{") || !text.EndsWith("}")) return null;
+                object obj = json.DeserializeObject(text);
                 return obj as Dictionary<string, object>;
             } catch { return null; }
         }
@@ -513,16 +523,16 @@ namespace KarelNative {
 
         public void Save() {
             lock (ioLock) {
-                if (!string.IsNullOrEmpty(DriveRoot) && string.IsNullOrEmpty(GetStr("stick_serial", ""))) {
+                if (Connected && !string.IsNullOrEmpty(DriveRoot) && string.IsNullOrEmpty(GetStr("stick_serial", ""))) {
                     string ser = NativeWin.GetDriveSerial(DriveRoot);
                     if (!string.IsNullOrEmpty(ser)) Data["stick_serial"] = ser;
                 }
                 Data["last_seen"] = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
                 string txt = json.Serialize(Data) + "\n";
-                string primary = (!string.IsNullOrEmpty(DriveRoot) && Directory.Exists(DriveRoot))
-                    ? Path.Combine(DriveRoot, "save.json") : FallbackPath;
-                AtomicWrite(primary, txt);
-                if (primary != FallbackPath) AtomicWrite(FallbackPath, txt);
+                AtomicWrite(FallbackPath, txt);
+                if (Connected && !string.IsNullOrEmpty(DriveRoot) && Directory.Exists(DriveRoot)) {
+                    WriteUsbFlush(Path.Combine(DriveRoot, "save.json"), txt);
+                }
                 dirty = false;
             }
         }
@@ -530,24 +540,35 @@ namespace KarelNative {
         public void MarkDirty() { dirty = true; }
         public void FlushIfDirty() { if (dirty) Save(); }
 
+        private static void WriteUsbFlush(string path, string txt) {
+            try {
+                byte[] bytes = Utf8NoBom.GetBytes(txt);
+                bool keepHidden = File.Exists(path) && ((File.GetAttributes(path) & FileAttributes.Hidden) != 0);
+                if (File.Exists(path)) {
+                    try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
+                }
+                using (FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+                    fs.Write(bytes, 0, bytes.Length);
+                    fs.Flush(true);
+                }
+                if (keepHidden) {
+                    try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); } catch { }
+                }
+            } catch { }
+        }
+
         private static void AtomicWrite(string path, string txt) {
             try {
                 string dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                bool keepHidden = File.Exists(path) && ((File.GetAttributes(path) & FileAttributes.Hidden) != 0);
+                byte[] bytes = Utf8NoBom.GetBytes(txt);
                 string tmp = path + ".tmp";
-                if (File.Exists(tmp)) {
-                    try { File.SetAttributes(tmp, FileAttributes.Normal); File.Delete(tmp); } catch { }
+                using (FileStream fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+                    fs.Write(bytes, 0, bytes.Length);
+                    fs.Flush(true);
                 }
-                File.WriteAllText(tmp, txt, Encoding.UTF8);
-                if (File.Exists(path)) {
-                    try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
-                    File.Delete(path);
-                }
+                if (File.Exists(path)) File.Delete(path);
                 File.Move(tmp, path);
-                if (keepHidden) {
-                    try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); } catch { }
-                }
             } catch { }
         }
     }
@@ -680,7 +701,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.2.0";
+        public const string Version = "2.2.1";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1141,16 +1162,25 @@ namespace KarelNative {
             TriggerClimb(IsEn() ? "I'm back! (Ctrl+Alt+K)" : "Daar ben ik weer! (Ctrl+Alt+K)");
         }
 
-        private void TriggerDive(string mode) {
+        private void TriggerDive(string mode, string customMsg = null) {
             if (closing) return;
             diveMode = mode; closing = true; closeStep = 0; climbing = false; flying = false; dragging = false; umbrellaFall = false;
             jumpY = 0; closeStartY = wy; actTicks = 0;
-            string diveMsg = mode == "tray"
-                ? (IsEn() ? "Napping in tray! (Ctrl+Alt+K)" : "Even dutten in systeemvak! (Ctrl+Alt+K)")
-                : (IsEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!");
+            string diveMsg = !string.IsNullOrEmpty(customMsg) ? customMsg
+                : (mode == "tray"
+                    ? (IsEn() ? "Napping in tray! (Ctrl+Alt+K)" : "Even dutten in systeemvak! (Ctrl+Alt+K)")
+                    : (IsEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!"));
             Say(diveMsg, 40);
             SpawnParticles("*", Color.FromArgb(255, 122, 144), 4);
             snd.Play("dive");
+        }
+
+        private void HandoffToLocalWatcher() {
+            string instExe = StartupHelper.InstalledExePath();
+            if (File.Exists(instExe) && !string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase)) {
+                try { Process.Start(new ProcessStartInfo(instExe, "--tray") { UseShellExecute = false }); } catch { }
+            }
+            FinalizeQuit();
         }
 
         private void FinalizeQuit() {
@@ -1229,8 +1259,25 @@ namespace KarelNative {
                     ApplyAutoQuiet(NativeWin.DetectFullscreenOrMeeting(Handle, hHub), wa);
                 } else if (autoPaused) ApplyAutoQuiet("", wa);
                 string usb = save.PollUsb();
-                if (usb == "off") Say(IsEn() ? "USB unplugged! Memory mode." : "USB los! Geheugen-modus.", 60);
-                else if (usb == "on") { if (trayHidden) WakeFromTray(); else TriggerClimb(IsEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!"); }
+                if (usb == "off") {
+                    if (hubForm != null && !hubForm.IsDisposed) { try { hubForm.Close(); } catch { } }
+                    bool autoOn = StartupHelper.IsEnabled();
+                    bool onLocal = string.Equals(Path.GetFullPath(Application.ExecutablePath), Path.GetFullPath(StartupHelper.InstalledExePath()), StringComparison.OrdinalIgnoreCase);
+                    if (trayHidden) {
+                        if (autoOn && !onLocal) { HandoffToLocalWatcher(); return; }
+                    } else if (autoOn) {
+                        TriggerDive(onLocal ? "tray" : "handoff", IsEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!");
+                    } else {
+                        TriggerDive("quit", IsEn() ? "USB unplugged! Bye!" : "USB los! Doei!");
+                    }
+                } else if (usb == "on") {
+                    save.Load();
+                    scale = Math.Max(2, Math.Min(5, save.GetInt("karel_scale", 3)));
+                    UpdateFormSize();
+                    RefreshHub();
+                    if (trayHidden) WakeFromTray();
+                    else TriggerClimb(IsEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!");
+                }
             }
             if (focusActive && (DateTime.Now - focusLastTick).TotalSeconds >= 1.0) {
                 focusLastTick = DateTime.Now;
@@ -1256,6 +1303,7 @@ namespace KarelNative {
                 else { wy = gy; jumpY = 0; }
                 if (closeStep >= 27) {
                     if (diveMode == "tray") { closing = false; trayHidden = true; save.Save(); Hide(); }
+                    else if (diveMode == "handoff") { HandoffToLocalWatcher(); return; }
                     else { FinalizeQuit(); return; }
                 }
             } else if (climbing) {
@@ -1293,7 +1341,7 @@ namespace KarelNative {
                     save.ClampStat("energy", -1, 0, 100); save.ClampStat("hygiene", -1, 0, 100); save.MarkDirty();
                 }
             }
-            if (frameIdx % 80 == 0) save.FlushIfDirty();
+            if (frameIdx % 720 == 0) save.FlushIfDirty();
             SyncHardware();
 
             if (!trayHidden) {
@@ -2037,7 +2085,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.2.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.2.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
