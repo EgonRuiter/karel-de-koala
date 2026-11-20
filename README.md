@@ -1,80 +1,76 @@
-# 🐨 Karel de Koala — SV Sticky Desktop Companion (RP2350)
+# Karel de Koala
 
-[![Latest Release](https://img.shields.io/github/v/release/EgonRuiter/karel-de-koala?label=release&color=c41e25)](https://github.com/EgonRuiter/karel-de-koala/releases/latest)
-[![Build & Release](https://github.com/EgonRuiter/karel-de-koala/actions/workflows/release.yml/badge.svg)](https://github.com/EgonRuiter/karel-de-koala/actions/workflows/release.yml)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2b3137)](#3-snel-aan-de-slag)
-[![Hardware](https://img.shields.io/badge/hardware-RP2350%20SuperMini%20(CircuitPython)-3ecf8e)](#6-hardware-pinout--serieel-protocol)
-[![Security](https://img.shields.io/badge/USB%20HID-Disabled%20(Zero--HID)-0d7385)](#2-beveiliging--privacy)
+[![Release](https://img.shields.io/github/v/release/EgonRuiter/karel-de-koala?color=c41e25)](https://github.com/EgonRuiter/karel-de-koala/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/EgonRuiter/karel-de-koala/release.yml?branch=main&label=build)](https://github.com/EgonRuiter/karel-de-koala/actions/workflows/release.yml)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2b3137)](#getting-started)
+[![Hardware](https://img.shields.io/badge/hardware-RP2350%20SuperMini-3ecf8e)](#hardware)
 
-**Karel de Koala** is een **Zero-Install**, cross-platform USB-bureaukoala ontwikkeld voor leden van **Studievereniging Sticky** (Informatica & Informatiekunde, Universiteit Utrecht). Plug de **RP2350 SuperMini** in een Windows-, macOS- of Linux-laptop, open de juiste launcher vanaf de USB-stick, en Karel klimt je scherm op — met je eigen opgeslagen voortgang (`save.json`) direct op de stick én tweezijdige `GP16` RGB LED-synchronisatie via USB Serial.
+A portable, zero-install desktop companion powered by an RP2350 USB microcontroller, built for members of [SV Sticky](https://svsticky.nl) (Computer & Information Science study association at Utrecht University).
 
----
-
-## Inhoudsopgave
-
-1. [Overzicht & Kenmerken](#1-overzicht--kenmerken)
-2. [Beveiliging & Privacy](#2-beveiliging--privacy)
-3. [Snel aan de slag](#3-snel-aan-de-slag)
-4. [Besturing, Outfits, Animaties & Easter Eggs](#4-besturing-outfits-animaties--easter-eggs)
-5. [Systeemarchitectuur](#5-systeemarchitectuur)
-6. [Hardware, Pinout & Serieel Protocol](#6-hardware-pinout--serieel-protocol)
-7. [3D-Printbare Behuizing (SV Sticky Kop-logo)](#7-3d-printbare-behuizing-sv-sticky-kop-logo)
-8. [Ontwikkelen, Bouwen & Uitrollen](#8-ontwikkelen-bouwen--uitrollen)
-9. [Probleemoplossing & FAQ](#9-probleemoplossing--faq)
+Plug the USB stick into any Windows, macOS, or Linux machine, launch the companion app directly from the drive, and Karel climbs onto your screen—keeping your progress on the stick and syncing his mood to the onboard RGB LED in real time.
 
 ---
 
-## 1. Overzicht & Kenmerken
+## Contents
 
-| Onderdeel | Details |
-|---|---|
-| **Zero-Install Native Apps** | Volledig native zonder externe runtimes: C# / .NET 4.x op Windows (`~110 KB`), Swift / AppKit Universal (`arm64` + `x86_64`) op macOS, en C99 / X11 + XShape (`~88 KB`) op Linux. |
-| **Opgeruimde USB-stick** | Alle firmware- en interne bestanden staan op `Hidden` — de gebruiker ziet in Verkenner/Finder precies **4 items**. |
-| **54 Animaties (`194` frames)** | Gedeeld gzip-spritearchief (`karel_sprites.gz`) met o.a. *CLIMB*, *DIVE_WAVE*, *UMBRELLA*-paraplulanding, *JETPACK*, *BACKFLIP*, *LAPTOP_CODE*, *GUITAR*, *DRUM*, *SLEEP*, *SNEEZE* en *EARS_WIGGLE*. |
-| **6 Vachten & 8 Outfits** | Pixel-art vachten (`classic`, `sticky`, `mint`, `midnight`, `gold`, `crimson`) en volledig uitgewerkte accessoires (`scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`). |
-| **Hardware RGB LED-sync** | Tweezijdige USB CDC Serial koppeling met de WS2812 NeoPixel (`GP16`) op de RP2350 voor live stemmingskleuren en effecten. |
-| **Portabele opslag** | Voortgang (`XP`, level, stats, stijl, taal) blijft op de USB-stick in `save.json`, met `WriteThrough` / `fsync` bescherming tegen plotseling loskoppelen. |
-| **3D-Printbare Case** | Waterdichte klikbehuizing met het officiële **SV Sticky Kop-logo**, interne lichtdiffuser voor de LED en sleutelhanger-oog. |
-
----
-
-## 2. Beveiliging & Privacy
-
-Karel is ontworpen met volledige transparantie voor kritische gebruikers en studielaptops:
-
-- **100% Zero-HID (geen BadUSB / geen `Win+R`):** In [`firmware/boot.py`](firmware/boot.py) staat `usb_hid.disable()` expliciet aan. De RP2350 meldt zich bij het besturingssysteem **uitsluitend** als USB-opslag (`KAREL`) en USB Serial (voor de RGB LED). Er wordt nooit een USB-toetsenbord gesimuleerd en er worden nooit automatisch commando's getypt.
-- **0 automatische internetverbindingen:** Karel maakt uit zichzelf **geen enkel netwerkverzoek**, verstuurt geen telemetrie en downloadt nooit iets op de achtergrond. Pas wanneer de gebruiker zelf expliciet op **Check op updates** klikt, wordt `releases/latest/download/version.json` op GitHub geraadpleegd en wordt elke download eerst geverifieerd met **SHA-256**.
-- **100% opt-in auto-start:** Automatisch openen bij het inpluggen van de USB-stick staat standaard **uit** en wordt alleen geactiveerd als de gebruiker daar zelf voor kiest.
-- **1-klik volledig verwijderen:** Via **Verwijder van laptop / Mac** (in de Hub of het rechtsklikmenu) of door auto-start uit te zetten worden alle lokale sporen (opstartvermelding, gekopieerde app, tijdelijke mappen en lokale back-up) direct verwijderd.
-- **Corruptiebestendige opslag:** `save.json` wordt altijd zonder UTF-8 BOM weggeschreven met `FileOptions.WriteThrough` + `Flush(true)` (Windows) of `fsync()` (macOS/Linux), zonder `.tmp`-bestanden op de FAT-schijf aan te maken die bij abrupt loskoppelen het bestandssysteem kunnen beschadigen.
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Security & Privacy](#security--privacy)
+- [Architecture](#architecture)
+- [Hardware](#hardware)
+- [3D-Printable Enclosure](#3d-printable-enclosure)
+- [Building from Source](#building-from-source)
+- [Repository Layout](#repository-layout)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## 3. Snel aan de slag
+## Features
 
-### Inhoud van het USB-station `KAREL`
-Zodra je de RP2350 inplugt en het station **`KAREL`** opent, zie je slechts **4 bestanden**:
+- **Portable & Zero-Install** — Runs directly from the USB drive on Windows, macOS (Universal Apple Silicon + Intel), and Linux with no external runtimes or package managers required.
+- **Native Desktop Companions** — Lightweight native binaries for each OS: C# (.NET Framework) on Windows, Swift/AppKit on macOS, and C99/X11 on Linux.
+- **54 Animations & Customization** — 194 hand-crafted pixel-art frames shared across platforms, 6 coat colors, and 8 wearable outfits.
+- **Hardware RGB LED Sync** — Bidirectional USB serial communication mirrors Karel's state (happy, hungry, studying, party, sleeping) on the RP2350's WS2812 NeoPixel LED.
+- **On-Stick Persistence** — XP, level, stats, outfit, and preferences are stored directly on the USB drive (`save.json`) so your companion follows you across computers.
+- **Optional Auto-Launch & Clean Removal** — Opt in to launch Karel automatically when the USB stick is plugged in, with idle zero-CPU waiting on Windows, zero background processes on macOS (`launchd`), and one-click uninstallation.
+- **Custom 3D-Printable Case** — Snap-fit enclosure sized for the RP2350 SuperMini featuring the SV Sticky mascot logo, integrated LED diffuser, and keychain loop.
 
-| Bestand | Besturingssysteem | Gebruik |
+---
+
+## Getting Started
+
+### 1. Plug in the USB stick
+
+Connect the RP2350 stick to your computer and open the **`KAREL`** drive. You will see four items:
+
+| File | Platform | How to launch |
 |---|---|---|
-| **`Karel (Windows).exe`** | Windows 10 / 11 | Dubbelklik om direct te starten (PE `0x0400` swap-safe, eigen koala-icoon). |
-| **`Karel (Mac).app`** | macOS 12+ (Apple Silicon & Intel) | Dubbelklik in Finder *(bij Gatekeeper-melding: rechtsklik → **Open**)*. |
-| **`Karel (Linux).sh`** | Linux (X11 / XWayland) | Start in terminal met `bash "Karel (Linux).sh"` (omzeilt FAT32 `noexec` automatisch). |
-| **`README.md`** | Alle systemen | Deze volledige documentatie- en handleidingspagina (identiek aan de GitHub README). |
+| `Karel (Windows).exe` | Windows 10 / 11 | Double-click to start. |
+| `Karel (Mac).app` | macOS 12+ (Apple Silicon & Intel) | Double-click in Finder. On first launch, right-click → **Open** to approve the unsigned open-source app. |
+| `Karel (Linux).sh` | Linux (X11 / XWayland) | Run `bash "Karel (Linux).sh"` in a terminal. |
+| `README.md` | All platforms | This documentation. |
 
-*(Alle interne bestanden zoals `boot.py`, `code.py`, `lib/`, `save.json`, `.karel_linux_x86_64` en `karel_sprites.gz` staan op `Hidden`.)*
+All firmware files, sprites, and save data live as hidden files on the drive to keep the root directory uncluttered.
 
-### Optioneel automatisch openen bij inpluggen & automatisch sluiten
-1. **Eerste start (als auto-start uit staat):** Op Windows en macOS verschijnt eenmalig de korte vraag *"Karel voortaan automatisch starten?"* (`Ja, automatisch` / `Nee, alleen nu` / `README`).
-2. **Automatisch loskoppelen:** Trek je de RP2350 uit je laptop, dan zwaait Karel gedag en duikt hij direct weg van je scherm:
-   - **Auto-start UIT:** Karel sluit volledig af.
-   - **Auto-start AAN op Windows:** Karel duikt weg, verbergt het systeemvak-icoon volledig en slaapt met **0% CPU** via `RegisterDeviceNotification(GUID_DEVINTERFACE_VOLUME)` (`WM_DEVICECHANGE`). Zodra je de stick weer inplugt, klimt hij binnen ~1–2 seconden automatisch weer je scherm op.
-   - **Auto-start AAN op macOS:** Karel sluit volledig af (**0 achtergrondprocessen, 0 MB RAM, geen menubalk-icoon**). De standaard `LaunchAgent` (`StartOnMount = true`) start Karel pas opnieuw zodra de `KAREL`-stick wordt aangekoppeld.
+### 2. Optional auto-launch on plug-in
 
-### Handmatig verwijderen van je laptop
-In de app zelf klik je op **Verwijder van laptop / Mac** in de Hub of het rechtsklikmenu. Handmatig verwijderen kan ook altijd:
-- **Windows:** Verwijder registerwaarde `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\KarelDeKoala`, map `%LOCALAPPDATA%\KarelDeKoala` en bestand `%APPDATA%\KarelDeKoala_save.json`.
-- **macOS (Terminal):**
+Auto-launch is **disabled by default**. On first launch on Windows or macOS, Karel asks once whether you want him to start automatically whenever the USB stick is connected. You can toggle this at any time from the Hub or context menu.
+
+When you unplug the USB stick, Karel waves goodbye and leaves your screen:
+
+- **Auto-launch off:** The application exits completely.
+- **Auto-launch on (Windows):** The window and tray icon close; an idle OS device-event listener waits at 0% CPU until the drive is reconnected.
+- **Auto-launch on (macOS):** The application exits completely (0 background processes). A standard user `LaunchAgent` (`StartOnMount`) launches Karel only when the volume mounts.
+
+### 3. Uninstalling
+
+If you enabled auto-launch and want to remove every local file from your computer, click **Uninstall / Verwijder van laptop** in the Hub or right-click menu, or disable auto-launch.
+
+Manual removal commands:
+
+- **Windows:** Delete the registry value `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\KarelDeKoala`, the folder `%LOCALAPPDATA%\KarelDeKoala`, and `%APPDATA%\KarelDeKoala_save.json`.
+- **macOS:**
   ```bash
   pkill -x Karel 2>/dev/null
   launchctl unload -w ~/Library/LaunchAgents/nl.svsticky.karel.plist 2>/dev/null
@@ -82,180 +78,216 @@ In de app zelf klik je op **Verwijder van laptop / Mac** in de Hub of het rechts
          "$HOME/Library/Application Support/KarelDeKoala" \
          "${TMPDIR%/}/Karel_live.app" "${TMPDIR%/}"/karel_mac_upd_*
   ```
-- **Linux:** `rm -rf ~/.local/share/karel-de-koala "${XDG_RUNTIME_DIR:-/tmp}/karel_de_koala_$(id -u)"`
+- **Linux:**
+  ```bash
+  rm -rf ~/.local/share/karel-de-koala "${XDG_RUNTIME_DIR:-/tmp}/karel_de_koala_$(id -u)"
+  ```
 
 ---
 
-## 4. Besturing, Outfits, Animaties & Easter Eggs
+## Usage
 
-### Besturing & Interacties
-| Actie | Resultaat |
+### Controls
+
+| Input | Action |
 |---|---|
-| **Klik op Karel** | Open de **Sticky Hub** (XP/level, honger/blijdschap/energie/hygiëne, stijl, Focus-timer, auto-start, updates & uninstall). |
-| **Dubbelklik op Karel** | Aai Karel (`+8 XP`, hartjesdeeltjes en RGB LED-puls). |
-| **Sleep & gooi Karel** | Jetpack-vlucht over je scherm met zwaartekracht en randstuiter. |
-| **Rechtsklik (of tray / menubalk)** | Snelmenu voor acties, 18 trucjes, 4 loopmodi, schaal (`2×–5×`), geluid, Auto-Stil, taal (`NL`/`EN`), updates & afsluiten. |
-| **`Ctrl + Alt + K` (Windows)** | Verberg Karel achter de taakbalk of roep hem direct terug. |
+| **Click Karel** | Open the Hub (XP/level, stats, coat & outfits, 25-minute Focus timer, settings, updates, uninstall). |
+| **Double-click Karel** | Pet Karel (`+8 XP`, heart particles, and LED pulse). |
+| **Drag & toss** | Launch Karel across the screen with physics and bounce. |
+| **Right-click / tray / menu bar** | Quick menu for actions, 18 tricks, roam modes, scale (`2×–5×`), sound, Auto-Quiet, language (`NL`/`EN`), and quit. |
+| **`Ctrl + Alt + K`** *(Windows)* | Hide or summon Karel on demand. |
 
-### Zwerfmodi (*Roam Modes*)
-- **Heel Scherm (`free`):** Wandelt en springt vrij over je bureaublad.
-- **Op Actief Venster (`window`):** Klimt bovenop het actieve venster en opent zijn **Sticky-paraplu (`UMBRELLA`)** zodra dat venster verdwijnt.
-- **Volg Muis (`cursor`):** Rent achter je muiscursor aan.
-- **Blijf Zitten (`park`):** Blijft rustig op één plek zitten.
-- **Auto-Stil Fullscreen:** Verplaatst Karel automatisch naar de hoek en dempt geluid tijdens presentaties, video's of vergaderingen (Teams, Zoom, Google Meet, PowerPoint).
+### Roam Modes
 
-### Vachten, Outfits & Easter Eggs
-- **6 Vachten:** `classic` (koalagrijs), `sticky` (Sticky-rood), `mint`, `midnight` (paars/blauw), `gold`, `crimson`.
-- **8 Outfits** *(strikt 1 item tegelijk, slim gemaskeerd tijdens speciale animaties)*: `scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`.
-- **Focus-modus (25 min):** Pomodoro-timer die de LED op rustig studielicht zet en `+45 XP` geeft na voltooiing.
+- **Free (`free`):** Walks and hops across the entire desktop.
+- **Active Window (`window`):** Sits on top of your active window and parachutes down with an umbrella if the window closes or moves.
+- **Follow Cursor (`cursor`):** Chases your mouse pointer.
+- **Park (`park`):** Stays in one spot.
+- **Auto-Quiet Fullscreen:** Automatically moves Karel aside and mutes sound during fullscreen presentations, videos, or meetings.
+
+### Customization & Extras
+
+- **Coats (6):** `classic`, `sticky`, `mint`, `midnight`, `gold`, `crimson`
+- **Outfits (8):** `scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`
+- **Focus Timer:** 25-minute Pomodoro session that switches the hardware LED to a calm study glow and awards `+45 XP` on completion.
 - **Easter Eggs:**
-  - **Cafeïne Overdosis:** Geef 3× koffie binnen 2 minuten → *200 MHz Hyper Mode*!
-  - **BBG Stof:** Klik 7× achter elkaar op Karels neus → *Hatsjoe!*
-  - **Konami-code (`↑ ↑ ↓ ↓ ← → ← → B A`):** Start *Disco Borrel Mode* met zonnebril en regenboog-LED!
-  - **Tijdgevoelige details:** Slaperige ogen tussen `00:00–04:00` en een VrijMiBo-drankje op vrijdag na `16:00`.
+  - Feed 3 coffees within 2 minutes for *Hyper Mode*.
+  - Click Karel's nose 7 times in a row for a surprise sneeze.
+  - Enter the Konami code (`↑ ↑ ↓ ↓ ← → ← → B A`) for *Disco Mode*.
+  - Time-aware touches: sleepy eyes between `00:00–04:00` and a Friday afternoon drink after `16:00`.
 
 ---
 
-## 5. Systeemarchitectuur
+## Security & Privacy
+
+Karel is designed to be safe and inspectable on personal and university machines:
+
+- **No USB HID emulation:** [`firmware/boot.py`](firmware/boot.py) explicitly disables USB HID (`usb_hid.disable()`). The board enumerates strictly as USB Mass Storage (`KAREL`) and USB CDC Serial (for LED telemetry). It never acts as a keyboard or mouse and executes nothing on plug-in.
+- **Zero background network traffic:** Karel makes no automatic network connections, sends no telemetry, and never downloads files on its own. Network access occurs only when you manually click **Check for updates**, which queries GitHub Releases (`version.json`) and verifies every downloaded artifact against its **SHA-256** checksum before applying it.
+- **Open & reproducible builds:** All binaries distributed on the USB drive and GitHub Releases are compiled from this repository via [GitHub Actions](.github/workflows/release.yml).
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
     subgraph RP2350["RP2350 SuperMini (CircuitPython)"]
-        BOOT["boot.py\nusb_hid.disable()\nLabel: KAREL"]
-        CODE["code.py\nLED Animaties &\nSerial Protocol"]
+        BOOT["boot.py\nMass Storage + CDC Serial\nusb_hid.disable()"]
+        FLASH["4 MB QSPI Flash\nVolume KAREL + save.json"]
+        CODE["code.py\nLED State Machine &\nSerial Protocol"]
         LED["GP16 WS2812\nNeoPixel RGB LED"]
-        FLASH["4 MB QSPI Flash\n(FAT Volume KAREL)"]
         BOOT --> FLASH
         CODE --> LED
     end
 
-    subgraph HOST["Host PC (Windows / macOS / Linux)"]
-        APP["Native Companion\n(C# / Swift / C99)"]
-        WATCH["Opt-in USB Trigger\nWin: WM_DEVICECHANGE\nMac: launchd StartOnMount"]
-        SAVE["Lokale Backup\n(save.json)"]
-        WATCH -. "bij USB inpluggen" .-> APP
-        APP <--> SAVE
+    subgraph HOST["Host Computer (Windows / macOS / Linux)"]
+        APP["Native Companion\nC# / Swift / C99"]
+        TRIGGER["Opt-in USB Trigger\nWindows: OS Device Event\nmacOS: launchd StartOnMount"]
+        BACKUP["Local Backup\nsave.json"]
+        TRIGGER -. "on USB mount" .-> APP
+        APP <--> BACKUP
     end
 
-    GH["GitHub Releases\nversion.json + SHA-256\n(alleen na handmatige klik)"]
+    GH["GitHub Releases\nversion.json + SHA-256"]
 
-    FLASH <== "USB Mass Storage\n(4 zichtbare items + save.json)" ==> APP
-    CODE <== "USB CDC Serial\nKAREL_PING / STATE:* / EVENT:*" ==> APP
-    APP -. "handmatige 'Check op updates'" .-> GH
+    FLASH <== "USB Mass Storage" ==> APP
+    CODE <== "USB CDC Serial (115200 baud)" ==> APP
+    APP -. "manual update check only" .-> GH
 ```
 
 ---
 
-## 6. Hardware, Pinout & Serieel Protocol
+## Hardware
 
 ### RP2350 SuperMini Pinout
-De firmware ([`firmware/boot.py`](firmware/boot.py) & [`firmware/code.py`](firmware/code.py)) draait onder **CircuitPython 9.2+ / 10.x** op de **RP2350 SuperMini** (`4 MB` QSPI Flash; totale payload inclusief alle 3 OS-apps is **`~0,93 MB`**, dus **`> 2,0 MB` vrij**).
 
-| Functie | Pin | Beschrijving |
-|---|---|---|
-| **WS2812 RGB LED (NeoPixel)** | `GP16` *(fallback: `GP23`/`GP22`)* | Spiegelt Karels stemming live via USB Serial; met fallback naar onboard mono LED (`LED`/`GP17`/`GP25`). |
-| **`BOOT`-knop** | Onboard `BOOT` | Houd ingedrukt tijdens inpluggen voor RP2350 UF2-bootloader (`RP2350` drive). |
-| **Dev / Safe Mode** | `GP0 → GND` *(of `GP24 → GND`)* | Houd verbonden tijdens inpluggen voor Dev-modus (cyaan LED + CircuitPython autoreload aan). |
-| **Optionele hardware** | `GP1` / `GP2` / `GP3` / `GP15` / `GP24` | Ondersteuning voor externe actieknop, capacitieve aai-pad (`1 MΩ` pull-up op RP2350) en toggle-knop. |
+The firmware runs on **CircuitPython 9.2+ / 10.x** on an **RP2350 SuperMini** (`4 MB` QSPI flash; full multi-OS payload uses `~0.93 MB`, leaving `> 2 MB` free).
 
-### USB CDC Serieel Protocol (`115200` baud, newline-gescheiden UTF-8)
-| Richting | Bericht | Betekenis |
+| Function | Pin | Notes |
 |---|---|---|
-| Host → RP2350 | `KAREL_PING` | Heartbeat / poortdetectie (1× per seconde). |
-| RP2350 → Host | `KAREL_PONG` | Bevestiging van actieve Karel-stick. |
-| Host → RP2350 | `STATE:HAPPY \| HUNGRY \| HYPER \| SLEEP \| STUDY \| QUIET \| PARTY \| BYE` | Stelt de live RGB LED-animatie en kleur in. |
-| Host → RP2350 | `EVENT:HEART \| EVENT:COOLDOWN` | Korte roze hartjes- of bevestigingspuls op de LED. |
-| RP2350 → Host | `EVENT:PET \| FEED \| COFFEE \| MINIGAME \| DISCO \| GIFT \| RST_BOOP \| TOGGLE_KAREL` | Hardware-events van optionele knoppen/touchpads of herstart-boop. |
+| **RGB LED (WS2812 NeoPixel)** | `GP16` *(fallback: `GP23`, `GP22`)* | Displays live mood animations; falls back to onboard mono LED (`LED`/`GP17`/`GP25`). |
+| **Bootloader** | Onboard `BOOT` | Hold while plugging in to mount the RP2350 UF2 bootloader. |
+| **Dev / Safe Mode** | `GP0 → GND` *(or `GP24 → GND`)* | Bridge while plugging in to enable CircuitPython autoreload (cyan LED). |
+| **Optional inputs** | `GP1`, `GP2`, `GP3`, `GP15`, `GP24` | External action button, capacitive touch pad (`1 MΩ` pull-up), and toggle button. |
+
+### USB CDC Serial Protocol
+
+Plain UTF-8, newline-delimited messages at `115200` baud:
+
+| Direction | Message | Description |
+|---|---|---|
+| Host → Board | `KAREL_PING` | Heartbeat and port discovery (1 Hz). |
+| Board → Host | `KAREL_PONG` | Handshake response identifying a Karel device. |
+| Host → Board | `STATE:HAPPY \| HUNGRY \| HYPER \| SLEEP \| STUDY \| QUIET \| PARTY \| BYE` | Updates the active LED color and animation pattern. |
+| Host → Board | `EVENT:HEART \| EVENT:COOLDOWN` | Triggers a brief LED pulse. |
+| Board → Host | `EVENT:PET \| FEED \| COFFEE \| MINIGAME \| DISCO \| GIFT \| RST_BOOP \| TOGGLE_KAREL` | Hardware input events from optional buttons or touch pads. |
 
 ---
 
-## 7. 3D-Printbare Behuizing (SV Sticky Kop-logo)
+## 3D-Printable Enclosure
 
-In [`case/stl/`](case/stl/) staan waterdichte, printklare STL-bestanden op maat voor een **kale RP2350 SuperMini** (`18,0 × 23,3–23,5 mm` zonder pinheaders), voorzien van het officiële **SV Sticky Kop-logo** uit [`case/assets/hoofd_outline_kleur.png`](case/assets/hoofd_outline_kleur.png) / [`.svg`](case/assets/hoofd_outline_kleur.svg):
+Manifold, print-ready STL files for a bare **RP2350 SuperMini** (`18.0 × 23.3–23.5 mm`, without pin headers) are provided in [`case/stl/`](case/stl/):
 
-| Bestand | Afmetingen | Beschrijving |
+| File | Dimensions | Description |
 |---|---|---|
-| [`case/stl/karel_rp2350_complete_plate.stl`](case/stl/karel_rp2350_complete_plate.stl) | `51,0 × 36,0 × 7,6 mm` | Bodem en deksel samen naast elkaar — direct in je slicer laden. |
-| [`case/stl/karel_rp2350_bottom.stl`](case/stl/karel_rp2350_bottom.stl) | `23,0 × 35,6 × 7,6 mm` | Onderbak met 6 PCB-klemribbels, `12,2 × 5,3 mm` USB-C uitsparing & `Ø 4,6 mm` sleutelhanger-oog. |
-| [`case/stl/karel_rp2350_top.stl`](case/stl/karel_rp2350_top.stl) | `23,0 × 28,0 × 5,1 mm` | Klikdeksel met gecentreerd `-0,6 mm` verzonken **Sticky Kop-logo**, interne `0,42 mm` lichtdiffuser boven `GP16` en afgedekte `BOOT`-knop. |
+| [`karel_rp2350_complete_plate.stl`](case/stl/karel_rp2350_complete_plate.stl) | `51.0 × 36.0 × 7.6 mm` | Complete print plate (bottom + lid). |
+| [`karel_rp2350_bottom.stl`](case/stl/karel_rp2350_bottom.stl) | `23.0 × 35.6 × 7.6 mm` | Base shell with PCB retention ribs, USB-C cutout (`12.2 × 5.3 mm`), and keychain eye (`Ø 4.6 mm`). |
+| [`karel_rp2350_top.stl`](case/stl/karel_rp2350_top.stl) | `23.0 × 28.0 × 5.1 mm` | Snap-fit lid with recessed SV Sticky logo and thin internal diffuser window over `GP16`. |
 
-- **Printadvies:** `0,4 mm` nozzle, `0,16 mm` laagdikte, **geen supports nodig**, bij voorkeur wit/licht PLA of PETG zodat de `GP16` RGB LED mooi door de interne diffuser schijnt.
-- **Zelf regenereren:** `python case/generate_karel_case.py` *(opties: `--open-led`, `--open-boot`, `--out-dir`)*.
+**Recommended print settings:** `0.4 mm` nozzle, `0.16 mm` layer height, no supports required. White or light-colored PLA/PETG works best for LED diffusion.
 
----
-
-## 8. Ontwikkelen, Bouwen & Uitrollen
-
-### Lokaal bouwen & self-tests
-Alle 3 desktop-apps bevatten een ingebouwde `--self-test` (sprite-rendering, audio-synthese, save-parser en SHA-256/versie-check):
+To regenerate or customize the STLs (e.g. open LED or BOOT cutout):
 
 ```bash
-# Windows (.NET Framework 4.x csc.exe + Python 3)
-python desktop/build_native.py
-"desktop/karel_native.exe" --self-test
+python case/generate_karel_case.py --help
+```
 
-# macOS (Xcode Command Line Tools -> Universal arm64 + x86_64 Karel.app)
+---
+
+## Building from Source
+
+### Prerequisites
+
+- **Windows:** Python 3 and .NET Framework 4.x (`csc.exe`, included with Windows).
+- **macOS:** Xcode Command Line Tools (`swiftc`, `lipo`, `codesign`).
+- **Linux:** `gcc`, `libx11-dev`, and `libxext-dev`.
+
+### Build & Self-Test
+
+Each companion includes a built-in `--self-test` flag verifying sprite rendering, audio synthesis, save parsing, and version/SHA-256 logic:
+
+```bash
+# Windows
+python desktop/build_native.py
+desktop/karel_native.exe --self-test
+
+# macOS (builds Universal arm64 + x86_64 bundle)
 bash desktop/build_mac.sh
 desktop/Karel.app/Contents/MacOS/Karel --self-test
 
-# Linux (gcc + libx11-dev + libxext-dev)
+# Linux (x86_64)
 bash desktop/build_linux.sh
 KAREL_DRIVE_DIR=desktop desktop/karel_linux_x86_64 --self-test
 ```
 
-### USB-stick of RP2350 flashen
-Met [`desktop/prepare_test_usb.py`](desktop/prepare_test_usb.py) richt je zowel een **RP2350 SuperMini** (inclusief `boot.py`, `code.py` en het opschonen van oude bestanden) als een gewone USB-stick direct in met de schone 4-item indeling, met behoud van een bestaande `save.json`:
+### Provisioning a USB Drive or RP2350
+
+Use [`desktop/prepare_test_usb.py`](desktop/prepare_test_usb.py) to populate a mounted RP2350 (including `boot.py` and `code.py`) or standard USB drive:
 
 ```bash
+# Preserve existing save.json
 python desktop/prepare_test_usb.py --drive D:\
+
+# Fresh install for a new user (resets save.json to level 1)
+python desktop/prepare_test_usb.py --drive D:\ --reset-save
 ```
 
-Voor het in serie programmeren van **50+ bordjes** zie [`DEPLOYMENT_50_BOARDS.md`](DEPLOYMENT_50_BOARDS.md).
+For batch flashing 50+ boards, see [`DEPLOYMENT_50_BOARDS.md`](DEPLOYMENT_50_BOARDS.md).
 
-### Automatische CI/CD Releases
-Elke push naar `main` triggert [`.github/workflows/release.yml`](.github/workflows/release.yml):
-1. Bouwt & self-test `karel_native.exe` (`windows-latest`), Universal `Karel-macOS-App.zip` (`macos-latest`) en `karel_linux_x86_64` (`ubuntu-latest` met `-Wall -Wextra -Werror`).
-2. Verifieert dat versienummers in C#, Swift en C identiek zijn.
-3. Berekent alle **SHA-256** checksums, genereert `version.json` en publiceert een GitHub Release.
+### Release Pipeline
 
-### Mappenstructuur
+Pushing to `main` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds and self-tests all three platforms, verifies version parity across sources, computes SHA-256 checksums, generates `version.json`, and publishes a GitHub Release.
+
+---
+
+## Repository Layout
+
 ```text
 karel-de-koala/
-├── README.md                        # Projectdocumentatie (dit bestand)
-├── DEPLOYMENT_50_BOARDS.md          # Mass-flashing handleiding voor 50+ RP2350 bordjes
-├── .github/workflows/release.yml    # Multi-platform CI/CD & SHA-256 Release pipeline
+├── README.md
+├── DEPLOYMENT_50_BOARDS.md          # Batch provisioning guide for 50+ boards
+├── .github/workflows/release.yml    # Cross-platform CI/CD & release workflow
 ├── firmware/
-│   ├── boot.py                      # Zero-HID (usb_hid.disable), label KAREL, Dual CDC
-│   └── code.py                      # RP2350 firmware: NeoPixel LED, Serial protocol & sensoren
+│   ├── boot.py                      # USB configuration (Mass Storage + CDC, HID disabled)
+│   └── code.py                      # CircuitPython LED controller & serial protocol
 ├── desktop/
-│   ├── karel_native.cs              # Windows native C# companion (WM_DEVICECHANGE, WriteThrough)
-│   ├── karel_native.exe             # Voorgebouwde Windows binary (met embedded sprites & icoon)
-│   ├── karel_mac.swift              # macOS native Swift/AppKit companion (StartOnMount, fsync)
-│   ├── build_mac.sh                 # Bouwt Universal Karel.app (arm64 + x86_64)
-│   ├── karel_linux.c                # Linux native C99 X11/XShape companion
-│   ├── build_linux.sh / launch_karel.sh
-│   ├── karel_sprites.gz             # Gedeeld sprite-pakket (54 animaties, 194 frames)
-│   ├── build_native.py              # Exporteert sprites + compileert PE 0x0400 Windows binary
-│   ├── prepare_test_usb.py          # Richt RP2350 / USB-stick schoon in (4 zichtbare items)
-│   └── generate_initial_save.py     # Genereert save.json, .karel_drive & drive-iconen
-├── python_extended/                 # Optionele uitgebreide Python-editie (10 minigames, 7 tabs)
+│   ├── karel_native.cs              # Windows companion (C# / WinForms)
+│   ├── karel_mac.swift              # macOS companion (Swift / AppKit)
+│   ├── karel_linux.c                # Linux companion (C99 / X11 + XShape)
+│   ├── karel_sprites.gz             # Shared compressed sprite archive (54 states, 194 frames)
+│   ├── build_native.py              # Windows build script & sprite exporter
+│   ├── build_mac.sh                 # macOS Universal app bundle build script
+│   ├── build_linux.sh               # Linux build script
+│   ├── launch_karel.sh              # Linux USB launcher wrapper
+│   ├── prepare_test_usb.py          # USB / RP2350 provisioning tool
+│   └── generate_initial_save.py     # Initial save.json & drive icon generator
+├── python_extended/                 # Extended Python desktop edition & sprite definitions
 └── case/
-    ├── generate_karel_case.py       # Parametrische STL-generator met SV Sticky Kop-logo
-    ├── assets/                      # Officiële huisstijl Kop-logo bestanden (.png / .svg)
-    └── stl/                         # Printklare, waterdichte STL-bestanden
+    ├── generate_karel_case.py       # Parametric STL enclosure generator
+    ├── assets/                      # SV Sticky logo assets (.png / .svg)
+    └── stl/                         # Print-ready STL files
 ```
 
 ---
 
-## 9. Probleemoplossing & FAQ
+## Troubleshooting
 
-- **macOS zegt *"Karel (Mac).app kan niet worden geopend omdat de ontwikkelaar niet kan worden geverifieerd"*:**
-  Omdat de app open-source is en geen betaald Apple Developer-certificaat gebruikt, geeft macOS Gatekeeper eenmalig deze melding. Klik met **rechts** op `Karel (Mac).app` → **Open** → **Open**. Daarna onthoudt macOS je keuze.
-- **Hoe weet ik zeker dat deze USB-stick veilig is?**
-  USB HID is uitgeschakeld in [`firmware/boot.py`](firmware/boot.py) (`usb_hid.disable()`), er is geen automatisch netwerkverkeer, en alle binaries op de stick worden reproduceerbaar gebouwd vanuit deze openbare GitHub-repository via [`.github/workflows/release.yml`](.github/workflows/release.yml).
-- **Karel startte na het inschakelen van auto-start niet op Windows:**
-  Zorg dat je `Karel (Windows).exe` éénmaal hebt gestart en *Automatisch openen bij USB* aan staat. Bij loskoppelen verdwijnt ook het systeemvak-icoon (0% CPU slaapstand); na opnieuw inpluggen klimt Karel binnen enkele seconden vanzelf weer op je scherm.
-- **Mijn voortgang (`save.json`) lijkt beschadigd na abrupt uittrekken:**
-  Vanaf `v2.2.1` wordt `save.json` direct doorgeschreven (`WriteThrough` / `fsync`) zonder `.tmp`-bestanden op USB. Mocht het toch ooit misgaan, dan herstelt Karel bij de volgende start stil vanuit je lokale back-up.
-- **Linux geeft *"Geen X11/XWayland DISPLAY gevonden"*:**
-  Karel gebruikt op Linux X11/XWayland (`libX11` + `libXext`). Controleer of XWayland actief is (`echo $DISPLAY`).
+- **macOS Gatekeeper warning ("cannot be opened because the developer cannot be verified"):**
+  Because this open-source app is not notarized with a paid Apple Developer certificate, macOS blocks the first double-click. Right-click `Karel (Mac).app` → **Open** → **Open**. macOS remembers your choice for subsequent launches.
+- **Linux fails with a missing `DISPLAY` error:**
+  The Linux companion uses X11/XWayland (`libX11`, `libXext`). Ensure an X11 or XWayland session is active (`echo $DISPLAY`).
+- **RGB LED does not react to desktop actions:**
+  Make sure no other program (such as a serial monitor or Mu Editor) has the board's data serial port open, and reconnect the USB stick.
+- **Updating Karel:**
+  Open the Hub or right-click menu and click **Check for updates**. Both the desktop app and `code.py` firmware (when connected) are verified via SHA-256 and updated automatically.
