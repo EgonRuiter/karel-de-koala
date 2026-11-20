@@ -42,7 +42,7 @@ if ! echo '#include <X11/extensions/shape.h>' | gcc -E - >/dev/null 2>&1; then
     fi
 fi
 
-gcc -Os -s -std=c99 -Wall -Wextra -Werror "$SRC" "${LIB_ARGS[@]}" -lX11 -lXext -lm -o "$OUT"
+gcc -Os -s -std=c99 -Wall -Wextra -Werror "$SRC" "$HERE"/linux/*.c "${LIB_ARGS[@]}" -lX11 -lXext -lm -o "$OUT"
 chmod +x "$OUT"
 cp -f "$OUT" "$HERE/karel_linux" 2>/dev/null || true
 

@@ -242,8 +242,13 @@ karel-de-koala/
 └── desktop/
     ├── karel_native.cs              # Windows companion (C# / WinForms)
     ├── karel_mac.swift              # macOS companion (Swift / AppKit)
-    ├── karel_linux.h                # Linux companion header (types, constants, prototypes)
-    ├── karel_linux.c                # Linux companion implementation (C99 / X11 + XShape)
+    ├── karel_linux.h                # Linux companion header (types, safety caps, APIs)
+    ├── karel_linux.c                # Linux companion X11/XShape UI & entry point
+    ├── linux/
+    │   ├── codec.c                  # Bounded gzip/DEFLATE decoder, SHA-256 & SemVer
+    │   ├── sprites.c                # Sprite archive loader, coat mapping & overlays
+    │   ├── storage.c                # save.json persistence, USB locator & WAV synth
+    │   └── system_io.c              # Audio exec, RP2350 serial, version check & IPC
     ├── launch_karel.sh              # Linux USB launcher wrapper (Karel (Linux).sh)
     ├── build_native.py              # Windows build script & sprite archive exporter
     ├── build_mac.sh                 # macOS Universal app bundle build script

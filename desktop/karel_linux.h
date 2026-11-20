@@ -1,6 +1,6 @@
 /* Karel de Koala - Linux Companion Header (C99 + libX11 + XShape)
- * Shared constants, data structures, X11 portability declarations, and module
- * prototypes for desktop/karel_linux.c.
+ * Shared constants, data structures, X11 portability declarations, and cross-module
+ * APIs for desktop/karel_linux.c and desktop/linux/{codec,sprites,storage,system_io}.c.
  */
 
 #ifndef KAREL_LINUX_H
@@ -174,9 +174,6 @@ void XShapeCombineMask(Display *, Window, int, int, int, Pixmap, int);
  * Core Data Structures
  * ========================================================================= */
 
-typedef struct { const uint8_t *src; size_t len, pos; uint32_t bitbuf; int bitcnt; } BitRd;
-typedef struct { uint16_t count[16]; uint16_t sym[320]; } HuffTbl;
-
 typedef struct { uint8_t r, g, b, a; } Rgba;
 typedef struct { char name[32]; int nframes, div; char rows[MAX_FRAMES][32][33]; int8_t anc[MAX_FRAMES][4]; } AnimState;
 typedef struct { Rgba pal[128]; AnimState states[MAX_STATES]; int nstates; } SpriteBank;
@@ -230,112 +227,47 @@ typedef struct {
 #endif /* !KAREL_CORE_TEST */
 
 /* =========================================================================
- * Module Function Prototypes
+ * Shared Cross-Module Symbols & APIs
  * ========================================================================= */
 
-/* 1. Compression, Crypto & Version Validation */
-static int br_bit(BitRd *b);
-static int br_bits(BitRd *b, int n);
-static void huff_build(HuffTbl *h, const uint8_t *lens, int n);
-static int huff_dec(BitRd *b, const HuffTbl *h);
-static uint8_t *inflate_grow(uint8_t *out, size_t *cap, size_t needed);
-static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len);
-static void sha256_hex(const uint8_t *data, size_t len, char out[65]);
-static int is_valid_semver(const char *s);
-static int compare_ver(const char *a, const char *b);
+/* desktop/linux/codec.c */
+uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len);
+void sha256_hex(const uint8_t *data, size_t len, char out[65]);
+int is_valid_semver(const char *s);
+int compare_ver(const char *a, const char *b);
 
-/* 2. Sprite Bank & Pixel Renderer */
-static int find_state_idx(const SpriteBank *sb, const char *st);
-static int parse_hex2(const char *s);
-static int load_sprites_gz(SpriteBank *sb, const char *path);
-static char map_skin(const char *skin, char ch);
-static void g_rect(char g[32][32], int dx, int dy, int x0, int y0, int x1, int y1, char ch);
-static void g_px(char g[32][32], int dx, int dy, int x, int y, char ch);
-static void render_frame_rgba(const SpriteBank *sb, const char *req_st, int frame_idx,
-                              const char *skin, const char *item, Rgba out[32][32]);
+/* desktop/linux/sprites.c */
+extern const char *SKIN_IDS[NUM_SKINS];
+extern const char *OUTFIT_IDS[NUM_OUTFITS];
+int load_sprites_gz(SpriteBank *sb, const char *path);
+void render_frame_rgba(const SpriteBank *sb, const char *req_st, int frame_idx,
+                       const char *skin, const char *item, Rgba out[32][32]);
 
-/* 3. Persistent SaveStore & USB Drive Locator */
-static int xp_for_next_level(int lvl);
-static int level_from_xp(int xp);
-static int clamp_int(int v, int lo, int hi);
-static int file_exists(const char *p);
-static void save_defaults(SaveStore *s);
-static int json_find_str(const char *txt, const char *key, char *out, size_t max_out);
-static int json_find_int(const char *txt, const char *key, int *out);
-static time_t parse_iso_local(const char *s);
-static int read_save_file(const char *path, SaveStore *out);
-static void get_volume_serial(const char *root, char out[32]);
-static void find_usb_drive(char *out, size_t max_out);
-static void save_write_one(const char *path, const SaveStore *s, int direct);
-static void save_persist(SaveStore *s);
-static void save_load(SaveStore *s);
-
-/* 4. Audio Synthesizer & Asset Locator */
-static size_t build_wav_bytes(const double *freqs, int nfreq, double dur, double amp, uint8_t *buf, size_t maxb);
-static int locate_sprites_gz(char *out, size_t max_out);
+/* desktop/linux/storage.c */
+int xp_for_next_level(int lvl);
+int level_from_xp(int xp);
+int clamp_int(int v, int lo, int hi);
+int file_exists(const char *p);
+int json_find_str(const char *txt, const char *key, char *out, size_t max_out);
+void save_persist(SaveStore *s);
+void save_load(SaveStore *s);
+size_t build_wav_bytes(const double *freqs, int nfreq, double dur, double amp, uint8_t *buf, size_t maxb);
+int locate_sprites_gz(char *out, size_t max_out);
 
 #ifndef KAREL_CORE_TEST
-static int poll_usb(SaveStore *s);
+int poll_usb(SaveStore *s);
 
-/* 5. Audio Playback, RP2350 Serial, Read-Only Version Check & IPC */
-static void sleep_ms(int ms);
-static void cleanup_sound_dir(void);
-static void open_with_xdg(const char *target);
-static void play_sound_key(const char *key, int muted, int auto_quiet);
-static void ser_drop(LinuxSerial *s);
-static void ser_send(LinuxSerial *s, const char *line);
-static void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev);
-static uint8_t *exec_fetch_tool(const char *tool, char *const argv[], size_t *out_len);
-static uint8_t *http_get_manifest(size_t *out_len);
-static void start_updater_async(int *out_pipe_fd);
-static int try_signal_existing(int toggle, uint16_t port);
-static int start_ipc_server(uint16_t port);
-
-/* 6. X11 Desktop UI, Physics Loop, Menus & Sticky Hub */
-static int Sc(int px, float s);
-static float get_dpi_scale(Display *dpy);
-static unsigned long rgb_px(Display *dpy, int scr, uint8_t r, uint8_t g, uint8_t b);
-static void get_work_area(Display *dpy, int scr, int *x, int *y, int *w, int *h);
-static int query_active_win(KarelApp *k, int wa_x, int wa_y, int wa_w, int wa_h, int *rx, int *ry, int *rw, int *rh, char *title, size_t max_t);
-static int detect_auto_quiet(KarelApp *k, int wa_x, int wa_y, int wa_w, int wa_h);
-static void say_msg(KarelApp *k, const char *m, int ticks);
-static void set_act(KarelApp *k, const char *st, int ticks);
-static int is_en(const KarelApp *k);
-static int px_sz(const KarelApp *k);
-static int win_w(const KarelApp *k);
-static int win_h(const KarelApp *k);
-static int k_ox(const KarelApp *k);
-static int k_oy(const KarelApp *k);
-static void spawn_particles(KarelApp *k, const char *ch, uint8_t r, uint8_t g, uint8_t b, int count);
-static void draw_hub(KarelApp *k);
-static void open_hub(KarelApp *k);
-static const char *level_title(int lvl, int en);
-static const char *outfit_quote(const char *item, int en);
-static const char *pick_smart_quote(const KarelApp *k);
-static void play_trick_sound(const KarelApp *k, const char *st);
-static void do_random_style(KarelApp *k);
-static void award_xp(KarelApp *k, int amt);
-static void trigger_climb(KarelApp *k, const char *msg);
-static void do_pet(KarelApp *k);
-static void do_feed(KarelApp *k);
-static void do_coffee(KarelApp *k);
-static void do_wash(KarelApp *k);
-static void nap_toggle(KarelApp *k);
-static void trigger_konami(KarelApp *k);
-static void do_boop(KarelApp *k);
-static void trigger_dive(KarelApp *k, const char *mode);
-static void paint_karel(KarelApp *k);
-static int pop_rh(const KarelApp *k);
-static void close_popup(KarelApp *k);
-static void draw_popup(KarelApp *k);
-static void open_popup(KarelApp *k, int mode, int rx, int ry);
-static void resize_karel_scale(KarelApp *k, int sc);
-static void click_popup(KarelApp *k, int my, int x_root, int y_root);
-static void add_hub_btn(KarelApp *k, int x, int y, int w, int h, int id);
-static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root);
-static void handle_key_event(KarelApp *k, XKeyEvent *kev);
-static void step_physics(KarelApp *k);
-static int run_ask_prompt(KarelApp *k);
+/* desktop/linux/system_io.c */
+void sleep_ms(int ms);
+void cleanup_sound_dir(void);
+void open_with_xdg(const char *target);
+void play_sound_key(const char *key, int muted, int auto_quiet);
+void ser_drop(LinuxSerial *s);
+void ser_send(LinuxSerial *s, const char *line);
+void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev);
+void start_updater_async(int *out_pipe_fd);
+int try_signal_existing(int toggle, uint16_t port);
+int start_ipc_server(uint16_t port);
 #endif /* !KAREL_CORE_TEST */
 
 #endif /* KAREL_LINUX_H */
