@@ -667,12 +667,12 @@ private final class SaveStore {
         if let prev = Self.parseDate(getStr("last_seen", "")) {
             let hrs = max(0.0, Date().timeIntervalSince(prev) / 3600.0)
             if hrs > 0.05 {
-                data["hunger"] = max(5, Int(round(Double(getInt("hunger", 80)) - hrs * 2.5)))
-                data["happiness"] = max(10, Int(round(Double(getInt("happiness", 85)) - hrs * 2.0)))
-                data["hygiene"] = max(15, Int(round(Double(getInt("hygiene", 90)) - hrs * 1.1)))
-                data["caffeine"] = max(0, Int(round(Double(getInt("caffeine", 25)) - hrs * 8.0)))
+                data["hunger"] = max(15, Int(round(Double(getInt("hunger", 80)) - hrs * 0.9)))
+                data["happiness"] = max(25, Int(round(Double(getInt("happiness", 85)) - hrs * 0.6)))
+                data["hygiene"] = max(25, Int(round(Double(getInt("hygiene", 90)) - hrs * 0.4)))
+                data["caffeine"] = max(0, Int(round(Double(getInt("caffeine", 25)) - hrs * 4.0)))
                 if hrs >= 1.0 {
-                    data["energy"] = min(100, Int(round(Double(getInt("energy", 85)) + hrs * 5.0)))
+                    data["energy"] = min(100, Int(round(Double(getInt("energy", 85)) + hrs * 6.0)))
                 }
             }
         }
@@ -882,7 +882,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.5.1"
+    static let version = "2.5.2"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1399,7 +1399,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     // MARK: Actions (No Coins!)
 
     func doPet() {
-        save.clampStat("happiness", 14, 0, 100)
+        save.clampStat("happiness", 18, 0, 100)
         save.data["total_pets"] = save.getInt("total_pets", 0) + 1
         setAction(save.getInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28)
         awardXp(8)
@@ -1411,9 +1411,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     }
 
     private func doFeed() {
-        save.clampStat("hunger", 24, 0, 100)
-        save.clampStat("happiness", 8, 0, 100)
-        save.clampStat("hygiene", -2, 0, 100)
+        save.clampStat("hunger", 35, 0, 100)
+        save.clampStat("happiness", 10, 0, 100)
         setAction("EAT", 28)
         awardXp(7)
         spawnParticles("+", NSColor(red: 0.24, green: 0.81, blue: 0.56, alpha: 1.0), 5)
@@ -1423,7 +1422,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     }
 
     private func doCoffee() {
-        save.clampStat("energy", 22, 0, 100)
+        save.clampStat("energy", 35, 0, 100)
         save.clampStat("caffeine", 25, 0, 100)
         setAction("COFFEE", 28)
         awardXp(9)
@@ -1443,8 +1442,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     }
 
     private func doWash() {
-        save.clampStat("hygiene", 35, 0, 100)
-        save.clampStat("happiness", 10, 0, 100)
+        save.clampStat("hygiene", 45, 0, 100)
+        save.clampStat("happiness", 12, 0, 100)
         setAction("WASH", 30)
         awardXp(8)
         spawnParticles("o", NSColor(red: 0.31, green: 0.76, blue: 0.97, alpha: 1.0), 7)
@@ -2412,7 +2411,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.5.2", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.5.3", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

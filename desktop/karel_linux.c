@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.5.1"
+#define KAREL_VERSION "2.5.2"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -857,11 +857,11 @@ static void save_load(SaveStore *s) {
     if (prev > 0) {
         double hrs = difftime(time(NULL), prev) / 3600.0;
         if (hrs > 0.05) {
-            s->hunger = clamp_int((int)llround(s->hunger - hrs * 2.5), 5, 100);
-            s->happiness = clamp_int((int)llround(s->happiness - hrs * 2.0), 10, 100);
-            s->hygiene = clamp_int((int)llround(s->hygiene - hrs * 1.1), 15, 100);
-            s->caffeine = clamp_int((int)llround(s->caffeine - hrs * 8.0), 0, 100);
-            if (hrs >= 1.0) s->energy = clamp_int((int)llround(s->energy + hrs * 5.0), 0, 100);
+            s->hunger = clamp_int((int)llround(s->hunger - hrs * 0.9), 15, 100);
+            s->happiness = clamp_int((int)llround(s->happiness - hrs * 0.6), 25, 100);
+            s->hygiene = clamp_int((int)llround(s->hygiene - hrs * 0.4), 25, 100);
+            s->caffeine = clamp_int((int)llround(s->caffeine - hrs * 4.0), 0, 100);
+            if (hrs >= 1.0) s->energy = clamp_int((int)llround(s->energy + hrs * 6.0), 0, 100);
         }
     }
     s->level = level_from_xp(s->xp);
@@ -1360,7 +1360,7 @@ static void trigger_climb(KarelApp *k, const char *msg) {
 }
 
 static void do_pet(KarelApp *k) {
-    k->save.happiness = clamp_int(k->save.happiness + 14, 0, 100); k->save.total_pets++;
+    k->save.happiness = clamp_int(k->save.happiness + 18, 0, 100); k->save.total_pets++;
     set_act(k, k->save.happiness >= 95 ? "LOVE" : "PET", 28); award_xp(k, 8);
     spawn_particles(k, "*", 255, 122, 144, 6);
     play_sound_key("pet", k->muted, k->auto_paused); ser_send(&k->ser, "EVENT:HEART");
@@ -1369,9 +1369,8 @@ static void do_pet(KarelApp *k) {
 }
 
 static void do_feed(KarelApp *k) {
-    k->save.hunger = clamp_int(k->save.hunger + 24, 0, 100);
-    k->save.happiness = clamp_int(k->save.happiness + 8, 0, 100);
-    k->save.hygiene = clamp_int(k->save.hygiene - 2, 0, 100);
+    k->save.hunger = clamp_int(k->save.hunger + 35, 0, 100);
+    k->save.happiness = clamp_int(k->save.happiness + 10, 0, 100);
     set_act(k, "EAT", 28); award_xp(k, 7);
     spawn_particles(k, "+", 62, 207, 142, 5);
     play_sound_key("eat", k->muted, k->auto_paused);
@@ -1380,7 +1379,7 @@ static void do_feed(KarelApp *k) {
 }
 
 static void do_coffee(KarelApp *k) {
-    k->save.energy = clamp_int(k->save.energy + 22, 0, 100);
+    k->save.energy = clamp_int(k->save.energy + 35, 0, 100);
     k->save.caffeine = clamp_int(k->save.caffeine + 25, 0, 100);
     set_act(k, "COFFEE", 28); award_xp(k, 9);
     spawn_particles(k, "~", 245, 196, 81, 6);
@@ -1397,8 +1396,8 @@ static void do_coffee(KarelApp *k) {
 }
 
 static void do_wash(KarelApp *k) {
-    k->save.hygiene = clamp_int(k->save.hygiene + 35, 0, 100);
-    k->save.happiness = clamp_int(k->save.happiness + 10, 0, 100);
+    k->save.hygiene = clamp_int(k->save.hygiene + 45, 0, 100);
+    k->save.happiness = clamp_int(k->save.happiness + 12, 0, 100);
     set_act(k, "WASH", 30); award_xp(k, 8);
     spawn_particles(k, "o", 79, 195, 247, 7);
     play_sound_key("pet", k->muted, k->auto_paused);
@@ -2167,7 +2166,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.2", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.3", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];

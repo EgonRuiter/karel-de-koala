@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.5.1.0")]
-[assembly: AssemblyFileVersion("2.5.1.0")]
+[assembly: AssemblyVersion("2.5.2.0")]
+[assembly: AssemblyFileVersion("2.5.2.0")]
 
 namespace KarelNative {
 
@@ -597,11 +597,11 @@ namespace KarelNative {
             if (DateTime.TryParse(GetStr("last_seen", ""), out prev)) {
                 double hrs = Math.Max(0.0, (DateTime.Now - prev).TotalSeconds / 3600.0);
                 if (hrs > 0.05) {
-                    Data["hunger"] = Math.Max(5, (int)Math.Round(GetInt("hunger", 80) - hrs * 2.5));
-                    Data["happiness"] = Math.Max(10, (int)Math.Round(GetInt("happiness", 85) - hrs * 2.0));
-                    Data["hygiene"] = Math.Max(15, (int)Math.Round(GetInt("hygiene", 90) - hrs * 1.1));
-                    Data["caffeine"] = Math.Max(0, (int)Math.Round(GetInt("caffeine", 25) - hrs * 8.0));
-                    if (hrs >= 1.0) Data["energy"] = Math.Min(100, (int)Math.Round(GetInt("energy", 85) + hrs * 5.0));
+                    Data["hunger"] = Math.Max(15, (int)Math.Round(GetInt("hunger", 80) - hrs * 0.9));
+                    Data["happiness"] = Math.Max(25, (int)Math.Round(GetInt("happiness", 85) - hrs * 0.6));
+                    Data["hygiene"] = Math.Max(25, (int)Math.Round(GetInt("hygiene", 90) - hrs * 0.4));
+                    Data["caffeine"] = Math.Max(0, (int)Math.Round(GetInt("caffeine", 25) - hrs * 4.0));
+                    if (hrs >= 1.0) Data["energy"] = Math.Min(100, (int)Math.Round(GetInt("energy", 85) + hrs * 6.0));
                 }
             }
             Data["level"] = LevelFromXp(GetInt("xp", 0));
@@ -896,7 +896,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.5.1";
+        public const string Version = "2.5.2";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1291,7 +1291,7 @@ namespace KarelNative {
         private void SetAction(string st, int ticks) { if (!climbing) { state = st; actTicks = ticks; } }
 
         private void DoPet() {
-            save.ClampStat("happiness", 14, 0, 100);
+            save.ClampStat("happiness", 18, 0, 100);
             save.Data["total_pets"] = save.GetInt("total_pets", 0) + 1;
             SetAction(save.GetInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28);
             AwardXp(8);
@@ -1303,9 +1303,8 @@ namespace KarelNative {
         }
 
         private void DoFeed() {
-            save.ClampStat("hunger", 24, 0, 100);
-            save.ClampStat("happiness", 8, 0, 100);
-            save.ClampStat("hygiene", -2, 0, 100);
+            save.ClampStat("hunger", 35, 0, 100);
+            save.ClampStat("happiness", 10, 0, 100);
             SetAction("EAT", 28);
             AwardXp(7);
             SpawnParticles("+", Color.FromArgb(62, 207, 142), 5);
@@ -1315,7 +1314,7 @@ namespace KarelNative {
         }
 
         private void DoCoffee() {
-            save.ClampStat("energy", 22, 0, 100);
+            save.ClampStat("energy", 35, 0, 100);
             save.ClampStat("caffeine", 25, 0, 100);
             SetAction("COFFEE", 28);
             AwardXp(9);
@@ -1335,8 +1334,8 @@ namespace KarelNative {
         }
 
         private void DoWash() {
-            save.ClampStat("hygiene", 35, 0, 100);
-            save.ClampStat("happiness", 10, 0, 100);
+            save.ClampStat("hygiene", 45, 0, 100);
+            save.ClampStat("happiness", 12, 0, 100);
             SetAction("WASH", 30);
             AwardXp(8);
             SpawnParticles("o", Color.FromArgb(79, 195, 247), 7);
@@ -1664,12 +1663,15 @@ namespace KarelNative {
                 p.X += p.Vx; p.Y += p.Vy; p.Vy += 0.25; p.Life--;
                 if (p.Life <= 0) particles.RemoveAt(i);
             }
-            if (frameIdx % 65 == 0) {
-                if (state == "SLEEP") { save.ClampStat("energy", 2, 0, 100); save.MarkDirty(); }
-                else if (rng.NextDouble() < 0.28) { save.ClampStat("hunger", -1, 0, 100); save.MarkDirty(); }
-                if (frameIdx % 130 == 0 && rng.NextDouble() < 0.32) {
-                    save.ClampStat("energy", -1, 0, 100); save.ClampStat("hygiene", -1, 0, 100); save.MarkDirty();
-                }
+            if (frameIdx % 65 == 0 && state == "SLEEP") {
+                save.ClampStat("energy", 2, 0, 100); save.MarkDirty();
+            }
+            if (frameIdx % 1800 == 0 && state != "SLEEP") {
+                if (rng.NextDouble() < 0.50) { save.ClampStat("hunger", -1, 0, 100); save.MarkDirty(); }
+                if (save.GetInt("caffeine", 0) > 0) { save.ClampStat("caffeine", -2, 0, 100); save.MarkDirty(); }
+            }
+            if (frameIdx % 3600 == 0 && state != "SLEEP" && rng.NextDouble() < 0.50) {
+                save.ClampStat("energy", -1, 0, 100); save.ClampStat("hygiene", -1, 0, 100); save.MarkDirty();
             }
             if (frameIdx % 720 == 0) save.FlushIfDirty();
             SyncHardware();
@@ -2421,7 +2423,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.5.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.5.3", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
