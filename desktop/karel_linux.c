@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.5.2"
+#define KAREL_VERSION "2.6.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -939,19 +939,29 @@ static void sleep_ms(int ms) {
 
 static void play_sound_key(const char *key, int muted, int auto_quiet) {
     if (muted || auto_quiet) return;
-    static const struct { const char *k; double f[4]; int n; double dur; double amp; } tbl[] = {
-        {"climb", {330, 392, 523.25, 0}, 3, 0.065, 0.20},
-        {"pet", {523.25, 659.25, 783.99, 0}, 3, 0.055, 0.18},
-        {"eat", {293.66, 349.23, 440, 0}, 3, 0.06, 0.20},
-        {"coffee", {440, 554.37, 659.25, 880}, 4, 0.05, 0.20},
-        {"boop", {587.33, 783.99, 1046.5, 0}, 3, 0.06, 0.22},
-        {"levelup", {440, 554.37, 659.25, 880}, 4, 0.09, 0.22},
-        {"dive", {659.25, 523.25, 392.0, 261.63}, 4, 0.08, 0.20},
-        {"sneeze", {780, 220, 0, 0}, 2, 0.08, 0.22},
-        {"chirp", {620, 740, 0, 0}, 2, 0.035, 0.12}
+    static const struct { const char *k; double f[5]; int n; double dur; double amp; } tbl[] = {
+        {"climb", {330, 392, 523.25, 0, 0}, 3, 0.065, 0.20},
+        {"pet", {523.25, 659.25, 783.99, 0, 0}, 3, 0.055, 0.18},
+        {"eat", {293.66, 349.23, 440, 0, 0}, 3, 0.06, 0.20},
+        {"coffee", {440, 554.37, 659.25, 880, 0}, 4, 0.05, 0.20},
+        {"boop", {587.33, 783.99, 1046.5, 0, 0}, 3, 0.06, 0.22},
+        {"levelup", {440, 554.37, 659.25, 880, 1046.5}, 5, 0.08, 0.22},
+        {"dive", {659.25, 523.25, 392.0, 261.63, 0}, 4, 0.08, 0.20},
+        {"sneeze", {780, 220, 0, 0, 0}, 2, 0.08, 0.22},
+        {"chirp", {620, 740, 0, 0, 0}, 2, 0.035, 0.12},
+        {"chirp2", {560, 680, 610, 0, 0}, 3, 0.032, 0.12},
+        {"chirp3", {680, 820, 0, 0, 0}, 2, 0.034, 0.12},
+        {"chirp4", {520, 640, 760, 0, 0}, 3, 0.030, 0.11},
+        {"magic", {523.25, 659.25, 783.99, 1046.5, 1318.5}, 5, 0.05, 0.18},
+        {"karate", {220, 660, 330, 0, 0}, 3, 0.045, 0.20},
+        {"dj", {196, 261.63, 392, 523.25, 0}, 4, 0.055, 0.19},
+        {"toss", {310, 460, 680, 0, 0}, 3, 0.04, 0.17},
+        {"trick", {440, 587.33, 783.99, 0, 0}, 3, 0.05, 0.18},
+        {"shuffle", {493.88, 659.25, 880, 0, 0}, 3, 0.04, 0.16}
     };
+    int nt = (int)(sizeof(tbl) / sizeof(tbl[0]));
     int idx = -1;
-    for (int i = 0; i < 9; i++) if (strcmp(tbl[i].k, key) == 0) { idx = i; break; }
+    for (int i = 0; i < nt; i++) if (strcmp(tbl[i].k, key) == 0) { idx = i; break; }
     if (idx < 0) return;
     char path[128]; snprintf(path, sizeof(path), "/tmp/karel_snd_%.24s.wav", key);
     if (!file_exists(path)) {
@@ -1337,6 +1347,112 @@ static void spawn_particles(KarelApp *k, const char *ch, uint8_t r, uint8_t g, u
 static void draw_hub(KarelApp *k);
 static void open_hub(KarelApp *k);
 
+static const char *level_title(int lvl, int en) {
+    static const char *nl[10] = {
+        "Eerstejaars Koala", "Eucalyptus Fan", "BBG-Bewoner", "Tosti-Kenner", "Git Wizard",
+        "Koffie-Connaisseur", "VrijMiBo-Baas", "Kamer-Regular", "RP2350 Meester", "Sticky Legende"
+    };
+    static const char *ten[10] = {
+        "Freshman Koala", "Eucalyptus Fan", "BBG Resident", "Toastie Connoisseur", "Git Wizard",
+        "Coffee Connoisseur", "Friday Drinks Boss", "Sticky Room Regular", "RP2350 Master", "Sticky Legend"
+    };
+    int idx = clamp_int(lvl - 1, 0, 9);
+    return en ? ten[idx] : nl[idx];
+}
+
+static const char *outfit_quote(const char *item, int en) {
+    if (!item || !*item) return "";
+    if (strcmp(item, "scarf") == 0) return en ? "Cozy in my Sticky scarf!" : "Lekker warm met mijn Sticky-sjaal!";
+    if (strcmp(item, "stickycap") == 0) return en ? "Repping SV Sticky in style!" : "Stijlvol met mijn Sticky-pet!";
+    if (strcmp(item, "hoodie") == 0) return en ? "Nothing beats hoodie coding weather." : "Beste programmeer-hoodie ooit!";
+    if (strcmp(item, "headphones") == 0) return en ? "Lo-fi beats to debug to..." : "Lo-fi beats om op te debuggen...";
+    if (strcmp(item, "shades") == 0) return en ? "Too cool for light mode." : "Te cool voor light mode.";
+    if (strcmp(item, "crown") == 0) return en ? "Bow to King Karel!" : "Buig voor Koning Karel!";
+    if (strcmp(item, "wizard") == 0) return en ? "You're a wizard, Karel!" : "Ik tover je bugs weg... *poef*!";
+    if (strcmp(item, "partyhat") == 0) return en ? "Every day is a Sticky party!" : "Elke dag is een feestje!";
+    if (strcmp(item, "beanie") == 0) return en ? "Comfy beanie, warm ears!" : "Lekker warme oortjes met deze muts!";
+    if (strcmp(item, "tophat") == 0) return en ? "Dressed for the Sticky gala!" : "Helemaal klaar voor het Sticky-gala!";
+    if (strcmp(item, "chef") == 0) return en ? "Chef Karel's BBG toasties coming up!" : "Chef Karel bakt de beste BBG-tosti's!";
+    if (strcmp(item, "halo") == 0) return en ? "I have NEVER pushed broken code. Honest." : "Ik push NOOIT kapotte code. Echt niet.";
+    if (strcmp(item, "bowtie") == 0) return en ? "Bowties are cool!" : "Vlinderdas aan: extra professioneel!";
+    if (strcmp(item, "cape") == 0) return en ? "Super-Koala to the rescue!" : "Super-Koala schiet te hulp!";
+    if (strcmp(item, "labcoat") == 0) return en ? "Stand back, I'm doing computer science!" : "Aan de kant, ik doe wetenschap!";
+    if (strcmp(item, "nerd") == 0) return en ? "Ackchyually, it's O(n log n)..." : "Eigenlijk is het O(n log n)...";
+    return "";
+}
+
+static const char *pick_smart_quote(const KarelApp *k) {
+    static const char *Q_NL[] = {
+        "Eucalyptus? Of toch een Sticky tosti?", "RP2350 SuperMini draait op volle toeren!",
+        "Even uitrekken achter de taakbalk...", "Al een git commit gepusht vandaag?",
+        "Tip: --toggle verstopt of wekt me op!", "Zit je code al in main of nog in 'fix_final_v3'?",
+        "Ik hou je tabs in de gaten... dat zijn er veel!", "Zijn we al klaar met dat practicum?",
+        "Even pauze? Mijn oren zijn het ermee eens.", "Werkt op mijn RP2350! (En op Linux!)",
+        "Vergeet niet af en toe een slokje water te nemen.", "Ik ruik verse koffie in het Buys Ballotgebouw!",
+        "Geen zorgen, ik eet alleen eucalyptus, geen RAM.", "Sssst... ik denk aan een hele grote tosti.",
+        "Wist je dat je me door je scherm kunt gooien?", "Even rekken en strekken - goede houding!",
+        "O(1) knuffelbaarheid, O(n) gezelligheid.", "Heeft iemand de semikolon gezien? Gevonden: ;",
+        "Stack Overflow is ook maar een soort eucalyptusboom.", "Ik pas in 90 KB C99. Wat is jouw excuus, Electron?",
+        "Zwaai eens terug! Ik zit hier speciaal voor jou.", "Even checken: staat je rug recht? Mooi zo!",
+        "Karel draait op 100% pure Sticky-energie.", "Tijd voor een backflip? Kijk bij Trucjes!",
+        "Mijn favoriete datastructuur is een eucalyptus-tree.", "Heb je de Konami-code al geprobeerd?",
+        "Klik 7x op mijn neus als je durft...", "Nog een tentamen en dan is het weer borreltijd!",
+        "Ik beloof dat ik niet op kill -9 ga staan.", "Geen bugs gevonden vandaag - alleen features!"
+    };
+    static const char *Q_EN[] = {
+        "Eucalyptus? Or a Sticky toasted cheese?", "RP2350 SuperMini running smoothly!",
+        "Zero-Install Sticky companion on Linux!", "Did you git commit today?",
+        "Tip: --toggle hides or wakes me!", "Still on branch 'final_fix_really_final'?",
+        "That's a lot of open browser tabs!", "Quick stretch break? My ears approve.",
+        "Works on my RP2350! (And on Linux!)", "Hydration check! Take a sip of water.",
+        "Don't worry, I eat eucalyptus, not your RAM.", "O(1) cuteness, O(n) good vibes.",
+        "Anyone seen a missing semicolon? Found it: ;", "I fit in 90 KB of C99. What's your excuse, Electron?",
+        "Try tossing me across your desktop!", "My favorite data structure is a eucalyptus tree.",
+        "Posture check! Shoulders relaxed, back straight.", "Have you tried the Konami code yet?",
+        "Boop my nose 7 times if you dare...", "No bugs today - only surprise features!",
+        "Powered by 100% pure Sticky spirit.", "Need a break? Check out my 28 tricks!",
+        "Rubber duck debugging? Try koala debugging!", "Compiling good vibes... 0 warnings, 0 errors!"
+    };
+    static const char *M_NL[] = {"Goedemorgen! Eerst koffie, dan pas code.", "Nieuwe dag, nieuwe commits!", "Klaar voor college? Ik lift wel mee!", "Lekker opstarten met verse eucalyptus."};
+    static const char *M_EN[] = {"Good morning! Coffee first, code second.", "New day, fresh commits!", "Ready for lectures? I'll ride along!", "Nothing beats morning eucalyptus!"};
+    static const char *N_NL[] = {"Nachtelijke code-sessie? Vergeet geen water!", "Zzz... Karel programmeert mee in stilte.", "Nog een bug en dan lekker slapen?", "Na middernacht worden alle bugs dubbel zo sneaky..."};
+    static const char *N_EN[] = {"Late-night coding session? Stay hydrated!", "Zzz... Karel is quietly coding along.", "Just one more bug before bed?", "Bugs multiply after midnight, you know..."};
+    static const char *F_NL[] = {"VrijMiBo tijd!! Proost op de week!", "Vrijdagmiddag: deployen op eigen risico!", "De Vagant roept! Tijd voor een borrel!", "No deploy Friday! Tijd voor een drankje!"};
+    static const char *F_EN[] = {"Friday drinks time!! Cheers to the week!", "No-deploy Friday! Time to unwind!", "Weekend incoming - great work this week!", "VrijMiBo mode activated!"};
+
+    int en = is_en(k);
+    if (*k->save.equipped && (rand() % 4) == 0) {
+        const char *oq = outfit_quote(k->save.equipped, en);
+        if (*oq) return oq;
+    }
+    time_t now = time(NULL); struct tm *lt = localtime(&now);
+    if (lt && lt->tm_hour >= 0 && lt->tm_hour < 5) return en ? N_EN[rand() % 4] : N_NL[rand() % 4];
+    if (lt && lt->tm_wday == 5 && lt->tm_hour >= 16 && (rand() % 10) < 4) return en ? F_EN[rand() % 4] : F_NL[rand() % 4];
+    if (lt && lt->tm_hour >= 6 && lt->tm_hour < 11 && (rand() % 10) < 4) return en ? M_EN[rand() % 4] : M_NL[rand() % 4];
+    return en ? Q_EN[rand() % (int)(sizeof(Q_EN) / sizeof(Q_EN[0]))] : Q_NL[rand() % (int)(sizeof(Q_NL) / sizeof(Q_NL[0]))];
+}
+
+static void play_trick_sound(const KarelApp *k, const char *st) {
+    if (strcmp(st, "MAGIC_TRICK") == 0) play_sound_key("magic", k->muted, k->auto_paused);
+    else if (strcmp(st, "KARATE") == 0 || strcmp(st, "NINJA") == 0) play_sound_key("karate", k->muted, k->auto_paused);
+    else if (strcmp(st, "DJ") == 0 || strcmp(st, "DANCE") == 0 || strcmp(st, "GUITAR") == 0 || strcmp(st, "DRUM") == 0) play_sound_key("dj", k->muted, k->auto_paused);
+    else if (strcmp(st, "BALLOON") == 0 || strcmp(st, "JETPACK") == 0 || strcmp(st, "SKATEBOARD") == 0) play_sound_key("toss", k->muted, k->auto_paused);
+    else play_sound_key("trick", k->muted, k->auto_paused);
+}
+
+static void do_random_style(KarelApp *k) {
+    const char *sk = SKIN_IDS[rand() % NUM_SKINS];
+    const char *ot = OUTFIT_IDS[rand() % (NUM_OUTFITS - 1)];
+    snprintf(k->save.skin, sizeof(k->save.skin), "%s", sk);
+    snprintf(k->save.equipped, sizeof(k->save.equipped), "%s", ot);
+    save_persist(&k->save);
+    play_sound_key("shuffle", k->muted, k->auto_paused);
+    spawn_particles(k, "*", 245, 196, 81, 8);
+    set_act(k, "SPIN", 20);
+    const char *oq = outfit_quote(ot, is_en(k));
+    say_msg(k, *oq ? oq : ot, 55);
+}
+
 static void award_xp(KarelApp *k, int amt) {
     int old_l = level_from_xp(k->save.xp);
     k->save.xp += amt; k->save.level = level_from_xp(k->save.xp);
@@ -1344,8 +1460,8 @@ static void award_xp(KarelApp *k, int amt) {
         play_sound_key("levelup", k->muted, k->auto_paused);
         set_act(k, (rand() & 1) ? "BACKFLIP" : "PARTY_HORN", 42);
         spawn_particles(k, "*", 245, 196, 81, 14);
-        char m[64]; snprintf(m, sizeof(m), "LEVEL UP! Lv.%d!", k->save.level);
-        say_msg(k, m, 75);
+        char m[96]; snprintf(m, sizeof(m), "LEVEL UP! Lv.%d - %s!", k->save.level, level_title(k->save.level, is_en(k)));
+        say_msg(k, m, 80);
     }
 }
 
@@ -1360,25 +1476,31 @@ static void trigger_climb(KarelApp *k, const char *msg) {
 }
 
 static void do_pet(KarelApp *k) {
+    static const char *p_nl[] = {"Heerlijk! Sticky liefde! +8 XP", "Knorrr... achter mijn oortjes! +8 XP", "Aaaah, beste pauze ooit! +8 XP", "Blije koala-geluidjes! +8 XP", "Jij bent mijn favoriete mens! +8 XP"};
+    static const char *p_en[] = {"Aww! Sticky love! +8 XP", "Purrrr... right behind the ears! +8 XP", "Best study break ever! +8 XP", "Happy koala noises! +8 XP", "You're my favorite human! +8 XP"};
     k->save.happiness = clamp_int(k->save.happiness + 18, 0, 100); k->save.total_pets++;
     set_act(k, k->save.happiness >= 95 ? "LOVE" : "PET", 28); award_xp(k, 8);
     spawn_particles(k, "*", 255, 122, 144, 6);
     play_sound_key("pet", k->muted, k->auto_paused); ser_send(&k->ser, "EVENT:HEART");
-    say_msg(k, is_en(k) ? "Aww! Sticky love! +8 XP" : "Heerlijk! Sticky liefde! +8 XP", 45);
+    say_msg(k, is_en(k) ? p_en[rand() % 5] : p_nl[rand() % 5], 45);
     save_persist(&k->save); draw_hub(k);
 }
 
 static void do_feed(KarelApp *k) {
+    static const char *f_nl[] = {"Verse eucalyptus! Smullen!", "Nom nom nom... lekker knapperig!", "Bijna net zo goed als een BBG-tosti!", "Buikje weer helemaal blij!", "Topkwaliteit blaadjes, 5 sterren!"};
+    static const char *f_en[] = {"Fresh eucalyptus! Yummm!", "Nom nom nom... super crunchy!", "Almost as good as a Sticky toastie!", "Happy tummy, happy koala!", "Five-star gourmet leaves!"};
     k->save.hunger = clamp_int(k->save.hunger + 35, 0, 100);
     k->save.happiness = clamp_int(k->save.happiness + 10, 0, 100);
     set_act(k, "EAT", 28); award_xp(k, 7);
     spawn_particles(k, "+", 62, 207, 142, 5);
     play_sound_key("eat", k->muted, k->auto_paused);
-    say_msg(k, is_en(k) ? "Fresh eucalyptus! Yummm!" : "Verse eucalyptus! Smullen!", 45);
+    say_msg(k, is_en(k) ? f_en[rand() % 5] : f_nl[rand() % 5], 45);
     save_persist(&k->save); draw_hub(k);
 }
 
 static void do_coffee(KarelApp *k) {
+    static const char *c_nl[] = {"Sticky koffie boost! +9 XP", "Aah, zwarte goud! +9 XP", "Klaar voor 1000 regels code! +9 XP", "Verse kamer-koffie! Lekker sterk! +9 XP", "Energie-balk zegt dankjewel! +9 XP"};
+    static const char *c_en[] = {"Sticky espresso boost! +9 XP", "Liquid motivation! +9 XP", "Ready to ship 1000 lines of code! +9 XP", "Freshly brewed! Strong stuff! +9 XP", "Energy bar says thank you! +9 XP"};
     k->save.energy = clamp_int(k->save.energy + 35, 0, 100);
     k->save.caffeine = clamp_int(k->save.caffeine + 25, 0, 100);
     set_act(k, "COFFEE", 28); award_xp(k, 9);
@@ -1391,17 +1513,19 @@ static void do_coffee(KarelApp *k) {
     if (k->coffee_n >= 3) {
         k->hyper_ticks = 95; ser_send(&k->ser, "STATE:HYPER");
         say_msg(k, is_en(k) ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75);
-    } else say_msg(k, is_en(k) ? "Sticky espresso boost! +9 XP" : "Sticky koffie boost! +9 XP", 45);
+    } else say_msg(k, is_en(k) ? c_en[rand() % 5] : c_nl[rand() % 5], 45);
     save_persist(&k->save); draw_hub(k);
 }
 
 static void do_wash(KarelApp *k) {
+    static const char *w_nl[] = {"Lekker fris gewassen!", "Squeaky clean koala!", "Ruik ik weer naar frisse eucalyptus!", "Klaar voor de fotoshoot!", "Bubbeltjes!! Heerlijk schoon!"};
+    static const char *w_en[] = {"Sparkling clean!", "Squeaky clean koala!", "Smelling like fresh eucalyptus again!", "Ready for my close-up!", "Bubbles!! Feeling fresh!"};
     k->save.hygiene = clamp_int(k->save.hygiene + 45, 0, 100);
     k->save.happiness = clamp_int(k->save.happiness + 12, 0, 100);
     set_act(k, "WASH", 30); award_xp(k, 8);
     spawn_particles(k, "o", 79, 195, 247, 7);
     play_sound_key("pet", k->muted, k->auto_paused);
-    say_msg(k, is_en(k) ? "Sparkling clean!" : "Lekker fris gewassen!", 45);
+    say_msg(k, is_en(k) ? w_en[rand() % 5] : w_nl[rand() % 5], 45);
     save_persist(&k->save); draw_hub(k);
 }
 
@@ -1669,7 +1793,7 @@ static void click_popup(KarelApp *k, int my, int x_root, int y_root) {
         else if (ix == 2) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); draw_hub(k); }
         else if (ix == 3) trigger_dive(k, "tray");
         else if (ix == 4) trigger_dive(k, "quit");
-    } else if (kd == 5) { set_act(k, TRICKS[ix].st, 42); say_msg(k, TRICKS[ix].msg, 42); }
+    } else if (kd == 5) { set_act(k, TRICKS[ix].st, 42); say_msg(k, TRICKS[ix].msg, 48); play_trick_sound(k, TRICKS[ix].st); }
     else if (kd == 6) {
         static const char *modes[] = {"free", "window", "cursor", "park"};
         snprintf(k->save.roam_mode, sizeof(k->save.roam_mode), "%s", modes[ix]);
@@ -1706,8 +1830,8 @@ static void draw_hub(KarelApp *k) {
     double pct = (double)(k->save.xp - p_xp) / (double)(n_xp - p_xp > 0 ? n_xp - p_xp : 1);
     if (pct < 0) pct = 0;
     if (pct > 1) pct = 1;
-    char l1[96], l2[140];
-    snprintf(l1, sizeof(l1), "Lv.%d   -   %d / %d XP", lvl, k->save.xp, n_xp);
+    char l1[128], l2[140];
+    snprintf(l1, sizeof(l1), "Lv.%d  %s  -  %d / %d XP", lvl, level_title(lvl, en), k->save.xp, n_xp);
     snprintf(l2, sizeof(l2), "%s: %d%%  |  %s: %d%%  |  %s: %d%%  |  %s: %d%%",
              en ? "Hungry" : "Honger", k->save.hunger, en ? "Happy" : "Blij", k->save.happiness,
              en ? "Energy" : "Energie", k->save.energy, en ? "Clean" : "Fris", k->save.hygiene);
@@ -1746,16 +1870,20 @@ static void draw_hub(KarelApp *k) {
     char sk_l[48], out_l[48];
     snprintf(sk_l, sizeof(sk_l), "%s: %s  v", en ? "Coat" : "Vacht", k->save.skin);
     snprintf(out_l, sizeof(out_l), "Outfit: %s  v", *k->save.equipped ? k->save.equipped : (en ? "none" : "geen"));
-    int pkw = (Win - Sc(96, s)) / 2;
-    int px0 = P + Sc(78, s), px1 = P + Sc(86, s) + pkw, pw1 = Win - Sc(98, s) - pkw;
+    int rndW = Sc(76, s), pkw = (Win - Sc(88, s) - rndW) / 2;
+    int px0 = P + Sc(66, s), px1 = P + Sc(72, s) + pkw, px2 = P + Sc(78, s) + 2 * pkw, pw2 = Win - Sc(88, s) - 2 * pkw;
     add_hub_btn(k, px0, curY + Sc(8, s), pkw, Sc(32, s), 10);
-    add_hub_btn(k, px1, curY + Sc(8, s), pw1, Sc(32, s), 11);
+    add_hub_btn(k, px1, curY + Sc(8, s), pkw, Sc(32, s), 11);
+    add_hub_btn(k, px2, curY + Sc(8, s), pw2, Sc(32, s), 12);
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 42, 48, 66));
     XFillRectangle(k->dpy, k->hub_win, k->hub_gc, px0, curY + Sc(8, s), (unsigned)pkw, (unsigned)Sc(32, s));
-    XFillRectangle(k->dpy, k->hub_win, k->hub_gc, px1, curY + Sc(8, s), (unsigned)pw1, (unsigned)Sc(32, s));
+    XFillRectangle(k->dpy, k->hub_win, k->hub_gc, px1, curY + Sc(8, s), (unsigned)pkw, (unsigned)Sc(32, s));
+    XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 132, 42, 108));
+    XFillRectangle(k->dpy, k->hub_win, k->hub_gc, px2, curY + Sc(8, s), (unsigned)pw2, (unsigned)Sc(32, s));
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
-    XDrawString(k->dpy, k->hub_win, k->hub_gc, px0 + Sc(12, s), curY + Sc(28, s), sk_l, (int)strlen(sk_l));
-    XDrawString(k->dpy, k->hub_win, k->hub_gc, px1 + Sc(12, s), curY + Sc(28, s), out_l, (int)strlen(out_l));
+    XDrawString(k->dpy, k->hub_win, k->hub_gc, px0 + Sc(10, s), curY + Sc(28, s), sk_l, (int)strlen(sk_l));
+    XDrawString(k->dpy, k->hub_win, k->hub_gc, px1 + Sc(10, s), curY + Sc(28, s), out_l, (int)strlen(out_l));
+    XDrawString(k->dpy, k->hub_win, k->hub_gc, px2 + Sc(12, s), curY + Sc(28, s), "Random", 6);
 
     curY += stH + Sc(12, s);
     char snd_l[32], aq_l[32];
@@ -1827,6 +1955,7 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
             else say_msg(k, is_en(k) ? "Focus stopped." : "Focus gestopt.", 35);
         } else if (b.id == 10) { open_popup(k, POP_SKIN, x_root - mx + b.x, y_root - my + b.y + b.h); return; }
         else if (b.id == 11) { open_popup(k, POP_OUTFIT, x_root - mx + b.x, y_root - my + b.y + b.h); return; }
+        else if (b.id == 12) { do_random_style(k); }
         else if (b.id == 20) k->muted = !k->muted;
         else if (b.id == 21) { k->save.auto_quiet = !k->save.auto_quiet; save_persist(&k->save); }
         else if (b.id == 22) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); }
@@ -1851,10 +1980,6 @@ static void handle_key_event(KarelApp *k, XKeyEvent *kev) {
 }
 
 static void step_physics(KarelApp *k) {
-    static const char *Q_NL[] = {"Eucalyptus? Of toch een Sticky tosti?", "RP2350 SuperMini draait op volle toeren!", "Even uitrekken achter de taakbalk...", "Al een git commit gepusht vandaag?", "Tip: --toggle verstopt of wekt me op!"};
-    static const char *Q_EN[] = {"Eucalyptus? Or a Sticky toasted cheese?", "RP2350 SuperMini running smoothly!", "Zero-Install Sticky companion on Linux!", "Did you git commit today?", "Tip: --toggle hides or wakes me!"};
-    static const char *N_NL[] = {"Nachtelijke code-sessie? Vergeet geen water!", "Zzz... Karel programmeert mee in stilte.", "Nog een bug en dan lekker slapen?"};
-
     k->frame_idx++;
     int wx, wy, ww, wh; get_work_area(k->dpy, k->scr, &wx, &wy, &ww, &wh);
     int minx = wx - k_ox(k) + 6, maxx = wx + ww - k_ox(k) - px_sz(k) - 6;
@@ -1991,9 +2116,7 @@ static void step_physics(KarelApp *k) {
                     k->roam_ty = (strcmp(k->save.roam_mode, "window") == 0 && k->has_ledge) ? k->roam_ty : gy - ((rand() % 3 == 0) ? (rand() % ((gy - miny > 10) ? (gy - miny) / 2 : 10)) : 0);
                     if ((rand() % 7 == 0) && difftime(time(NULL), k->last_auto_say) > 35 && k->bubble_ticks == 0) {
                         k->last_auto_say = time(NULL);
-                        time_t now = time(NULL); struct tm *lt = localtime(&now);
-                        int night = lt && lt->tm_hour >= 0 && lt->tm_hour < 5;
-                        say_msg(k, is_en(k) ? Q_EN[rand() % 5] : (night ? N_NL[rand() % 3] : Q_NL[rand() % 5]), 55);
+                        say_msg(k, pick_smart_quote(k), 60);
                     }
                 } else {
                     k->wx += (dx / dd) * 2.2; k->wy += (dy / dd) * 2.2;
@@ -2166,7 +2289,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.3", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.6.1", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -2278,7 +2401,16 @@ int main(int argc, char **argv) {
                 } else {
                     double dt = difftime(time(NULL), k.last_drag_t); if (dt < 0.08) dt = 0.08;
                     double vx = (ev.xbutton.x_root - k.drag_sx) / (dt * 20.0), vy = (ev.xbutton.y_root - k.drag_sy) / (dt * 20.0);
-                    if (hypot(vx, vy) > 10.0) { k.flying = 1; k.fling_vx = vx > 36 ? 36 : (vx < -36 ? -36 : vx); k.fling_vy = vy > 26 ? 26 : (vy < -32 ? -32 : vy); }
+                    double spd = hypot(vx, vy);
+                    if (spd > 10.0) {
+                        static const char *ts_nl[] = {"Weee! Zachte landing!", "Hoppa! Even zweven!", "Uitzicht is top hierboven!"};
+                        static const char *ts_en[] = {"Wheee! Soft landing!", "Up, up and away!", "Great view from up here!"};
+                        static const char *th_nl[] = {"WOOOOOAAAH!! JETPACK AAN!!", "NAAR DE MAAN!!", "Koala in een baan om de aarde!!"};
+                        static const char *th_en[] = {"WHOOOOAAA!! JETPACK ENGAGED!!", "TO THE MOON!!", "Koala achieved low Earth orbit!!"};
+                        k.flying = 1; k.fling_vx = vx > 36 ? 36 : (vx < -36 ? -36 : vx); k.fling_vy = vy > 26 ? 26 : (vy < -32 ? -32 : vy);
+                        play_sound_key("toss", k.muted, k.auto_paused);
+                        say_msg(&k, spd > 22.0 ? (is_en(&k) ? th_en[rand() % 3] : th_nl[rand() % 3]) : (is_en(&k) ? ts_en[rand() % 3] : ts_nl[rand() % 3]), 45);
+                    }
                 }
             }
         }
