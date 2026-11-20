@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Study Association Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Study Association Sticky")]
-[assembly: AssemblyVersion("2.7.0.0")]
-[assembly: AssemblyFileVersion("2.7.0.0")]
+[assembly: AssemblyVersion("2.7.1.0")]
+[assembly: AssemblyFileVersion("2.7.1.0")]
 
 namespace KarelNative {
 
@@ -920,9 +920,9 @@ namespace KarelNative {
 
     // Read-only GitHub Releases version checker (fetches version.json capped at 64 KB; never downloads or runs code).
     internal static class AutoUpdater {
-        public const string Version = "2.7.0";
-        public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
-        public const string ReleasesUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest";
+        public const string Version = "2.7.1";
+        public const string ManifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json";
+        public const string ReleasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest";
         private const int MaxManifestBytes = 65536;
 
         public static bool IsValidSemver(string v) {
@@ -2606,7 +2606,7 @@ namespace KarelNative {
                             try { Process.Start(new ProcessStartInfo(localCands[ci]) { UseShellExecute = true }); return; } catch { }
                         }
                     }
-                    const string url = "https://github.com/EgonRuiter/karel-de-koala#readme";
+                    const string url = "https://github.com/svsticky/karel-de-koala#readme";
                     try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
                 };
                 f.AcceptButton = btnYes;
@@ -2649,7 +2649,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.7.1", AutoUpdater.Version) <= 0
+                if (AutoUpdater.CompareVer("2.7.2", AutoUpdater.Version) <= 0
                     || !AutoUpdater.IsValidSemver(AutoUpdater.Version)
                     || AutoUpdater.IsValidSemver("2.7.0&calc")
                     || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)

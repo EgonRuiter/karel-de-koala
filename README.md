@@ -1,7 +1,7 @@
 # Karel de Koala
 
-[![Release](https://img.shields.io/github/v/release/EgonRuiter/karel-de-koala?color=c41e25)](https://github.com/EgonRuiter/karel-de-koala/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/EgonRuiter/karel-de-koala/release.yml?branch=main&label=build)](https://github.com/EgonRuiter/karel-de-koala/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/svsticky/karel-de-koala?color=c41e25)](https://github.com/svsticky/karel-de-koala/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/svsticky/karel-de-koala/release.yml?branch=main&label=build)](https://github.com/svsticky/karel-de-koala/actions/workflows/release.yml)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2b3137)](#getting-started)
 [![Hardware](https://img.shields.io/badge/hardware-RP2350%20SuperMini-3ecf8e)](#hardware)
 

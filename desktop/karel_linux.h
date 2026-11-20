@@ -26,9 +26,9 @@
  * Version, Read-Only Update Endpoints & Hard Safety Caps
  * ========================================================================= */
 
-#define KAREL_VERSION "2.7.0"
-#define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
-#define KAREL_RELEASES_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest"
+#define KAREL_VERSION "2.7.1"
+#define KAREL_MANIFEST_URL "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
+#define KAREL_RELEASES_URL "https://github.com/svsticky/karel-de-koala/releases/latest"
 
 #define MAX_INFLATE_BYTES (2u * 1024u * 1024u)
 #define MAX_MANIFEST_BYTES 65536u

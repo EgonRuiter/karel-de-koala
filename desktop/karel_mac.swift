@@ -891,9 +891,9 @@ private final class SerialSync {
 // MARK: - GitHub Releases Version Check (Read-Only)
 
 private enum AutoUpdater {
-    static let version = "2.7.0"
-    static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
-    static let releasesUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest"
+    static let version = "2.7.1"
+    static let manifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
+    static let releasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest"
     private static let maxManifestBytes = 65536
 
     static func isValidSemver(_ v: String) -> Bool {
@@ -2563,7 +2563,7 @@ private func showAutoStartPrompt() {
         let localReadme = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/README.md")
         if !localReadme.isEmpty && FileManager.default.fileExists(atPath: localReadme) {
             NSWorkspace.shared.open(URL(fileURLWithPath: localReadme))
-        } else if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
+        } else if let url = URL(string: "https://github.com/svsticky/karel-de-koala#readme") {
             NSWorkspace.shared.open(url)
         }
     }
@@ -2598,7 +2598,7 @@ if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
     if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty
-        || AutoUpdater.compareVer("2.7.1", AutoUpdater.version) <= 0
+        || AutoUpdater.compareVer("2.7.2", AutoUpdater.version) <= 0
         || !AutoUpdater.isValidSemver(AutoUpdater.version)
         || AutoUpdater.isValidSemver("2.7.0;id") {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)

@@ -1376,7 +1376,7 @@ static int run_ask_prompt(KarelApp *k) {
                         char lmd[600];
                         if (k->save.connected && *k->save.drive_root) snprintf(lmd, sizeof(lmd), "%.500s/README.md", k->save.drive_root);
                         else lmd[0] = 0;
-                        open_with_xdg((*lmd && file_exists(lmd)) ? lmd : "https://github.com/EgonRuiter/karel-de-koala#readme");
+                        open_with_xdg((*lmd && file_exists(lmd)) ? lmd : "https://github.com/svsticky/karel-de-koala#readme");
                     } else if (cx >= x3 && cx <= x3 + w3) {
                         confirm = 1;
                         XClearArea(k->dpy, win, 0, 0, 0, 0, True);
@@ -1572,7 +1572,7 @@ static int run_self_test(void) {
     sha256_hex((const uint8_t *)"abc", 3, sha);
     if (opaque < 50 ||
         strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 ||
-        compare_ver("2.7.1", KAREL_VERSION) <= 0 ||
+        compare_ver("2.7.2", KAREL_VERSION) <= 0 ||
         !is_valid_semver(KAREL_VERSION) ||
         is_valid_semver("2.7.0;id")) {
         fprintf(stderr, "Self-check failed\n");
