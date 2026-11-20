@@ -13,7 +13,7 @@ from generate_initial_save import write_bundle_state  # noqa: E402
 
 TEST_README = """Karel de Koala - USB Stick (Optie A — Zero-HID)
 ===============================================
-Open 'Lees mij.html' voor uitleg per besturingssysteem, of start direct:
+Open 'README.md' voor uitleg per besturingssysteem, of start direct:
 - Windows : Karel (Windows).exe
 - macOS   : Karel (Mac).app
 - Linux   : bash "Karel (Linux).sh"
@@ -23,7 +23,7 @@ VISIBLE_ROOT_ITEMS = {
     "Karel (Windows).exe",
     "Karel (Mac).app",
     "Karel (Linux).sh",
-    "Lees mij.html",
+    "README.md",
 }
 
 OBSOLETE_ROOT_ITEMS = (
@@ -39,6 +39,7 @@ OBSOLETE_ROOT_ITEMS = (
     "karel_linux_x86_64",
     "karel_linux_aarch64",
     "Karel.app",
+    "Lees mij.html",
     "README_TEST_STICK.txt",
     "save.json.tmp",
     ".karel_no_hid",
@@ -139,9 +140,9 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
     lin_sh = os.path.join(HERE, "launch_karel.sh")
     if os.path.isfile(lin_sh):
         _copy_over(lin_sh, os.path.join(target_dir, "Karel (Linux).sh"))
-    guide_html = os.path.join(HERE, "Lees mij.html")
-    if os.path.isfile(guide_html):
-        _copy_over(guide_html, os.path.join(target_dir, "Lees mij.html"))
+    readme_md = os.path.join(os.path.dirname(HERE), "README.md")
+    if os.path.isfile(readme_md):
+        _copy_over(readme_md, os.path.join(target_dir, "README.md"))
 
     # Hidden runtime support files
     spr_src = os.path.join(HERE, "karel_sprites.gz")

@@ -2289,8 +2289,8 @@ namespace KarelNative {
                 btnReadme.Click += delegate {
                     string exeDir = Path.GetDirectoryName(Application.ExecutablePath) ?? "";
                     string[] localCands = {
-                        string.IsNullOrEmpty(s.DriveRoot) ? "" : Path.Combine(s.DriveRoot, "Lees mij.html"),
-                        Path.Combine(exeDir, "Lees mij.html"),
+                        string.IsNullOrEmpty(s.DriveRoot) ? "" : Path.Combine(s.DriveRoot, "README.md"),
+                        Path.Combine(exeDir, "README.md"),
                     };
                     for (int ci = 0; ci < localCands.Length; ci++) {
                         if (!string.IsNullOrEmpty(localCands[ci]) && File.Exists(localCands[ci])) {

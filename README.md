@@ -60,7 +60,7 @@ Zodra je de RP2350 inplugt en het station **`KAREL`** opent, zie je slechts **4 
 | **`Karel (Windows).exe`** | Windows 10 / 11 | Dubbelklik om direct te starten (PE `0x0400` swap-safe, eigen koala-icoon). |
 | **`Karel (Mac).app`** | macOS 12+ (Apple Silicon & Intel) | Dubbelklik in Finder *(bij Gatekeeper-melding: rechtsklik → **Open**)*. |
 | **`Karel (Linux).sh`** | Linux (X11 / XWayland) | Start in terminal met `bash "Karel (Linux).sh"` (omzeilt FAT32 `noexec` automatisch). |
-| **`Lees mij.html`** | Alle systemen | Zelfstandige NL/EN startpagina die automatisch je OS detecteert en het juiste bestand aanwijst. |
+| **`README.md`** | Alle systemen | Deze volledige documentatie- en handleidingspagina (identiek aan de GitHub README). |
 
 *(Alle interne bestanden zoals `boot.py`, `code.py`, `lib/`, `save.json`, `.karel_linux_x86_64` en `karel_sprites.gz` staan op `Hidden`.)*
 
@@ -234,7 +234,6 @@ karel-de-koala/
 │   ├── build_mac.sh                 # Bouwt Universal Karel.app (arm64 + x86_64)
 │   ├── karel_linux.c                # Linux native C99 X11/XShape companion
 │   ├── build_linux.sh / launch_karel.sh
-│   ├── Lees mij.html                # OS-detecterende start- & transparantiepagina op de stick
 │   ├── karel_sprites.gz             # Gedeeld sprite-pakket (54 animaties, 194 frames)
 │   ├── build_native.py              # Exporteert sprites + compileert PE 0x0400 Windows binary
 │   ├── prepare_test_usb.py          # Richt RP2350 / USB-stick schoon in (4 zichtbare items)

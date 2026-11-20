@@ -2028,11 +2028,11 @@ static int run_ask_prompt(KarelApp *k) {
                     int x1 = P, w1 = Sc(118, s), x2 = P + Sc(128, s), w2 = Sc(198, s), x3 = W - P - Sc(118, s), w3 = Sc(118, s);
                     if (cx >= x1 && cx <= x1 + w1) { res = 1; done = 1; }
                     else if (cx >= x2 && cx <= x2 + w2) {
-                        char lhtml[600];
-                        if (k->save.connected && *k->save.drive_root) snprintf(lhtml, sizeof(lhtml), "%.500s/Lees mij.html", k->save.drive_root);
-                        else lhtml[0] = 0;
-                        if (*lhtml && file_exists(lhtml)) {
-                            char cmd[700]; snprintf(cmd, sizeof(cmd), "xdg-open '%.600s' >/dev/null 2>&1 &", lhtml);
+                        char lmd[600];
+                        if (k->save.connected && *k->save.drive_root) snprintf(lmd, sizeof(lmd), "%.500s/README.md", k->save.drive_root);
+                        else lmd[0] = 0;
+                        if (*lmd && file_exists(lmd)) {
+                            char cmd[700]; snprintf(cmd, sizeof(cmd), "xdg-open '%.600s' >/dev/null 2>&1 &", lmd);
                             if (system(cmd) != 0) {}
                         } else {
                             if (system("xdg-open 'https://github.com/EgonRuiter/karel-de-koala#readme' >/dev/null 2>&1 &") != 0) {}

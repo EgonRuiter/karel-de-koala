@@ -2287,9 +2287,9 @@ private func showAutoStartPrompt() {
             app.setActivationPolicy(.accessory)
             return
         }
-        let localHtml = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/Lees mij.html")
-        if !localHtml.isEmpty && FileManager.default.fileExists(atPath: localHtml) {
-            NSWorkspace.shared.open(URL(fileURLWithPath: localHtml))
+        let localReadme = s.driveRoot.isEmpty ? "" : (s.driveRoot + "/README.md")
+        if !localReadme.isEmpty && FileManager.default.fileExists(atPath: localReadme) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: localReadme))
         } else if let url = URL(string: "https://github.com/EgonRuiter/karel-de-koala#readme") {
             NSWorkspace.shared.open(url)
         }
