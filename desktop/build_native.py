@@ -133,6 +133,9 @@ def build_native(out_exe=None):
     exe_path = out_exe or os.path.join(HERE, "karel_native.exe")
 
     gz_path = os.path.join(HERE, "karel_sprites.gz")
+    locale_path = os.path.join(HERE, "locale.json")
+    if not os.path.isfile(locale_path):
+        raise FileNotFoundError(f"locale.json not found next to build_native.py: {locale_path}")
     raw_sz, gz_sz = export_sprites_gz(gz_path)
     cmd = [
         csc,
@@ -142,6 +145,7 @@ def build_native(out_exe=None):
         "/platform:anycpu",
         f"/win32icon:{ico_path}",
         f"/resource:{gz_path},karel_sprites.gz",
+        f"/resource:{locale_path},locale.json",
         "/r:System.dll",
         "/r:System.Drawing.dll",
         "/r:System.Windows.Forms.dll",

@@ -31,6 +31,7 @@ jobs:
           path: |
             desktop/karel_native.exe
             desktop/karel_sprites.gz
+            desktop/locale.json
 
   build-mac:
     runs-on: macos-latest
@@ -114,6 +115,8 @@ jobs:
               "exe_sha256": sha("karel_native.exe"),
               "sprites_url": f"{base}/karel_sprites.gz",
               "sprites_sha256": sha("karel_sprites.gz"),
+              "locale_url": f"{base}/locale.json",
+              "locale_sha256": sha("locale.json"),
               "mac_zip_url": f"{base}/Karel-macOS-App.zip",
               "mac_zip_sha256": sha("Karel-macOS-App.zip"),
               "linux_x64_url": f"{base}/karel_linux_x86_64",
@@ -131,6 +134,7 @@ jobs:
           ASSETS=(
             release_assets/karel_native.exe
             release_assets/karel_sprites.gz
+            release_assets/locale.json
             release_assets/Karel-macOS-App.zip
             release_assets/karel_linux_x86_64
             release_assets/code.py

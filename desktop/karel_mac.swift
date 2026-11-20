@@ -891,7 +891,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Version Check (Read-Only)
 
 private enum AutoUpdater {
-    static let version = "2.7.1"
+    static let version = "2.7.2"
     static let manifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
     static let releasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest"
     private static let maxManifestBytes = 65536
@@ -1073,10 +1073,101 @@ private enum MacStartupHelper {
     }
 }
 
+// MARK: - Centralized Locale Bank (locale.json)
+
+private struct LocaleSet {
+    var quotes: [String] = []
+    var morning: [String] = []
+    var night: [String] = []
+    var friday: [String] = []
+    var pet: [String] = []
+    var feed: [String] = []
+    var coffee: [String] = []
+    var wash: [String] = []
+    var tossSoft: [String] = []
+    var tossHard: [String] = []
+    var levelTitles: [String] = []
+    var outfitQuotes: [String: String] = [:]
+}
+
+private final class LocaleBank {
+    var nl = LocaleSet()
+    var en = LocaleSet()
+    var tricks: [(label: String, state: String, msg: String)] = []
+
+    func setFor(en isEn: Bool) -> LocaleSet { return isEn ? en : nl }
+
+    func levelTitle(_ lvl: Int, en isEn: Bool) -> String {
+        let titles = setFor(en: isEn).levelTitles
+        guard !titles.isEmpty else { return "Lv.\(lvl)" }
+        return titles[max(0, min(titles.count - 1, lvl - 1))]
+    }
+
+    func outfitQuote(_ item: String, en isEn: Bool) -> String {
+        guard !item.isEmpty else { return "" }
+        return setFor(en: isEn).outfitQuotes[item] ?? ""
+    }
+
+    static func findLocaleJson() -> String? {
+        if let res = Bundle.main.path(forResource: "locale", ofType: "json"),
+           FileManager.default.fileExists(atPath: res) { return res }
+        var cur = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        for _ in 0..<5 {
+            for sub in ["locale.json", "desktop/locale.json"] {
+                let cand = cur.appendingPathComponent(sub).path
+                if FileManager.default.fileExists(atPath: cand) { return cand }
+            }
+            cur.deleteLastPathComponent()
+        }
+        if FileManager.default.fileExists(atPath: "locale.json") { return "locale.json" }
+        return nil
+    }
+
+    private static func parseSet(_ d: [String: Any]?) -> LocaleSet {
+        var s = LocaleSet()
+        guard let d = d else { return s }
+        s.quotes = (d["quotes"] as? [String]) ?? []
+        s.morning = (d["morning"] as? [String]) ?? []
+        s.night = (d["night"] as? [String]) ?? []
+        s.friday = (d["friday"] as? [String]) ?? []
+        s.pet = (d["pet"] as? [String]) ?? []
+        s.feed = (d["feed"] as? [String]) ?? []
+        s.coffee = (d["coffee"] as? [String]) ?? []
+        s.wash = (d["wash"] as? [String]) ?? []
+        s.tossSoft = (d["toss_soft"] as? [String]) ?? []
+        s.tossHard = (d["toss_hard"] as? [String]) ?? []
+        s.levelTitles = (d["level_titles"] as? [String]) ?? []
+        s.outfitQuotes = (d["outfit_quotes"] as? [String: String]) ?? [:]
+        return s
+    }
+
+    static func loadBundled() -> LocaleBank {
+        let bank = LocaleBank()
+        guard let path = findLocaleJson(),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            fputs("Error: locale.json not found.\n", stderr)
+            return bank
+        }
+        bank.nl = parseSet(root["nl"] as? [String: Any])
+        bank.en = parseSet(root["en"] as? [String: Any])
+        if let trList = root["tricks"] as? [[String: Any]] {
+            for item in trList {
+                let lbl = (item["label"] as? String) ?? ""
+                let st = (item["state"] as? String) ?? "IDLE"
+                let msg = (item["msg"] as? String) ?? ""
+                if !lbl.isEmpty { bank.tricks.append((lbl, st, msg)) }
+            }
+        }
+        return bank
+    }
+}
+
 // MARK: - Main Karel Controller
 
 private final class KarelController: NSObject, NSApplicationDelegate {
     private let sprites = SpriteBank.loadBundled()
+    private let locale = LocaleBank.loadBundled()
     private let save = SaveStore()
     private let snd = WavSynth()
     private var ser: SerialSync!
@@ -1124,207 +1215,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private var particles: [(x: Double, y: Double, vx: Double, vy: Double, life: Int, ch: String, col: NSColor)] = []
     private var konamiBuf: [UInt16] = []
     private let konamiSeq: [UInt16] = [126, 126, 125, 125, 123, 124, 123, 124, 11, 0]
+    private var b21Buf = ""
     private var ipcPort: UInt16 = 42421
-
-    private let quotesNL = [
-        "Eucalyptus? Of toch een Sticky tosti?",
-        "RP2350 SuperMini draait op volle toeren!",
-        "Even uitrekken boven je Dock...",
-        "Al een git commit gepusht vandaag?",
-        "Tip: klik op Karel in de menubalk om te verstoppen!",
-        "Zit je code al in main of nog in 'fix_final_v3'?",
-        "Ik hou je tabs in de gaten... dat zijn er veel!",
-        "Zijn we al klaar met dat practicum?",
-        "Even pauze? Mijn oren zijn het ermee eens.",
-        "Werkt op mijn RP2350! (En op jouw Mac!)",
-        "Vergeet niet af en toe een slokje water te nemen.",
-        "Ik ruik verse koffie in het Buys Ballotgebouw!",
-        "Geen zorgen, ik eet alleen eucalyptus, geen RAM.",
-        "Sssst... ik denk aan een hele grote tosti.",
-        "Wist je dat je me door je scherm kunt gooien?",
-        "Even rekken en strekken — goede houding!",
-        "O(1) knuffelbaarheid, O(n) gezelligheid.",
-        "Heeft iemand de semikolon gezien? Gevonden: ;",
-        "Stack Overflow is ook maar een soort eucalyptusboom.",
-        "Ik ben native Swift. Wat is jouw excuus, Electron?",
-        "Zwaai eens terug! Ik zit hier speciaal voor jou.",
-        "Even checken: staat je rug recht? Mooi zo!",
-        "Karel draait op 100% pure Sticky-energie.",
-        "Tijd voor een backflip? Kijk bij Trucjes!",
-        "Mijn favoriete datastructuur is een eucalyptus-tree.",
-        "Heb je de Konami-code al geprobeerd? Hint: pijltjes...",
-        "Klik 7x op mijn neus als je durft...",
-        "Nog één tentamen en dan is het weer borreltijd!",
-        "Ik beloof dat ik niet op Cmd+Q ga staan.",
-        "Geen bugs gevonden vandaag — alleen maar features!"
-    ]
-    private let quotesEN = [
-        "Eucalyptus? Or a Sticky toasted cheese?",
-        "RP2350 SuperMini running smoothly!",
-        "Zero-Install Sticky companion living on USB!",
-        "Did you git commit today?",
-        "Tip: click Karel in the menu bar to hide!",
-        "Still on branch 'final_fix_really_final'?",
-        "That's a lot of open browser tabs you've got there!",
-        "Quick stretch break? My ears approve.",
-        "Works on my RP2350! (And your Mac!)",
-        "Hydration check! Take a sip of water.",
-        "Don't worry, I eat eucalyptus, not your RAM.",
-        "O(1) cuteness, O(n) good vibes.",
-        "Anyone seen a missing semicolon? Found it: ;",
-        "Native AppKit, tiny footprint. What's your excuse, Electron?",
-        "Try tossing me across your desktop!",
-        "My favorite data structure is a eucalyptus tree.",
-        "Posture check! Shoulders relaxed, back straight.",
-        "Have you tried the Konami code yet?",
-        "Boop my nose 7 times if you dare...",
-        "No bugs today — only surprise features!",
-        "Powered by 100% pure Sticky spirit.",
-        "I promise I won't step on Cmd+Q.",
-        "Need a break? Check out my 28 tricks!",
-        "Chilling above your Dock like a good koala.",
-        "Rubber duck debugging? Try koala debugging!",
-        "Compiling good vibes... 0 warnings, 0 errors!"
-    ]
-    private let morningNL = [
-        "Goedemorgen! Eerst koffie, dan pas code.",
-        "Vroege vogel of doorgehaald? Ik oordeel niet!",
-        "Nieuwe dag, nieuwe commits!",
-        "Lekker opstarten met een vers blaadje eucalyptus.",
-        "Klaar voor college? Ik lift wel mee op je scherm!"
-    ]
-    private let morningEN = [
-        "Good morning! Coffee first, code second.",
-        "Early bird or all-nighter? No judgment here!",
-        "New day, fresh commits!",
-        "Ready for lectures? I'll ride along on your screen!",
-        "Nothing beats morning eucalyptus!"
-    ]
-    private let nightNL = [
-        "Nachtelijke code-sessie? Vergeet geen water!",
-        "Zzz... Karel programmeert mee in stilte.",
-        "Nog één bug en dan lekker slapen?",
-        "Na middernacht worden alle bugs dubbel zo sneaky...",
-        "Mijn oogjes worden zwaar, en die van jou?",
-        "Pro-tip: na een nachtje slapen zie je die bug meteen!"
-    ]
-    private let nightEN = [
-        "Late-night coding session? Stay hydrated!",
-        "Zzz... Karel is quietly coding along.",
-        "Just one more bug before bed?",
-        "Bugs multiply after midnight, you know...",
-        "Getting sleepy... maybe save and rest soon?",
-        "Tomorrow-you will spot that bug in 2 seconds!"
-    ]
-    private let fridayNL = [
-        "VrijMiBo tijd!! Proost op de week!",
-        "Vrijdagmiddag: deployen op eigen risico!",
-        "De Vagant roept! Tijd voor een borrel!",
-        "Weekend in zicht — lekker gewerkt deze week!",
-        "No deploy Friday! Tijd voor een drankje!"
-    ]
-    private let fridayEN = [
-        "Friday drinks time!! Cheers to the week!",
-        "No-deploy Friday! Time to unwind!",
-        "Weekend incoming — great work this week!",
-        "VrijMiBo mode activated!",
-        "Close the IDE, it's Friday afternoon!"
-    ]
-    private let petNL = [
-        "Heerlijk! Sticky liefde! +8 XP",
-        "Knorrr... precies achter mijn oortjes! +8 XP",
-        "Aaaah, beste pauze ooit! +8 XP",
-        "Blije koala-geluidjes! +8 XP",
-        "Jij bent echt mijn favoriete mens! +8 XP"
-    ]
-    private let petEN = [
-        "Aww! Sticky love! +8 XP",
-        "Purrrr... right behind the ears! +8 XP",
-        "Best study break ever! +8 XP",
-        "Happy koala noises! +8 XP",
-        "You're my favorite human! +8 XP"
-    ]
-    private let feedNL = [
-        "Verse eucalyptus! Smullen!",
-        "Nom nom nom... lekker knapperig!",
-        "Mmm, smaakt bijna net zo goed als een BBG-tosti!",
-        "Buikje weer helemaal blij!",
-        "Topkwaliteit blaadjes, 5 sterren!"
-    ]
-    private let feedEN = [
-        "Fresh eucalyptus! Yummm!",
-        "Nom nom nom... super crunchy!",
-        "Almost as good as a Sticky toastie!",
-        "Happy tummy, happy koala!",
-        "Five-star gourmet leaves!"
-    ]
-    private let coffeeNL = [
-        "Sticky koffie boost! +9 XP",
-        "Aah, zwarte goud! +9 XP",
-        "Klaar om 1000 regels code te schrijven! +9 XP",
-        "Verse kamer-koffie! Lekker sterk! +9 XP",
-        "Energie-balk zegt dankjewel! +9 XP"
-    ]
-    private let coffeeEN = [
-        "Sticky espresso boost! +9 XP",
-        "Liquid motivation! +9 XP",
-        "Ready to ship 1000 lines of code! +9 XP",
-        "Freshly brewed! Strong stuff! +9 XP",
-        "Energy bar says thank you! +9 XP"
-    ]
-    private let washNL = [
-        "Lekker fris gewassen!",
-        "Squeaky clean koala!",
-        "Ruik ik weer naar frisse eucalyptus!",
-        "Klaar voor de fotoshoot!",
-        "Bubbeltjes!! Heerlijk schoon!"
-    ]
-    private let washEN = [
-        "Sparkling clean!",
-        "Squeaky clean koala!",
-        "Smelling like fresh eucalyptus again!",
-        "Ready for my close-up!",
-        "Bubbles!! Feeling fresh!"
-    ]
-    private let tossSoftNL = ["Weee! Zachte landing!", "Hoppa! Even zweven!", "Uitzicht is top hierboven!"]
-    private let tossSoftEN = ["Wheee! Soft landing!", "Up, up and away!", "Great view from up here!"]
-    private let tossHardNL = ["WOOOOOAAAH!! JETPACK AAN!!", "NAAR DE MAAN!!", "Koala in een baan om de aarde!!"]
-    private let tossHardEN = ["WHOOOOAAA!! JETPACK ENGAGED!!", "TO THE MOON!!", "Koala achieved low Earth orbit!!"]
-
-    private static func levelTitle(_ lvl: Int, en: Bool) -> String {
-        let nl = [
-            "Eerstejaars Koala", "Eucalyptus Fan", "BBG-Bewoner", "Tosti-Kenner", "Git Wizard",
-            "Koffie-Connaisseur", "VrijMiBo-Baas", "Kamer-Regular", "RP2350 Meester", "Sticky Legende"
-        ]
-        let tEn = [
-            "Freshman Koala", "Eucalyptus Fan", "BBG Resident", "Toastie Connoisseur", "Git Wizard",
-            "Coffee Connoisseur", "Friday Drinks Boss", "Sticky Room Regular", "RP2350 Master", "Sticky Legend"
-        ]
-        let idx = max(0, min(9, lvl - 1))
-        return en ? tEn[idx] : nl[idx]
-    }
-
-    private static func outfitQuote(_ item: String, en: Bool) -> String {
-        switch item {
-        case "scarf": return en ? "Cozy in my Sticky scarf!" : "Lekker warm met mijn Sticky-sjaal!"
-        case "stickycap": return en ? "Repping SV Sticky in style!" : "Stijlvol met mijn Sticky-pet!"
-        case "hoodie": return en ? "Nothing beats hoodie coding weather." : "Beste programmeer-hoodie ooit!"
-        case "headphones": return en ? "Lo-fi beats to debug to..." : "Lo-fi beats om op te debuggen..."
-        case "shades": return en ? "Too cool for light mode." : "Te cool voor light mode."
-        case "crown": return en ? "Bow to King Karel!" : "Buig voor Koning Karel!"
-        case "wizard": return en ? "You're a wizard, Karel!" : "Ik tover je bugs weg... *poef*!"
-        case "partyhat": return en ? "Every day is a Sticky party!" : "Elke dag is een feestje!"
-        case "beanie": return en ? "Comfy beanie, warm ears!" : "Lekker warme oortjes met deze muts!"
-        case "tophat": return en ? "Dressed for the Sticky gala!" : "Helemaal klaar voor het Sticky-gala!"
-        case "chef": return en ? "Chef Karel's BBG toasties coming up!" : "Chef Karel bakt de beste BBG-tosti's!"
-        case "halo": return en ? "I have NEVER pushed broken code. Honest." : "Ik push NOOIT kapotte code. Echt niet."
-        case "bowtie": return en ? "Bowties are cool!" : "Vlinderdas aan: extra professioneel!"
-        case "cape": return en ? "Super-Koala to the rescue!" : "Super-Koala schiet te hulp!"
-        case "labcoat": return en ? "Stand back, I'm doing computer science!" : "Aan de kant, ik doe wetenschap!"
-        case "nerd": return en ? "Ackchyually, it's O(n log n)..." : "Eigenlijk is het O(n log n)..."
-        default: return ""
-        }
-    }
 
     private func playChirp() {
         snd.play(["chirp", "chirp2", "chirp3", "chirp4"].randomElement() ?? "chirp")
@@ -1340,19 +1232,22 @@ private final class KarelController: NSObject, NSApplicationDelegate {
 
     private func pickSmartQuote() -> String {
         let en = isEn()
+        let ls = locale.setFor(en: en)
         let eq = save.getEquippedItem()
         if !eq.isEmpty && Double.random(in: 0..<1) < 0.25 {
-            let oq = Self.outfitQuote(eq, en: en)
+            let oq = locale.outfitQuote(eq, en: en)
             if !oq.isEmpty { return oq }
         }
         let now = Date()
         let cal = Calendar.current
         let hr = cal.component(.hour, from: now)
+        let mn = cal.component(.minute, from: now)
         let wd = cal.component(.weekday, from: now)
-        if hr >= 0 && hr < 5 { return (en ? nightEN : nightNL).randomElement() ?? "" }
-        if wd == 6 && hr >= 16 && Double.random(in: 0..<1) < 0.40 { return (en ? fridayEN : fridayNL).randomElement() ?? "" }
-        if hr >= 6 && hr < 11 && Double.random(in: 0..<1) < 0.35 { return (en ? morningEN : morningNL).randomElement() ?? "" }
-        return (en ? quotesEN : quotesNL).randomElement() ?? ""
+        if hr == 21 && mn == 21 { return en ? "21:21 on the clock... Vo' B21!!" : "21:21 op de klok... Vo' B21!!" }
+        if hr >= 0 && hr < 5 { return ls.night.randomElement() ?? "" }
+        if wd == 6 && hr >= 16 && Double.random(in: 0..<1) < 0.40 { return ls.friday.randomElement() ?? "" }
+        if hr >= 6 && hr < 11 && Double.random(in: 0..<1) < 0.35 { return ls.morning.randomElement() ?? "" }
+        return ls.quotes.randomElement() ?? ""
     }
 
     private func doRandomStyle() {
@@ -1365,7 +1260,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         snd.play("shuffle")
         spawnParticles("*", .systemYellow, 8)
         setAction("SPIN", 20)
-        let oq = Self.outfitQuote(ot, en: isEn())
+        let oq = locale.outfitQuote(ot, en: isEn())
         say(oq.isEmpty ? "\(sk) + \(ot)!" : oq, 55)
         stageView.needsDisplay = true
         refreshHub()
@@ -1582,7 +1477,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             snd.play("levelup")
             setAction(Bool.random() ? "BACKFLIP" : "PARTY_HORN", 42)
             spawnParticles("*", .systemYellow, 16)
-            say("LEVEL UP! Lv.\(newLvl) — \(Self.levelTitle(newLvl, en: isEn()))!", 80)
+            say("LEVEL UP! Lv.\(newLvl) — \(locale.levelTitle(newLvl, en: isEn()))!", 80)
         }
     }
 
@@ -1590,13 +1485,23 @@ private final class KarelController: NSObject, NSApplicationDelegate {
 
     func doPet() {
         save.clampStat("happiness", 18, 0, 100)
-        save.data["total_pets"] = save.getInt("total_pets", 0) + 1
-        setAction(save.getInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28)
-        awardXp(8)
-        spawnParticles("*", NSColor(red: 1.0, green: 0.48, blue: 0.56, alpha: 1.0), 6)
-        snd.play("pet")
-        ser.send("EVENT:HEART")
-        say((isEn() ? petEN : petNL).randomElement() ?? "", 45)
+        let pets = save.getInt("total_pets", 0) + 1
+        save.data["total_pets"] = pets
+        if pets % 21 == 0 {
+            setAction("PARTY_HORN", 42)
+            awardXp(21)
+            spawnParticles("*", .systemYellow, 21)
+            snd.play("levelup")
+            ser.send("STATE:B21")
+            say(isEn() ? "Vo' B21!! 21x pet bonus! +21 XP!" : "Vo' B21!! 21x geaaid bonus! +21 XP!", 65)
+        } else {
+            setAction(save.getInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28)
+            awardXp(8)
+            spawnParticles("*", NSColor(red: 1.0, green: 0.48, blue: 0.56, alpha: 1.0), 6)
+            snd.play("pet")
+            ser.send("EVENT:HEART")
+            say(locale.setFor(en: isEn()).pet.randomElement() ?? "", 45)
+        }
         save.saveDeferred(); refreshHub()
     }
 
@@ -1607,7 +1512,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         awardXp(7)
         spawnParticles("+", NSColor(red: 0.24, green: 0.81, blue: 0.56, alpha: 1.0), 5)
         snd.play("eat")
-        say((isEn() ? feedEN : feedNL).randomElement() ?? "", 45)
+        say(locale.setFor(en: isEn()).feed.randomElement() ?? "", 45)
         save.saveDeferred(); refreshHub()
     }
 
@@ -1626,7 +1531,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             ser.send("STATE:HYPER")
             say(isEn() ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75)
         } else {
-            say((isEn() ? coffeeEN : coffeeNL).randomElement() ?? "", 45)
+            say(locale.setFor(en: isEn()).coffee.randomElement() ?? "", 45)
         }
         save.saveDeferred(); refreshHub()
     }
@@ -1638,7 +1543,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         awardXp(8)
         spawnParticles("o", NSColor(red: 0.31, green: 0.76, blue: 0.97, alpha: 1.0), 7)
         snd.play("pet")
-        say((isEn() ? washEN : washNL).randomElement() ?? "", 45)
+        say(locale.setFor(en: isEn()).wash.randomElement() ?? "", 45)
         save.saveDeferred(); refreshHub()
     }
 
@@ -1661,6 +1566,18 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         ser.send("STATE:PARTY")
         snd.play("levelup")
         say(isEn() ? "DISCO BORREL MODE ON!" : "DISCO BORREL MODE AAN!", 80)
+        save.save(); refreshHub()
+    }
+
+    private func triggerB21() {
+        discoTicks = 121
+        save.setEquippedItem("crown")
+        setAction("PARTY_HORN", 65)
+        awardXp(21)
+        spawnParticles("*", .systemYellow, 21)
+        ser.send("STATE:B21")
+        snd.play("levelup")
+        say(isEn() ? "Vo' B21!! Board 21 represent! +21 XP!" : "Vo' B21!! Bestuur 21 represent! +21 XP!", 85)
         save.save(); refreshHub()
     }
 
@@ -2053,12 +1970,18 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             flingVx = max(-36.0, min(36.0, vx))
             flingVy = max(-32.0, min(26.0, vy))
             snd.play("toss")
-            let tp = spd > 22.0 ? (isEn() ? tossHardEN : tossHardNL) : (isEn() ? tossSoftEN : tossSoftNL)
+            let ls = locale.setFor(en: isEn())
+            let tp = spd > 22.0 ? ls.tossHard : ls.tossSoft
             say(tp.randomElement() ?? "", 45)
         }
     }
 
     func handleKeyDown(_ event: NSEvent) {
+        if let ch = event.charactersIgnoringModifiers?.uppercased(), !ch.isEmpty {
+            b21Buf += ch
+            if b21Buf.count > 3 { b21Buf = String(b21Buf.suffix(3)) }
+            if b21Buf == "B21" { b21Buf = ""; triggerB21(); return }
+        }
         let kc = event.keyCode
         let valid: Set<UInt16> = [126, 125, 123, 124, 11, 0]
         if valid.contains(kc) {
@@ -2172,39 +2095,11 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         addMenuItem(m, focusActive ? "Stop Focus" : (en ? "Focus Mode (25m)" : "Focus Modus (25m)")) { [weak self] in self?.toggleFocus() }
         m.addItem(.separator())
 
-        let tricks: [(String, String, String)] = [
-            ("Backflip!", "BACKFLIP", "Wooo! Koala Backflip!!"),
-            ("360° Spin", "SPIN", "Swoosh!"),
-            ("Jetpack", "JETPACK", "Naar de BBG-maan!"),
-            ("Peek", "PEEK", "Psst... zie je me?"),
-            ("Laptop Coding", "LAPTOP_CODE", "git commit -m 'fix'"),
-            ("Debug Magnifier", "MAGNIFY", "Zoekende naar bugs..."),
-            ("Paper Plane", "PAPER_PLANE", "Zoooef!"),
-            ("Sticky Umbrella", "UMBRELLA", "Typisch Nederlands weer!"),
-            ("Ear Wiggle", "EARS_WIGGLE", "*Wiebel wiebel*"),
-            ("Hug Plush", "HUG_PLUSH", "Sticky liefde!"),
-            ("Eucalyptus Hug", "EUCALYPTUS_HUG", "Favoriete tak!"),
-            ("Party Horn", "PARTY_HORN", "VrijMiBo tijd!"),
-            ("Polite Bow", "BOW", "Dankjewel!"),
-            ("Wave Hello", "WAVE", "Hoi!!"),
-            ("Guitar Solo", "GUITAR", "8-bit riff!"),
-            ("Drums", "DRUM", "Ba-dum-tss!"),
-            ("Flex Muscles", "FLEX", "RP2350 spierkracht!"),
-            ("Dance", "DANCE", "De Vagant boogie!"),
-            ("Skateboard", "SKATEBOARD", "Kickflip over de taakbalk!"),
-            ("Karate Chop", "KARATE", "Hi-yaa!!"),
-            ("Magic Trick", "MAGIC_TRICK", "Abraka-koala!"),
-            ("Juggle", "JUGGLE", "Kijk, zonder handen!"),
-            ("Pizza Time", "PIZZA", "Kwartiertje pizza!"),
-            ("DJ Set", "DJ", "Drop de bass!!"),
-            ("Stargazing", "TELESCOPE", "Sterren kijken..."),
-            ("Sticky Balloon", "BALLOON", "Ik zweeef!"),
-            ("Ninja Mode", "NINJA", "Poef! Onzichtbaar!"),
-            ("Zen Meditate", "MEDITATE", "Ommm... 0 bugs...")
-        ]
         let tmItem = NSMenuItem(title: en ? "Tricks & Animations" : "Trucjes & Animaties", action: nil, keyEquivalent: "")
         let tm = NSMenu()
-        for t in tricks { addMenuItem(tm, t.0) { [weak self] in self?.setAction(t.1, 42); self?.say(t.2, 48); self?.playTrickSound(t.1) } }
+        for t in locale.tricks {
+            addMenuItem(tm, t.label) { [weak self] in self?.setAction(t.state, 42); self?.say(t.msg, 48); self?.playTrickSound(t.state) }
+        }
         tmItem.submenu = tm; m.addItem(tmItem)
 
         let rmItem = NSMenuItem(title: en ? "Roam Mode" : "Loopgedrag", action: nil, keyEquivalent: "")
@@ -2429,7 +2324,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         let nextXp = SaveStore.xpForNextLevel(lvl)
         let pct = max(0.0, min(1.0, Double(xp - prevXp) / Double(max(1, nextXp - prevXp))))
 
-        hubStatsTop.stringValue = "Lv.\(lvl)  \(Self.levelTitle(lvl, en: en))   ·   \(xp) / \(nextXp) XP"
+        hubStatsTop.stringValue = "Lv.\(lvl)  \(locale.levelTitle(lvl, en: en))   ·   \(xp) / \(nextXp) XP"
         if let track = hubXpFill.superview {
             var f = hubXpFill.frame
             f.size.width = max(xp > 0 ? 4 : 0, round(track.frame.width * CGFloat(pct)))
@@ -2596,17 +2491,19 @@ for a in CommandLine.arguments.dropFirst() {
 
 if selfTest {
     let bank = SpriteBank.loadBundled()
+    let loc = LocaleBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
     if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty
-        || AutoUpdater.compareVer("2.7.2", AutoUpdater.version) <= 0
+        || loc.nl.quotes.count < 25 || loc.en.quotes.count < 25 || loc.tricks.count < 28
+        || AutoUpdater.compareVer("2.7.3", AutoUpdater.version) <= 0
         || !AutoUpdater.isValidSemver(AutoUpdater.version)
-        || AutoUpdater.isValidSemver("2.7.0;id") {
-        fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
+        || AutoUpdater.isValidSemver("2.7.2;id") {
+        fputs("SELF_TEST_FAILED sprites=\(bank.states.count) tricks=\(loc.tricks.count)\n", stderr)
         exit(1)
     }
     _ = WavSynth()
     let s = SaveStore(); s.load()
-    print("SELF_TEST_OK version=\(AutoUpdater.version) states=\(bank.states.count) xp=\(s.getInt("xp", 0)) has_synth=true")
+    print("SELF_TEST_OK version=\(AutoUpdater.version) states=\(bank.states.count) tricks=\(loc.tricks.count) xp=\(s.getInt("xp", 0)) has_synth=true")
     exit(0)
 }
 

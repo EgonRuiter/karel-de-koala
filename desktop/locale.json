@@ -1,0 +1,290 @@
+{
+  "nl": {
+    "quotes": [
+      "Eucalyptus? Of toch een Sticky tosti?",
+      "RP2350 SuperMini draait op volle toeren!",
+      "Even uitrekken op je scherm...",
+      "Al een git commit gepusht vandaag?",
+      "Tip: klik op Karel om de Sticky Hub te openen!",
+      "Zit je code al in main of nog in 'fix_final_v3'?",
+      "Ik hou je tabs in de gaten... dat zijn er veel!",
+      "Zijn we al klaar met dat practicum?",
+      "Even pauze? Mijn oren zijn het ermee eens.",
+      "Werkt op mijn RP2350! (En op jouw laptop!)",
+      "Vergeet niet af en toe een slokje water te nemen.",
+      "Ik ruik verse koffie in het Buys Ballotgebouw!",
+      "Geen zorgen, ik eet alleen eucalyptus, geen RAM.",
+      "Sssst... ik denk aan een hele grote tosti.",
+      "Wist je dat je me door je scherm kunt gooien?",
+      "Even rekken en strekken - goede houding!",
+      "O(1) knuffelbaarheid, O(n) gezelligheid.",
+      "Heeft iemand de semikolon gezien? Gevonden: ;",
+      "Stack Overflow is ook maar een soort eucalyptusboom.",
+      "Ik pas onder 150 KB. Wat is jouw excuus, Electron?",
+      "Zwaai eens terug! Ik zit hier speciaal voor jou.",
+      "Even checken: staat je rug recht? Mooi zo!",
+      "Karel draait op 100% pure Sticky-energie.",
+      "Tijd voor een backflip? Kijk bij Trucjes!",
+      "Mijn favoriete datastructuur is een eucalyptus-tree.",
+      "Heb je de Konami-code al geprobeerd? Hint: pijltjes...",
+      "Klik 7x op mijn neus als je durft...",
+      "Nog een tentamen en dan is het weer borreltijd!",
+      "Ik beloof dat ik niet op sluiten druk.",
+      "Geen bugs gevonden vandaag - alleen maar features!",
+      "Vo' B21!",
+      "Bestuur 21 heeft deze RP2350 persoonlijk ingezegend!",
+      "Wist je dat 21 het mooiste getal in het BBG is? Vo' B21!",
+      "Psst... typ eens B-2-1 op je toetsenbord..."
+    ],
+    "morning": [
+      "Goedemorgen! Eerst koffie, dan pas code.",
+      "Vroege vogel of doorgehaald? Ik oordeel niet!",
+      "Nieuwe dag, nieuwe commits!",
+      "Lekker opstarten met een vers blaadje eucalyptus.",
+      "Klaar voor college? Ik lift wel mee op je scherm!"
+    ],
+    "night": [
+      "Nachtelijke code-sessie? Vergeet geen water!",
+      "Zzz... Karel programmeert mee in stilte.",
+      "Nog een bug en dan lekker slapen?",
+      "Na middernacht worden alle bugs dubbel zo sneaky...",
+      "Mijn oogjes worden zwaar, en die van jou?",
+      "Pro-tip: na een nachtje slapen zie je die bug meteen!"
+    ],
+    "friday": [
+      "VrijMiBo tijd!! Proost op de week!",
+      "Vrijdagmiddag: deployen op eigen risico!",
+      "De Vagant roept! Tijd voor een borrel!",
+      "Weekend in zicht - lekker gewerkt deze week!",
+      "No deploy Friday! Tijd voor een drankje!",
+      "Vo' B21!! Tijd voor een legendarische borrel!"
+    ],
+    "pet": [
+      "Heerlijk! Sticky liefde! +8 XP",
+      "Knorrr... precies achter mijn oortjes! +8 XP",
+      "Aaaah, beste pauze ooit! +8 XP",
+      "Blije koala-geluidjes! +8 XP",
+      "Jij bent echt mijn favoriete mens! +8 XP",
+      "Vo' B21 knuffelkracht! +8 XP"
+    ],
+    "feed": [
+      "Verse eucalyptus! Smullen!",
+      "Nom nom nom... lekker knapperig!",
+      "Mmm, smaakt bijna net zo goed als een BBG-tosti!",
+      "Buikje weer helemaal blij!",
+      "Topkwaliteit blaadjes, 5 sterren!"
+    ],
+    "coffee": [
+      "Sticky koffie boost! +9 XP",
+      "Aah, zwarte goud! +9 XP",
+      "Klaar om 1000 regels code te schrijven! +9 XP",
+      "Verse kamer-koffie! Lekker sterk! +9 XP",
+      "Energie-balk zegt dankjewel! +9 XP",
+      "21 kopjes koffie in de bestuurskamer! Vo' B21! +9 XP"
+    ],
+    "wash": [
+      "Lekker fris gewassen!",
+      "Squeaky clean koala!",
+      "Ruik ik weer naar frisse eucalyptus!",
+      "Klaar voor de fotoshoot!",
+      "Bubbeltjes!! Heerlijk schoon!"
+    ],
+    "toss_soft": [
+      "Weee! Zachte landing!",
+      "Hoppa! Even zweven!",
+      "Uitzicht is top hierboven!"
+    ],
+    "toss_hard": [
+      "WOOOOOAAAH!! JETPACK AAN!!",
+      "NAAR DE MAAN!!",
+      "Koala in een baan om de aarde!!"
+    ],
+    "level_titles": [
+      "Eerstejaars Koala",
+      "Eucalyptus Fan",
+      "BBG-Bewoner",
+      "Tosti-Kenner",
+      "Git Wizard",
+      "Koffie-Connaisseur",
+      "VrijMiBo-Baas",
+      "Kamer-Regular",
+      "RP2350 Meester",
+      "Sticky Legende"
+    ],
+    "outfit_quotes": {
+      "scarf": "Lekker warm met mijn Sticky-sjaal!",
+      "stickycap": "Stijlvol met mijn Sticky-pet!",
+      "hoodie": "Beste programmeer-hoodie ooit!",
+      "headphones": "Lo-fi beats om op te debuggen...",
+      "shades": "Te cool voor light mode.",
+      "crown": "Buig voor Koning Karel! Vo' B21!",
+      "wizard": "Ik tover je bugs weg... *poef*!",
+      "partyhat": "Elke dag is een feestje!",
+      "beanie": "Lekker warme oortjes met deze muts!",
+      "tophat": "Helemaal in pak voor de B21-constitutieborrel!",
+      "chef": "Chef Karel bakt de beste BBG-tosti's!",
+      "halo": "Ik push NOOIT kapotte code. Echt niet.",
+      "bowtie": "Bestuurswaardig strikje! Vo' B21!",
+      "cape": "Super-Koala schiet te hulp!",
+      "labcoat": "Aan de kant, ik doe wetenschap!",
+      "nerd": "Eigenlijk is het O(n log n)..."
+    }
+  },
+  "en": {
+    "quotes": [
+      "Eucalyptus? Or a Sticky toasted cheese?",
+      "RP2350 SuperMini running smoothly!",
+      "Zero-Install Sticky companion living on USB!",
+      "Did you git commit today?",
+      "Tip: click Karel to open the Sticky Hub!",
+      "Still on branch 'final_fix_really_final'?",
+      "That's a lot of open browser tabs you've got there!",
+      "Quick stretch break? My ears approve.",
+      "Works on my RP2350! (And on your computer!)",
+      "Hydration check! Take a sip of water.",
+      "Don't worry, I eat eucalyptus, not your RAM.",
+      "O(1) cuteness, O(n) good vibes.",
+      "Anyone seen a missing semicolon? Found it: ;",
+      "I fit under 150 KB natively. What's your excuse, Electron?",
+      "Try tossing me across your desktop!",
+      "My favorite data structure is a eucalyptus tree.",
+      "Posture check! Shoulders relaxed, back straight.",
+      "Have you tried the Konami code yet?",
+      "Boop my nose 7 times if you dare...",
+      "No bugs today - only surprise features!",
+      "Powered by 100% pure Sticky spirit.",
+      "I promise I won't step on quit.",
+      "Need a break? Check out my 28 tricks!",
+      "Waiting patiently on your screen like a good koala.",
+      "Rubber duck debugging? Try koala debugging!",
+      "Compiling good vibes... 0 warnings, 0 errors!",
+      "Vo' B21! Board 21 sends its regards!",
+      "Blessed by Sticky's 21st Board (B21)!",
+      "21 is the magic number in the Sticky room! Vo' B21!",
+      "Psst... try typing B-2-1 on your keyboard..."
+    ],
+    "morning": [
+      "Good morning! Coffee first, code second.",
+      "Early bird or all-nighter? No judgment here!",
+      "New day, fresh commits!",
+      "Ready for lectures? I'll ride along on your screen!",
+      "Nothing beats morning eucalyptus!"
+    ],
+    "night": [
+      "Late-night coding session? Stay hydrated!",
+      "Zzz... Karel is quietly coding along.",
+      "Just one more bug before bed?",
+      "Bugs multiply after midnight, you know...",
+      "Getting sleepy... maybe save and rest soon?",
+      "Tomorrow-you will spot that bug in 2 seconds!"
+    ],
+    "friday": [
+      "Friday drinks time!! Cheers to the week!",
+      "No-deploy Friday! Time to unwind!",
+      "Weekend incoming - great work this week!",
+      "VrijMiBo mode activated!",
+      "Close the IDE, it's Friday afternoon!",
+      "Vo' B21!! Raising a glass with Board 21!"
+    ],
+    "pet": [
+      "Aww! Sticky love! +8 XP",
+      "Purrrr... right behind the ears! +8 XP",
+      "Best study break ever! +8 XP",
+      "Happy koala noises! +8 XP",
+      "You're my favorite human! +8 XP",
+      "Vo' B21 cuddle power! +8 XP"
+    ],
+    "feed": [
+      "Fresh eucalyptus! Yummm!",
+      "Nom nom nom... super crunchy!",
+      "Almost as good as a Sticky toastie!",
+      "Happy tummy, happy koala!",
+      "Five-star gourmet leaves!"
+    ],
+    "coffee": [
+      "Sticky espresso boost! +9 XP",
+      "Liquid motivation! +9 XP",
+      "Ready to ship 1000 lines of code! +9 XP",
+      "Freshly brewed! Strong stuff! +9 XP",
+      "Energy bar says thank you! +9 XP",
+      "Board 21 espresso shot! Vo' B21! +9 XP"
+    ],
+    "wash": [
+      "Sparkling clean!",
+      "Squeaky clean koala!",
+      "Smelling like fresh eucalyptus again!",
+      "Ready for my close-up!",
+      "Bubbles!! Feeling fresh!"
+    ],
+    "toss_soft": [
+      "Wheee! Soft landing!",
+      "Up, up and away!",
+      "Great view from up here!"
+    ],
+    "toss_hard": [
+      "WHOOOOAAA!! JETPACK ENGAGED!!",
+      "TO THE MOON!!",
+      "Koala achieved low Earth orbit!!"
+    ],
+    "level_titles": [
+      "Freshman Koala",
+      "Eucalyptus Fan",
+      "BBG Resident",
+      "Toastie Connoisseur",
+      "Git Wizard",
+      "Coffee Connoisseur",
+      "Friday Drinks Boss",
+      "Sticky Room Regular",
+      "RP2350 Master",
+      "Sticky Legend"
+    ],
+    "outfit_quotes": {
+      "scarf": "Cozy in my Sticky scarf!",
+      "stickycap": "Repping SV Sticky in style!",
+      "hoodie": "Nothing beats hoodie coding weather.",
+      "headphones": "Lo-fi beats to debug to...",
+      "shades": "Too cool for light mode.",
+      "crown": "Bow to King Karel! Vo' B21!",
+      "wizard": "You're a wizard, Karel!",
+      "partyhat": "Every day is a Sticky party!",
+      "beanie": "Comfy beanie, warm ears!",
+      "tophat": "Dressed up for the B21 gala!",
+      "chef": "Chef Karel's BBG toasties coming up!",
+      "halo": "I have NEVER pushed broken code. Honest.",
+      "bowtie": "Board 21 approved bowtie! Vo' B21!",
+      "cape": "Super-Koala to the rescue!",
+      "labcoat": "Stand back, I'm doing computer science!",
+      "nerd": "Ackchyually, it's O(n log n)..."
+    }
+  },
+  "tricks": [
+    { "label": "Backflip!",       "state": "BACKFLIP",       "msg": "Wooo! Koala Backflip!!" },
+    { "label": "360 Spin",        "state": "SPIN",           "msg": "Swoosh!" },
+    { "label": "Jetpack",         "state": "JETPACK",        "msg": "Naar de BBG-maan!" },
+    { "label": "Peek",            "state": "PEEK",           "msg": "Psst... zie je me?" },
+    { "label": "Laptop Coding",   "state": "LAPTOP_CODE",    "msg": "git commit -m 'fix'" },
+    { "label": "Debug Magnifier", "state": "MAGNIFY",        "msg": "Zoekende naar bugs..." },
+    { "label": "Paper Plane",     "state": "PAPER_PLANE",    "msg": "Zoooef!" },
+    { "label": "Sticky Umbrella", "state": "UMBRELLA",       "msg": "Typisch Nederlands weer!" },
+    { "label": "Ear Wiggle",      "state": "EARS_WIGGLE",    "msg": "*Wiebel wiebel*" },
+    { "label": "Hug Plush",       "state": "HUG_PLUSH",      "msg": "Sticky liefde!" },
+    { "label": "Eucalyptus Hug",  "state": "EUCALYPTUS_HUG", "msg": "Favoriete tak!" },
+    { "label": "Party Horn",      "state": "PARTY_HORN",     "msg": "Vo' B21!! VrijMiBo tijd!" },
+    { "label": "Polite Bow",      "state": "BOW",            "msg": "Dankjewel!" },
+    { "label": "Wave Hello",      "state": "WAVE",           "msg": "Hoi!!" },
+    { "label": "Guitar Solo",     "state": "GUITAR",         "msg": "8-bit riff!" },
+    { "label": "Drums",           "state": "DRUM",           "msg": "Ba-dum-tss!" },
+    { "label": "Flex Muscles",    "state": "FLEX",           "msg": "RP2350 spierkracht!" },
+    { "label": "Dance",           "state": "DANCE",          "msg": "De Vagant boogie!" },
+    { "label": "Skateboard",      "state": "SKATEBOARD",     "msg": "Kickflip over de taakbalk!" },
+    { "label": "Karate Chop",     "state": "KARATE",         "msg": "Hi-yaa!!" },
+    { "label": "Magic Trick",     "state": "MAGIC_TRICK",    "msg": "Abraka-B21! Vo' Bestuur 21!" },
+    { "label": "Juggle",          "state": "JUGGLE",         "msg": "Kijk, zonder handen!" },
+    { "label": "Pizza Time",      "state": "PIZZA",          "msg": "Kwartiertje pizza!" },
+    { "label": "DJ Set",          "state": "DJ",             "msg": "Drop de bass!!" },
+    { "label": "Stargazing",      "state": "TELESCOPE",      "msg": "Sterren kijken..." },
+    { "label": "Sticky Balloon",  "state": "BALLOON",        "msg": "Ik zweeef!" },
+    { "label": "Ninja Mode",      "state": "NINJA",          "msg": "Poef! Onzichtbaar!" },
+    { "label": "Zen Meditate",    "state": "MEDITATE",       "msg": "Ommm... 0 bugs..." }
+  ]
+}

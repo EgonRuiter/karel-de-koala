@@ -250,6 +250,7 @@ karel-de-koala/
     │   ├── storage.c                # save.json persistence, USB locator & WAV synth
     │   └── system_io.c              # Audio exec, RP2350 serial, version check & IPC
     ├── launch_karel.sh              # Linux USB launcher wrapper (Karel (Linux).sh)
+    ├── locale.json                  # Centralized NL/EN quotes, titles, outfits & tricks
     ├── build_native.py              # Windows build script & sprite archive exporter
     ├── build_mac.sh                 # macOS Universal app bundle build script
     ├── build_linux.sh               # Linux build script

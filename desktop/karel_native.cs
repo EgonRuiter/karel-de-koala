@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Study Association Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Study Association Sticky")]
-[assembly: AssemblyVersion("2.7.1.0")]
-[assembly: AssemblyFileVersion("2.7.1.0")]
+[assembly: AssemblyVersion("2.7.2.0")]
+[assembly: AssemblyFileVersion("2.7.2.0")]
 
 namespace KarelNative {
 
@@ -920,7 +920,7 @@ namespace KarelNative {
 
     // Read-only GitHub Releases version checker (fetches version.json capped at 64 KB; never downloads or runs code).
     internal static class AutoUpdater {
-        public const string Version = "2.7.1";
+        public const string Version = "2.7.2";
         public const string ManifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json";
         public const string ReleasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest";
         private const int MaxManifestBytes = 65536;
@@ -1012,9 +1012,122 @@ namespace KarelNative {
         }
     }
 
+    // Loads centralized NL/EN voice lines, titles, outfit quotes, and tricks from embedded locale.json.
+    internal sealed class LocaleSet {
+        public string[] Quotes = new string[0], Morning = new string[0], Night = new string[0], Friday = new string[0];
+        public string[] Pet = new string[0], Feed = new string[0], Coffee = new string[0], Wash = new string[0];
+        public string[] TossSoft = new string[0], TossHard = new string[0], LevelTitles = new string[0];
+        public Dictionary<string, string> OutfitQuotes = new Dictionary<string, string>();
+    }
+
+    internal sealed class TrickEntry {
+        public string Label, State, Msg;
+    }
+
+    internal sealed class LocaleBank {
+        public LocaleSet Nl = new LocaleSet();
+        public LocaleSet En = new LocaleSet();
+        public readonly List<TrickEntry> Tricks = new List<TrickEntry>();
+
+        public LocaleSet For(bool en) { return en ? En : Nl; }
+
+        public string LevelTitle(int lvl, bool en) {
+            LocaleSet ls = For(en);
+            if (ls.LevelTitles.Length == 0) return string.Format("Lv.{0}", lvl);
+            return ls.LevelTitles[Math.Max(0, Math.Min(ls.LevelTitles.Length - 1, lvl - 1))];
+        }
+
+        public string OutfitQuote(string item, bool en) {
+            string val;
+            return !string.IsNullOrEmpty(item) && For(en).OutfitQuotes.TryGetValue(item, out val) ? val : "";
+        }
+
+        public static string Pick(string[] arr, Random rng) {
+            return (arr != null && arr.Length > 0) ? arr[rng.Next(arr.Length)] : "";
+        }
+
+        private static string[] ReadStrArr(Dictionary<string, object> d, string key) {
+            object obj;
+            if (!d.TryGetValue(key, out obj) || obj == null) return new string[0];
+            System.Collections.IList al = obj as System.Collections.IList;
+            if (al == null) return new string[0];
+            string[] r = new string[al.Count];
+            for (int i = 0; i < al.Count; i++) r[i] = al[i] != null ? al[i].ToString() : "";
+            return r;
+        }
+
+        private static LocaleSet ParseSet(Dictionary<string, object> d) {
+            LocaleSet s = new LocaleSet();
+            if (d == null) return s;
+            s.Quotes = ReadStrArr(d, "quotes");
+            s.Morning = ReadStrArr(d, "morning");
+            s.Night = ReadStrArr(d, "night");
+            s.Friday = ReadStrArr(d, "friday");
+            s.Pet = ReadStrArr(d, "pet");
+            s.Feed = ReadStrArr(d, "feed");
+            s.Coffee = ReadStrArr(d, "coffee");
+            s.Wash = ReadStrArr(d, "wash");
+            s.TossSoft = ReadStrArr(d, "toss_soft");
+            s.TossHard = ReadStrArr(d, "toss_hard");
+            s.LevelTitles = ReadStrArr(d, "level_titles");
+            object oq;
+            if (d.TryGetValue("outfit_quotes", out oq)) {
+                Dictionary<string, object> m = oq as Dictionary<string, object>;
+                if (m != null) {
+                    foreach (KeyValuePair<string, object> kv in m) {
+                        if (kv.Value != null) s.OutfitQuotes[kv.Key] = kv.Value.ToString();
+                    }
+                }
+            }
+            return s;
+        }
+
+        public static LocaleBank LoadEmbedded() {
+            LocaleBank bank = new LocaleBank();
+            string raw = null;
+            try {
+                using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("locale.json")) {
+                    if (s != null) using (StreamReader sr = new StreamReader(s, Encoding.UTF8)) raw = sr.ReadToEnd();
+                }
+            } catch { }
+            if (string.IsNullOrEmpty(raw)) {
+                string exeDir = Path.GetDirectoryName(Application.ExecutablePath) ?? "";
+                string[] cands = { Path.Combine(exeDir, "locale.json"), "locale.json", Path.Combine("desktop", "locale.json") };
+                for (int i = 0; i < cands.Length; i++) {
+                    if (File.Exists(cands[i])) { raw = File.ReadAllText(cands[i], Encoding.UTF8); break; }
+                }
+            }
+            if (string.IsNullOrEmpty(raw)) return bank;
+
+            JavaScriptSerializer ser = new JavaScriptSerializer();
+            Dictionary<string, object> root = ser.DeserializeObject(raw) as Dictionary<string, object>;
+            if (root == null) return bank;
+            object oNl, oEn, oTr;
+            if (root.TryGetValue("nl", out oNl)) bank.Nl = ParseSet(oNl as Dictionary<string, object>);
+            if (root.TryGetValue("en", out oEn)) bank.En = ParseSet(oEn as Dictionary<string, object>);
+            if (root.TryGetValue("tricks", out oTr)) {
+                System.Collections.IList al = oTr as System.Collections.IList;
+                if (al != null) {
+                    for (int i = 0; i < al.Count; i++) {
+                        Dictionary<string, object> tm = al[i] as Dictionary<string, object>;
+                        if (tm != null) {
+                            bank.Tricks.Add(new TrickEntry {
+                                Label = SaveStore.GetStrFrom(tm, "label", ""),
+                                State = SaveStore.GetStrFrom(tm, "state", "IDLE"),
+                                Msg = SaveStore.GetStrFrom(tm, "msg", "")
+                            });
+                        }
+                    }
+                }
+            }
+            return bank;
+        }
+    }
+
     // Main borderless desktop pet window, physics/roaming loop, speech bubbles, tray icon, and Sticky Hub dialog.
     internal sealed class KarelForm : Form {
         private readonly SpriteBank sprites;
+        private readonly LocaleBank locale;
         private readonly SaveStore save;
         private readonly WavSynth snd = new WavSynth();
         private readonly SerialSync ser;
@@ -1043,6 +1156,7 @@ namespace KarelNative {
         private DateTime focusLastTick = DateTime.Now;
         private readonly List<DateTime> coffeeTimes = new List<DateTime>();
         private readonly List<Keys> konamiBuf = new List<Keys>();
+        private string b21Buf = "";
         private static readonly Keys[] KonamiSeq = { Keys.Up, Keys.Up, Keys.Down, Keys.Down, Keys.Left, Keys.Right, Keys.Left, Keys.Right, Keys.B, Keys.A };
         private Point dragOff, dragStart;
         private Rectangle? curLedge = null;
@@ -1052,203 +1166,8 @@ namespace KarelNative {
             public double X, Y, Vx, Vy; public int Life; public string Ch; public Color Col;
         }
 
-        private static readonly string[] QuotesNL = {
-            "Eucalyptus? Of toch een Sticky tosti?",
-            "RP2350 SuperMini draait op volle toeren!",
-            "Even uitrekken achter de taakbalk...",
-            "Al een git commit gepusht vandaag?",
-            "Tip: Ctrl+Alt+K verstopt of roept me op!",
-            "Zit je code al in main of nog in 'fix_final_v3'?",
-            "Ik hou je tabs in de gaten... dat zijn er veel!",
-            "Zijn we al klaar met dat practicum?",
-            "Even pauze? Mijn oren zijn het ermee eens.",
-            "Werkt op mijn RP2350! (En op jouw laptop!)",
-            "Vergeet niet af en toe een slokje water te nemen.",
-            "Ik ruik verse koffie in het Buys Ballotgebouw!",
-            "Geen zorgen, ik eet alleen eucalyptus, geen RAM.",
-            "Sssst... ik denk aan een hele grote tosti.",
-            "Wist je dat je me door je scherm kunt gooien?",
-            "Even rekken en strekken — goede houding!",
-            "O(1) knuffelbaarheid, O(n) gezelligheid.",
-            "Heeft iemand de semikolon gezien? Gevonden: ;",
-            "Stack Overflow is ook maar een soort eucalyptusboom.",
-            "Ik pas prima in 120 KB. Wat is jouw excuus, Electron?",
-            "Zwaai eens terug! Ik zit hier speciaal voor jou.",
-            "Even checken: staat je rug recht? Mooi zo!",
-            "Karel draait op 100% pure Sticky-energie.",
-            "Tijd voor een backflip? Kijk bij Trucjes!",
-            "Mijn favoriete datastructuur is een eucalyptus-tree.",
-            "Heb je de Konami-code al geprobeerd? Hint: pijltjes...",
-            "Klik 7x op mijn neus als je durft...",
-            "Nog één tentamen en dan is het weer borreltijd!",
-            "Ik beloof dat ik niet op Alt+F4 ga staan.",
-            "Geen bugs gevonden vandaag — alleen maar features!"
-        };
-        private static readonly string[] QuotesEN = {
-            "Eucalyptus? Or a Sticky toasted cheese?",
-            "RP2350 SuperMini running smoothly!",
-            "Zero-Install Sticky companion living on USB!",
-            "Did you git commit today?",
-            "Tip: Ctrl+Alt+K hides or wakes me!",
-            "Still on branch 'final_fix_really_final'?",
-            "That's a lot of open browser tabs you've got there!",
-            "Quick stretch break? My ears approve.",
-            "Works on my RP2350! (And your laptop!)",
-            "Hydration check! Take a sip of water.",
-            "Don't worry, I eat eucalyptus, not your RAM.",
-            "O(1) cuteness, O(n) good vibes.",
-            "Anyone seen a missing semicolon? Found it: ;",
-            "I fit in 120 KB. What's your excuse, Electron?",
-            "Try tossing me across your desktop!",
-            "My favorite data structure is a eucalyptus tree.",
-            "Posture check! Shoulders relaxed, back straight.",
-            "Have you tried the Konami code yet?",
-            "Boop my nose 7 times if you dare...",
-            "No bugs today — only surprise features!",
-            "Powered by 100% pure Sticky spirit.",
-            "I promise I won't step on Alt+F4.",
-            "Need a break? Check out my 28 tricks!",
-            "Waiting patiently on your taskbar like a good koala.",
-            "Rubber duck debugging? Try koala debugging!",
-            "Compiling good vibes... 0 warnings, 0 errors!"
-        };
-        private static readonly string[] MorningNL = {
-            "Goedemorgen! Eerst koffie, dan pas code.",
-            "Vroege vogel of doorgehaald? Ik oordeel niet!",
-            "Nieuwe dag, nieuwe commits!",
-            "Lekker opstarten met een vers blaadje eucalyptus.",
-            "Klaar voor college? Ik lift wel mee op je scherm!"
-        };
-        private static readonly string[] MorningEN = {
-            "Good morning! Coffee first, code second.",
-            "Early bird or all-nighter? No judgment here!",
-            "New day, fresh commits!",
-            "Ready for lectures? I'll ride along on your screen!",
-            "Nothing beats morning eucalyptus!"
-        };
-        private static readonly string[] NightNL = {
-            "Nachtelijke code-sessie? Vergeet geen water!",
-            "Zzz... Karel programmeert mee in stilte.",
-            "Nog één bug en dan lekker slapen?",
-            "Na middernacht worden alle bugs dubbel zo sneaky...",
-            "Mijn oogjes worden zwaar, en die van jou?",
-            "Pro-tip: na een nachtje slapen zie je die bug meteen!"
-        };
-        private static readonly string[] NightEN = {
-            "Late-night coding session? Stay hydrated!",
-            "Zzz... Karel is quietly coding along.",
-            "Just one more bug before bed?",
-            "Bugs multiply after midnight, you know...",
-            "Getting sleepy... maybe save and rest soon?",
-            "Tomorrow-you will spot that bug in 2 seconds!"
-        };
-        private static readonly string[] FridayNL = {
-            "VrijMiBo tijd!! Proost op de week!",
-            "Vrijdagmiddag: deployen op eigen risico!",
-            "De Vagant roept! Tijd voor een borrel!",
-            "Weekend in zicht — lekker gewerkt deze week!",
-            "No deploy Friday! Tijd voor een drankje!"
-        };
-        private static readonly string[] FridayEN = {
-            "Friday drinks time!! Cheers to the week!",
-            "No-deploy Friday! Time to unwind!",
-            "Weekend incoming — great work this week!",
-            "VrijMiBo mode activated!",
-            "Close the IDE, it's Friday afternoon!"
-        };
-        private static readonly string[] PetNL = {
-            "Heerlijk! Sticky liefde! +8 XP",
-            "Knorrr... precies achter mijn oortjes! +8 XP",
-            "Aaaah, beste pauze ooit! +8 XP",
-            "Blije koala-geluidjes! +8 XP",
-            "Jij bent echt mijn favoriete mens! +8 XP"
-        };
-        private static readonly string[] PetEN = {
-            "Aww! Sticky love! +8 XP",
-            "Purrrr... right behind the ears! +8 XP",
-            "Best study break ever! +8 XP",
-            "Happy koala noises! +8 XP",
-            "You're my favorite human! +8 XP"
-        };
-        private static readonly string[] FeedNL = {
-            "Verse eucalyptus! Smullen!",
-            "Nom nom nom... lekker knapperig!",
-            "Mmm, smaakt bijna net zo goed als een BBG-tosti!",
-            "Buikje weer helemaal blij!",
-            "Topkwaliteit blaadjes, 5 sterren!"
-        };
-        private static readonly string[] FeedEN = {
-            "Fresh eucalyptus! Yummm!",
-            "Nom nom nom... super crunchy!",
-            "Almost as good as a Sticky toastie!",
-            "Happy tummy, happy koala!",
-            "Five-star gourmet leaves!"
-        };
-        private static readonly string[] CoffeeNL = {
-            "Sticky koffie boost! +9 XP",
-            "Aah, zwarte goud! +9 XP",
-            "Klaar om 1000 regels code te schrijven! +9 XP",
-            "Verse kamer-koffie! Lekker sterk! +9 XP",
-            "Energie-balk zegt dankjewel! +9 XP"
-        };
-        private static readonly string[] CoffeeEN = {
-            "Sticky espresso boost! +9 XP",
-            "Liquid motivation! +9 XP",
-            "Ready to ship 1000 lines of code! +9 XP",
-            "Freshly brewed! Strong stuff! +9 XP",
-            "Energy bar says thank you! +9 XP"
-        };
-        private static readonly string[] WashNL = {
-            "Lekker fris gewassen!",
-            "Squeaky clean koala!",
-            "Ruik ik weer naar frisse eucalyptus!",
-            "Klaar voor de fotoshoot!",
-            "Bubbeltjes!! Heerlijk schoon!"
-        };
-        private static readonly string[] WashEN = {
-            "Sparkling clean!",
-            "Squeaky clean koala!",
-            "Smelling like fresh eucalyptus again!",
-            "Ready for my close-up!",
-            "Bubbles!! Feeling fresh!"
-        };
-        private static readonly string[] TossSoftNL = { "Weee! Zachte landing!", "Hoppa! Even zweven!", "Uitzicht is top hierboven!" };
-        private static readonly string[] TossSoftEN = { "Wheee! Soft landing!", "Up, up and away!", "Great view from up here!" };
-        private static readonly string[] TossHardNL = { "WOOOOOAAAH!! JETPACK AAN!!", "NAAR DE MAAN!!", "Koala in een baan om de aarde!!" };
-        private static readonly string[] TossHardEN = { "WHOOOOAAA!! JETPACK ENGAGED!!", "TO THE MOON!!", "Koala achieved low Earth orbit!!" };
-
-        private static string LevelTitle(int lvl, bool en) {
-            string[] nl = {
-                "Eerstejaars Koala", "Eucalyptus Fan", "BBG-Bewoner", "Tosti-Kenner", "Git Wizard",
-                "Koffie-Connaisseur", "VrijMiBo-Baas", "Kamer-Regular", "RP2350 Meester", "Sticky Legende"
-            };
-            string[] tEn = {
-                "Freshman Koala", "Eucalyptus Fan", "BBG Resident", "Toastie Connoisseur", "Git Wizard",
-                "Coffee Connoisseur", "Friday Drinks Boss", "Sticky Room Regular", "RP2350 Master", "Sticky Legend"
-            };
-            int idx = Math.Max(0, Math.Min(9, lvl - 1));
-            return en ? tEn[idx] : nl[idx];
-        }
-
-        private static string OutfitQuote(string item, bool en) {
-            if (item == "scarf") return en ? "Cozy in my Sticky scarf!" : "Lekker warm met mijn Sticky-sjaal!";
-            if (item == "stickycap") return en ? "Repping SV Sticky in style!" : "Stijlvol met mijn Sticky-pet!";
-            if (item == "hoodie") return en ? "Nothing beats hoodie coding weather." : "Beste programmeer-hoodie ooit!";
-            if (item == "headphones") return en ? "Lo-fi beats to debug to..." : "Lo-fi beats om op te debuggen...";
-            if (item == "shades") return en ? "Too cool for light mode." : "Te cool voor light mode.";
-            if (item == "crown") return en ? "Bow to King Karel!" : "Buig voor Koning Karel!";
-            if (item == "wizard") return en ? "You're a wizard, Karel!" : "Ik tover je bugs weg... *poef*!";
-            if (item == "partyhat") return en ? "Every day is a Sticky party!" : "Elke dag is een feestje!";
-            if (item == "beanie") return en ? "Comfy beanie, warm ears!" : "Lekker warme oortjes met deze muts!";
-            if (item == "tophat") return en ? "Dressed for the Sticky gala!" : "Helemaal klaar voor het Sticky-gala!";
-            if (item == "chef") return en ? "Chef Karel's BBG toasties coming up!" : "Chef Karel bakt de beste BBG-tosti's!";
-            if (item == "halo") return en ? "I have NEVER pushed broken code. Honest." : "Ik push NOOIT kapotte code. Echt niet.";
-            if (item == "bowtie") return en ? "Bowties are cool!" : "Vlinderdas aan: extra professioneel!";
-            if (item == "cape") return en ? "Super-Koala to the rescue!" : "Super-Koala schiet te hulp!";
-            if (item == "labcoat") return en ? "Stand back, I'm doing computer science!" : "Aan de kant, ik doe wetenschap!";
-            if (item == "nerd") return en ? "Ackchyually, it's O(n log n)..." : "Eigenlijk is het O(n log n)...";
-            return "";
-        }
+        private string LevelTitle(int lvl, bool en) { return locale.LevelTitle(lvl, en); }
+        private string OutfitQuote(string item, bool en) { return locale.OutfitQuote(item, en); }
 
         private void PlayChirp() {
             string[] c = { "chirp", "chirp2", "chirp3", "chirp4" };
@@ -1265,26 +1184,18 @@ namespace KarelNative {
 
         private string PickSmartQuote() {
             bool en = IsEn();
+            LocaleSet ls = locale.For(en);
             string eq = save.GetEquippedItem();
             if (!string.IsNullOrEmpty(eq) && rng.NextDouble() < 0.25) {
                 string oq = OutfitQuote(eq, en);
                 if (!string.IsNullOrEmpty(oq)) return oq;
             }
             DateTime now = DateTime.Now;
-            if (now.Hour >= 0 && now.Hour < 5) {
-                string[] np = en ? NightEN : NightNL;
-                return np[rng.Next(np.Length)];
-            }
-            if (now.DayOfWeek == DayOfWeek.Friday && now.Hour >= 16 && rng.NextDouble() < 0.40) {
-                string[] fp = en ? FridayEN : FridayNL;
-                return fp[rng.Next(fp.Length)];
-            }
-            if (now.Hour >= 6 && now.Hour < 11 && rng.NextDouble() < 0.35) {
-                string[] mp = en ? MorningEN : MorningNL;
-                return mp[rng.Next(mp.Length)];
-            }
-            string[] pool = en ? QuotesEN : QuotesNL;
-            return pool[rng.Next(pool.Length)];
+            if (now.Hour == 21 && now.Minute == 21) return en ? "21:21 on the clock... Vo' B21!!" : "21:21 op de klok... Vo' B21!!";
+            if (now.Hour >= 0 && now.Hour < 5) return LocaleBank.Pick(ls.Night, rng);
+            if (now.DayOfWeek == DayOfWeek.Friday && now.Hour >= 16 && rng.NextDouble() < 0.40) return LocaleBank.Pick(ls.Friday, rng);
+            if (now.Hour >= 6 && now.Hour < 11 && rng.NextDouble() < 0.35) return LocaleBank.Pick(ls.Morning, rng);
+            return LocaleBank.Pick(ls.Quotes, rng);
         }
 
         private void DoRandomStyle() {
@@ -1311,6 +1222,7 @@ namespace KarelNative {
 
         public KarelForm(int ipcPort, bool noUpdate, string updatedFrom, bool startHidden) {
             sprites = SpriteBank.LoadEmbedded();
+            locale = LocaleBank.LoadEmbedded();
             save = new SaveStore();
             save.Load();
             scale = Math.Max(2, Math.Min(5, save.GetInt("karel_scale", 3)));
@@ -1380,6 +1292,14 @@ namespace KarelNative {
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
             Keys k = keyData & Keys.KeyCode;
+            char ch = k == Keys.B ? 'B' : ((k == Keys.D2 || k == Keys.NumPad2) ? '2' : ((k == Keys.D1 || k == Keys.NumPad1) ? '1' : '\0'));
+            if (ch != '\0') {
+                b21Buf = (b21Buf + ch);
+                if (b21Buf.Length > 3) b21Buf = b21Buf.Substring(b21Buf.Length - 3);
+                if (b21Buf == "B21") { b21Buf = ""; TriggerB21(); return true; }
+            } else {
+                b21Buf = "";
+            }
             if (k == Keys.Up || k == Keys.Down || k == Keys.Left || k == Keys.Right || k == Keys.B || k == Keys.A) {
                 konamiBuf.Add(k);
                 if (konamiBuf.Count > KonamiSeq.Length) konamiBuf.RemoveAt(0);
@@ -1516,14 +1436,23 @@ namespace KarelNative {
 
         private void DoPet() {
             save.ClampStat("happiness", 18, 0, 100);
-            save.Data["total_pets"] = save.GetInt("total_pets", 0) + 1;
-            SetAction(save.GetInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28);
-            AwardXp(8);
-            SpawnParticles("*", Color.FromArgb(255, 122, 144), 6);
-            snd.Play("pet");
-            ser.Send("EVENT:HEART");
-            string[] pp = IsEn() ? PetEN : PetNL;
-            Say(pp[rng.Next(pp.Length)], 45);
+            int pets = save.GetInt("total_pets", 0) + 1;
+            save.Data["total_pets"] = pets;
+            if (pets % 21 == 0) {
+                SetAction("PARTY_HORN", 42);
+                AwardXp(21);
+                SpawnParticles("*", Color.Gold, 21);
+                snd.Play("levelup");
+                ser.Send("STATE:B21");
+                Say(IsEn() ? "Vo' B21!! 21x pet bonus! +21 XP!" : "Vo' B21!! 21x geaaid bonus! +21 XP!", 65);
+            } else {
+                SetAction(save.GetInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28);
+                AwardXp(8);
+                SpawnParticles("*", Color.FromArgb(255, 122, 144), 6);
+                snd.Play("pet");
+                ser.Send("EVENT:HEART");
+                Say(LocaleBank.Pick(locale.For(IsEn()).Pet, rng), 45);
+            }
             save.Save(); RefreshHub();
         }
 
@@ -1534,8 +1463,7 @@ namespace KarelNative {
             AwardXp(7);
             SpawnParticles("+", Color.FromArgb(62, 207, 142), 5);
             snd.Play("eat");
-            string[] fp = IsEn() ? FeedEN : FeedNL;
-            Say(fp[rng.Next(fp.Length)], 45);
+            Say(LocaleBank.Pick(locale.For(IsEn()).Feed, rng), 45);
             save.Save(); RefreshHub();
         }
 
@@ -1554,8 +1482,7 @@ namespace KarelNative {
                 ser.Send("STATE:HYPER");
                 Say(IsEn() ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75);
             } else {
-                string[] cp = IsEn() ? CoffeeEN : CoffeeNL;
-                Say(cp[rng.Next(cp.Length)], 45);
+                Say(LocaleBank.Pick(locale.For(IsEn()).Coffee, rng), 45);
             }
             save.Save(); RefreshHub();
         }
@@ -1567,8 +1494,7 @@ namespace KarelNative {
             AwardXp(8);
             SpawnParticles("o", Color.FromArgb(79, 195, 247), 7);
             snd.Play("pet");
-            string[] wp = IsEn() ? WashEN : WashNL;
-            Say(wp[rng.Next(wp.Length)], 45);
+            Say(LocaleBank.Pick(locale.For(IsEn()).Wash, rng), 45);
             save.Save(); RefreshHub();
         }
 
@@ -1591,6 +1517,18 @@ namespace KarelNative {
             ser.Send("STATE:PARTY");
             snd.Play("levelup");
             Say(IsEn() ? "DISCO BORREL MODE ON!" : "DISCO BORREL MODE AAN!", 80);
+            save.Save(); RefreshHub();
+        }
+
+        private void TriggerB21() {
+            discoTicks = 121;
+            save.SetEquippedItem("crown");
+            SetAction("PARTY_HORN", 65);
+            AwardXp(21);
+            SpawnParticles("*", Color.Gold, 21);
+            ser.Send("STATE:B21");
+            snd.Play("levelup");
+            Say(IsEn() ? "Vo' B21!! Board 21 represent! +21 XP!" : "Vo' B21!! Bestuur 21 represent! +21 XP!", 85);
             save.Save(); RefreshHub();
         }
 
@@ -2041,8 +1979,8 @@ namespace KarelNative {
                 flingVx = Math.Max(-36.0, Math.Min(36.0, vx));
                 flingVy = Math.Max(-32.0, Math.Min(26.0, vy));
                 snd.Play("toss");
-                string[] tp = spd > 22.0 ? (IsEn() ? TossHardEN : TossHardNL) : (IsEn() ? TossSoftEN : TossSoftNL);
-                Say(tp[rng.Next(tp.Length)], 45);
+                LocaleSet ls = locale.For(IsEn());
+                Say(LocaleBank.Pick(spd > 22.0 ? ls.TossHard : ls.TossSoft, rng), 45);
             }
         }
 
@@ -2130,39 +2068,9 @@ namespace KarelNative {
             m.Items.Add(new ToolStripSeparator());
 
             ToolStripMenuItem tm = new ToolStripMenuItem(en ? "Tricks & Animations" : "Trucjes & Animaties");
-            string[,] tricks = {
-                { "Backflip!", "BACKFLIP", "Wooo! Koala Backflip!!" },
-                { "360° Spin", "SPIN", "Swoosh!" },
-                { "Jetpack", "JETPACK", "Naar de BBG-maan!" },
-                { "Peek", "PEEK", "Psst... zie je me?" },
-                { "Laptop Coding", "LAPTOP_CODE", "git commit -m 'fix'" },
-                { "Debug Magnifier", "MAGNIFY", "Zoekende naar bugs..." },
-                { "Paper Plane", "PAPER_PLANE", "Zoooef!" },
-                { "Sticky Umbrella", "UMBRELLA", "Typisch Nederlands weer!" },
-                { "Ear Wiggle", "EARS_WIGGLE", "*Wiebel wiebel*" },
-                { "Hug Plush", "HUG_PLUSH", "Sticky liefde!" },
-                { "Eucalyptus Hug", "EUCALYPTUS_HUG", "Favoriete tak!" },
-                { "Party Horn", "PARTY_HORN", "VrijMiBo tijd!" },
-                { "Polite Bow", "BOW", "Dankjewel!" },
-                { "Wave Hello", "WAVE", "Hoi!!" },
-                { "Guitar Solo", "GUITAR", "8-bit riff!" },
-                { "Drums", "DRUM", "Ba-dum-tss!" },
-                { "Flex Muscles", "FLEX", "RP2350 spierkracht!" },
-                { "Dance", "DANCE", "De Vagant boogie!" },
-                { "Skateboard", "SKATEBOARD", "Kickflip over de taakbalk!" },
-                { "Karate Chop", "KARATE", "Hi-yaa!!" },
-                { "Magic Trick", "MAGIC_TRICK", "Abraka-koala!" },
-                { "Juggle", "JUGGLE", "Kijk, zonder handen!" },
-                { "Pizza Time", "PIZZA", "Kwartiertje pizza!" },
-                { "DJ Set", "DJ", "Drop de bass!!" },
-                { "Stargazing", "TELESCOPE", "Sterren kijken..." },
-                { "Sticky Balloon", "BALLOON", "Ik zweeef!" },
-                { "Ninja Mode", "NINJA", "Poef! Onzichtbaar!" },
-                { "Zen Meditate", "MEDITATE", "Ommm... 0 bugs..." }
-            };
-            for (int i = 0; i < tricks.GetLength(0); i++) {
-                string s0 = tricks[i, 1], m0 = tricks[i, 2];
-                tm.DropDownItems.Add(tricks[i, 0], null, delegate { SetAction(s0, 42); Say(m0, 48); PlayTrickSound(s0); });
+            for (int i = 0; i < locale.Tricks.Count; i++) {
+                TrickEntry tr = locale.Tricks[i];
+                tm.DropDownItems.Add(tr.Label, null, delegate { SetAction(tr.State, 42); Say(tr.Msg, 48); PlayTrickSound(tr.State); });
             }
             m.Items.Add(tm);
 
@@ -2644,17 +2552,20 @@ namespace KarelNative {
             }
             if (selfTest) {
                 SpriteBank b = SpriteBank.LoadEmbedded();
+                LocaleBank lb = LocaleBank.LoadEmbedded();
                 Bitmap testBmp = b.GetFrame("IDLE", 0, "sticky", "crown");
                 if (testBmp.Width != 32 || testBmp.Height != 32) throw new InvalidOperationException("Bad frame");
+                if (lb.Nl.Quotes.Length < 25 || lb.En.Quotes.Length < 25 || lb.Tricks.Count < 28)
+                    throw new InvalidOperationException("Bad locale bank");
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.7.2", AutoUpdater.Version) <= 0
+                if (AutoUpdater.CompareVer("2.7.3", AutoUpdater.Version) <= 0
                     || !AutoUpdater.IsValidSemver(AutoUpdater.Version)
-                    || AutoUpdater.IsValidSemver("2.7.0&calc")
+                    || AutoUpdater.IsValidSemver("2.7.2&calc")
                     || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
-                Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
+                Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} tricks={2} xp={3} has_synth={4}", AutoUpdater.Version, b.States.Count, lb.Tricks.Count, s.GetInt("xp", 0), w != null));
                 return;
             }
             NativeWin.EnableDpi();

@@ -305,6 +305,9 @@ def update_led(px, state, now, burst_type, burst_until, mono_led=None):
         palette = ((255, 0, 90), (0, 255, 255), (255, 220, 0), (170, 0, 255), (0, 255, 100), (255, 255, 255))
         idx = int(now * 12.0) % len(palette)
         px[0] = palette[idx] if int(now * 24.0) % 2 == 0 else scale_color(palette[idx], 0.25)
+    elif state == "B21":
+        b21_cols = ((196, 30, 37), (245, 196, 81), (255, 255, 255))
+        px[0] = b21_cols[int(now * 10.0) % len(b21_cols)]
     else:
         breath = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(now * 2.0))
         px[0] = scale_color((178, 27, 33), breath)
@@ -346,7 +349,7 @@ def _poll_serial_cmds(rx_buffer, led_state, burst_type, burst_until, now):
                         send_serial_line("KAREL_PONG", force=True)
                     elif cmd.startswith("STATE:"):
                         new_state = cmd.split(":", 1)[1].strip()
-                        if new_state in ("HAPPY", "HUNGRY", "HYPER", "SLEEP", "STUDY", "QUIET", "PARTY", "BYE"):
+                        if new_state in ("HAPPY", "HUNGRY", "HYPER", "SLEEP", "STUDY", "QUIET", "PARTY", "B21", "BYE"):
                             led_state = new_state
                     elif cmd == "EVENT:HEART":
                         burst_type = "HEART"

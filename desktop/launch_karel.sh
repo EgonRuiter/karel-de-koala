@@ -49,6 +49,7 @@ fi
 
 if [ -x "$RUN_BIN" ]; then
     [ -f "$HERE/karel_sprites.gz" ] && cp -f "$HERE/karel_sprites.gz" "$RUN_DIR/karel_sprites.gz"
+    [ -f "$HERE/locale.json" ] && cp -f "$HERE/locale.json" "$RUN_DIR/locale.json"
     if [ -n "$CLEANUP_DIR" ]; then
         "$RUN_BIN" "$@"
         exit $?

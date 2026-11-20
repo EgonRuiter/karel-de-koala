@@ -5,6 +5,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$HERE/karel_linux.c"
 SPRITES="$HERE/karel_sprites.gz"
+LOCALE="$HERE/locale.json"
 ARCH="$(uname -m)"
 OUT="${1:-$HERE/karel_linux_${ARCH}}"
 
@@ -22,6 +23,7 @@ if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/spri
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
 [ -f "$SPRITES" ] || { echo "Error: karel_sprites.gz not found."; exit 1; }
+[ -f "$LOCALE" ] || { echo "Error: locale.json not found."; exit 1; }
 
 LIB_ARGS=()
 TMP_LIB=""

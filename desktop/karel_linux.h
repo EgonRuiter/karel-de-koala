@@ -26,7 +26,7 @@
  * Version, Read-Only Update Endpoints & Hard Safety Caps
  * ========================================================================= */
 
-#define KAREL_VERSION "2.7.1"
+#define KAREL_VERSION "2.7.2"
 #define KAREL_MANIFEST_URL "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
 #define KAREL_RELEASES_URL "https://github.com/svsticky/karel-de-koala/releases/latest"
 
@@ -119,6 +119,8 @@ typedef union { int type; XKeyEvent xkey; XExposeEvent xexpose; XButtonEvent xbu
 #define XK_Up 0xff52
 #define XK_Right 0xff53
 #define XK_Down 0xff54
+#define XK_1 0x0031
+#define XK_2 0x0032
 #define XK_A 0x0041
 #define XK_B 0x0042
 #define XK_a 0x0061
@@ -186,12 +188,35 @@ typedef struct {
     int connected;
 } SaveStore;
 
+typedef struct {
+    char quotes[40][160];       int n_quotes;
+    char morning[8][128];       int n_morning;
+    char night[8][128];         int n_night;
+    char friday[8][128];        int n_friday;
+    char pet[8][128];           int n_pet;
+    char feed[8][128];          int n_feed;
+    char coffee[8][128];        int n_coffee;
+    char wash[8][128];          int n_wash;
+    char toss_soft[6][96];      int n_toss_soft;
+    char toss_hard[6][96];      int n_toss_hard;
+    char level_titles[12][48];  int n_levels;
+    char outfit_keys[20][24];
+    char outfit_vals[20][128];  int n_outfits;
+} LocaleSet;
+
+typedef struct { char lbl[48], st[32], msg[128]; } TrickDef;
+
+typedef struct {
+    LocaleSet nl, en;
+    TrickDef tricks[32];
+    int n_tricks;
+} LocaleStore;
+
 #ifndef KAREL_CORE_TEST
 typedef struct { int fd; char port[64], last_state[48], rbuf[256]; size_t rlen; time_t last_probe; } LinuxSerial;
 typedef struct { int x, y, w, h, id; } HubBtn;
 typedef struct { double x, y, vx, vy; int life; char ch[2]; uint8_t r, g, b; } Particle;
 typedef struct { char lbl[48]; int kind, idx; } PopItem;
-typedef struct { const char *lbl, *st, *msg; } TrickDef;
 
 enum { POP_NONE = 0, POP_MAIN, POP_TRICKS, POP_ROAM, POP_SCALE, POP_SKIN, POP_OUTFIT };
 
@@ -203,7 +228,7 @@ typedef struct {
     Atom wm_del;
     float dpi;
 
-    SpriteBank sb; SaveStore save; LinuxSerial ser;
+    SpriteBank sb; SaveStore save; LocaleStore loc; LinuxSerial ser;
     int ipc_fd, upd_pipe;
 
     char state[32], bubble[160], climb_msg[128], dive_mode[16];
@@ -218,7 +243,7 @@ typedef struct {
 
     Particle parts[24];
     int nparts;
-    KeySym konami[10]; int nkonami;
+    KeySym konami[10]; int nkonami, b21_step;
 
     HubBtn hub_btns[18]; int nhub_btns;
     int pop_mode, pop_w, pop_h, pop_hover;
@@ -253,6 +278,8 @@ void save_persist(SaveStore *s);
 void save_load(SaveStore *s);
 size_t build_wav_bytes(const double *freqs, int nfreq, double dur, double amp, uint8_t *buf, size_t maxb);
 int locate_sprites_gz(char *out, size_t max_out);
+int locate_locale_json(char *out, size_t max_out);
+int load_locale_json(LocaleStore *loc, const char *path);
 
 #ifndef KAREL_CORE_TEST
 int poll_usb(SaveStore *s);

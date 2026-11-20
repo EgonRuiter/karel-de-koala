@@ -5,6 +5,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$HERE/karel_mac.swift"
 SPRITES="$HERE/karel_sprites.gz"
+LOCALE="$HERE/locale.json"
 APP="$HERE/Karel.app"
 MACOS_DIR="$APP/Contents/MacOS"
 RES_DIR="$APP/Contents/Resources"
@@ -23,6 +24,7 @@ if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/spri
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
 [ -f "$SPRITES" ] || { echo "Error: karel_sprites.gz not found next to build_mac.sh."; exit 1; }
+[ -f "$LOCALE" ] || { echo "Error: locale.json not found next to build_mac.sh."; exit 1; }
 if [ ! -f "$HERE/.VolumeIcon.icns" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/generate_initial_save.py" ]; then
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import generate_initial_save; generate_initial_save.write_drive_branding('$HERE')" || true
 fi
@@ -54,6 +56,7 @@ strip -x "$MACOS_DIR/Karel" 2>/dev/null || true
 chmod +x "$MACOS_DIR/Karel"
 
 cp "$SPRITES" "$RES_DIR/karel_sprites.gz"
+cp "$LOCALE" "$RES_DIR/locale.json"
 [ -f "$HERE/.VolumeIcon.icns" ] && cp "$HERE/.VolumeIcon.icns" "$RES_DIR/AppIcon.icns"
 
 cat >"$APP/Contents/Info.plist" <<'PLIST'
@@ -72,9 +75,9 @@ cat >"$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.7.1</string>
+    <string>2.7.2</string>
     <key>CFBundleVersion</key>
-    <string>271</string>
+    <string>272</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>

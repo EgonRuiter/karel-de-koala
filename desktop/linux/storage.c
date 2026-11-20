@@ -370,12 +370,15 @@ size_t build_wav_bytes(const double *freqs, int nfreq, double dur, double amp, u
     return need;
 }
 
-int locate_sprites_gz(char *out, size_t max_out) {
+static int locate_asset_file(const char *fname, char *out, size_t max_out) {
     const char *env = getenv("KAREL_DRIVE_DIR");
-    const char *cands[] = { NULL, "karel_sprites.gz", "desktop/karel_sprites.gz", "../desktop/karel_sprites.gz" };
-    char envp[600];
+    char envp[600], c1[128], c2[160], c3[160];
+    snprintf(c1, sizeof(c1), "%.100s", fname);
+    snprintf(c2, sizeof(c2), "desktop/%.100s", fname);
+    snprintf(c3, sizeof(c3), "../desktop/%.100s", fname);
+    const char *cands[4] = { NULL, c1, c2, c3 };
     if (env && *env) {
-        snprintf(envp, sizeof(envp), "%.500s/karel_sprites.gz", env);
+        snprintf(envp, sizeof(envp), "%.500s/%.80s", env, fname);
         cands[0] = envp;
     }
     for (int i = 0; i < 4; i++) {
@@ -392,10 +395,163 @@ int locate_sprites_gz(char *out, size_t max_out) {
         char *sl = strrchr(exe, '/');
         if (sl) {
             *sl = 0;
-            snprintf(out, max_out, "%.480s/karel_sprites.gz", exe);
+            snprintf(out, max_out, "%.460s/%.80s", exe, fname);
             if (file_exists(out)) return 1;
         }
     }
 #endif
     return 0;
+}
+
+int locate_sprites_gz(char *out, size_t max_out) {
+    return locate_asset_file("karel_sprites.gz", out, max_out);
+}
+
+int locate_locale_json(char *out, size_t max_out) {
+    return locate_asset_file("locale.json", out, max_out);
+}
+
+/* =========================================================================
+ * Centralized Bilingual Locale Loader (desktop/locale.json)
+ * ========================================================================= */
+
+static const char *json_read_quoted(const char *p, char *out, size_t max_out) {
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p != '"') return NULL;
+    p++;
+    size_t n = 0;
+    while (*p && *p != '"') {
+        if (*p == '\\' && p[1]) {
+            p++;
+            char c = *p++;
+            if (c == 'n') c = '\n';
+            else if (c == 't') c = '\t';
+            if (n + 1 < max_out) out[n++] = c;
+        } else {
+            if (n + 1 < max_out) out[n++] = *p;
+            p++;
+        }
+    }
+    if (*p != '"') return NULL;
+    out[n] = 0;
+    return p + 1;
+}
+
+static const char *json_find_block(const char *start, const char *end, const char *key, char open_ch, char close_ch, const char **out_end) {
+    char pat[64];
+    snprintf(pat, sizeof(pat), "\"%.50s\"", key);
+    const char *p = start;
+    while (p && p < end && (p = strstr(p, pat)) != NULL && p < end) {
+        p += strlen(pat);
+        while (p < end && isspace((unsigned char)*p)) p++;
+        if (p < end && *p == ':') {
+            p++;
+            while (p < end && isspace((unsigned char)*p)) p++;
+            if (p < end && *p == open_ch) {
+                const char *b_start = p + 1;
+                int depth = 1, in_str = 0;
+                p++;
+                while (p < end && depth > 0) {
+                    if (*p == '\\' && in_str && p + 1 < end) { p += 2; continue; }
+                    if (*p == '"') in_str = !in_str;
+                    else if (!in_str) {
+                        if (*p == open_ch) depth++;
+                        else if (*p == close_ch) depth--;
+                    }
+                    p++;
+                }
+                if (depth == 0) {
+                    *out_end = p - 1;
+                    return b_start;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+static int parse_str_array(const char *blk, const char *blk_end, const char *key, void *arr_base, int max_items, size_t stride) {
+    const char *a_end = NULL;
+    const char *p = json_find_block(blk, blk_end, key, '[', ']', &a_end);
+    if (!p) return 0;
+    int count = 0;
+    char *dst = (char *)arr_base;
+    while (p < a_end && count < max_items) {
+        while (p < a_end && (isspace((unsigned char)*p) || *p == ',')) p++;
+        if (p >= a_end || *p != '"') break;
+        p = json_read_quoted(p, dst + (size_t)count * stride, stride);
+        if (!p) break;
+        count++;
+    }
+    return count;
+}
+
+static void parse_locale_set(const char *blk, const char *blk_end, LocaleSet *ls) {
+    ls->n_quotes    = parse_str_array(blk, blk_end, "quotes",       ls->quotes,       40, sizeof(ls->quotes[0]));
+    ls->n_morning   = parse_str_array(blk, blk_end, "morning",      ls->morning,       8, sizeof(ls->morning[0]));
+    ls->n_night     = parse_str_array(blk, blk_end, "night",        ls->night,         8, sizeof(ls->night[0]));
+    ls->n_friday    = parse_str_array(blk, blk_end, "friday",       ls->friday,        8, sizeof(ls->friday[0]));
+    ls->n_pet       = parse_str_array(blk, blk_end, "pet",          ls->pet,           8, sizeof(ls->pet[0]));
+    ls->n_feed      = parse_str_array(blk, blk_end, "feed",         ls->feed,          8, sizeof(ls->feed[0]));
+    ls->n_coffee    = parse_str_array(blk, blk_end, "coffee",       ls->coffee,        8, sizeof(ls->coffee[0]));
+    ls->n_wash      = parse_str_array(blk, blk_end, "wash",         ls->wash,          8, sizeof(ls->wash[0]));
+    ls->n_toss_soft = parse_str_array(blk, blk_end, "toss_soft",    ls->toss_soft,     6, sizeof(ls->toss_soft[0]));
+    ls->n_toss_hard = parse_str_array(blk, blk_end, "toss_hard",    ls->toss_hard,     6, sizeof(ls->toss_hard[0]));
+    ls->n_levels    = parse_str_array(blk, blk_end, "level_titles", ls->level_titles, 12, sizeof(ls->level_titles[0]));
+
+    const char *o_end = NULL;
+    const char *p = json_find_block(blk, blk_end, "outfit_quotes", '{', '}', &o_end);
+    ls->n_outfits = 0;
+    while (p && p < o_end && ls->n_outfits < 20) {
+        while (p < o_end && (isspace((unsigned char)*p) || *p == ',')) p++;
+        if (p >= o_end || *p != '"') break;
+        p = json_read_quoted(p, ls->outfit_keys[ls->n_outfits], sizeof(ls->outfit_keys[0]));
+        if (!p) break;
+        while (p < o_end && (isspace((unsigned char)*p) || *p == ':')) p++;
+        p = json_read_quoted(p, ls->outfit_vals[ls->n_outfits], sizeof(ls->outfit_vals[0]));
+        if (!p) break;
+        ls->n_outfits++;
+    }
+}
+
+int load_locale_json(LocaleStore *loc, const char *path) {
+    memset(loc, 0, sizeof(*loc));
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return 0;
+    char *buf = (char *)malloc(32768);
+    if (!buf) { fclose(fp); return 0; }
+    size_t n = fread(buf, 1, 32767, fp);
+    fclose(fp);
+    buf[n] = 0;
+    const char *end = buf + n;
+
+    const char *nl_end = NULL, *en_end = NULL, *tr_end = NULL;
+    const char *nl_blk = json_find_block(buf, end, "nl", '{', '}', &nl_end);
+    const char *en_blk = json_find_block(buf, end, "en", '{', '}', &en_end);
+    const char *tr_blk = json_find_block(buf, end, "tricks", '[', ']', &tr_end);
+    if (nl_blk) parse_locale_set(nl_blk, nl_end, &loc->nl);
+    if (en_blk) parse_locale_set(en_blk, en_end, &loc->en);
+
+    const char *p = tr_blk;
+    while (p && p < tr_end && loc->n_tricks < 32) {
+        const char *obj = strchr(p, '{');
+        if (!obj || obj >= tr_end) break;
+        const char *obj_end = strchr(obj, '}');
+        if (!obj_end || obj_end > tr_end) break;
+        char sub[384];
+        size_t sl = (size_t)(obj_end - obj + 1);
+        if (sl >= sizeof(sub)) sl = sizeof(sub) - 1;
+        memcpy(sub, obj, sl);
+        sub[sl] = 0;
+        TrickDef *td = &loc->tricks[loc->n_tricks];
+        if (json_find_str(sub, "label", td->lbl, sizeof(td->lbl)) &&
+            json_find_str(sub, "state", td->st, sizeof(td->st)) &&
+            json_find_str(sub, "msg", td->msg, sizeof(td->msg))) {
+            loc->n_tricks++;
+        }
+        p = obj_end + 1;
+    }
+
+    free(buf);
+    return (loc->nl.n_quotes > 0 && loc->en.n_quotes > 0 && loc->n_tricks > 0) ? 1 : 0;
 }

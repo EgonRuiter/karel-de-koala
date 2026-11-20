@@ -140,6 +140,9 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
     spr_src = os.path.join(HERE, "karel_sprites.gz")
     if os.path.isfile(spr_src):
         _copy_over(spr_src, os.path.join(target_dir, "karel_sprites.gz"))
+    loc_src = os.path.join(HERE, "locale.json")
+    if os.path.isfile(loc_src):
+        _copy_over(loc_src, os.path.join(target_dir, "locale.json"))
     for lin_bin in ("karel_linux_x86_64", "karel_linux_aarch64"):
         src = os.path.join(HERE, lin_bin)
         if os.path.isfile(src):
