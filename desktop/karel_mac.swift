@@ -110,18 +110,10 @@ private final class SpriteBank {
         "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat",
         "beanie", "tophat", "chef", "halo", "bowtie", "cape", "labcoat", "nerd", ""
     ]
-    private static let skipOverlayStates: Set<String> = [
-        "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
-        "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-        "CELEBRATE", "JETPACK", "STUDY",
-        "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE"
-    ]
-    private static let skipHeadStates: Set<String> = ["JUMP", "HYPER", "SNEEZE"]
-    private static let skipTorsoStates: Set<String> = ["DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA"]
 
     var states: [String: [[String]]] = [:]
     var animDiv: [String: Int] = [:]
+    var anchors: [String: [(Int, Int, Int, Int)]] = [:]
     private var pal: [Character: (UInt8, UInt8, UInt8)] = [:]
     private var cache: [String: NSImage] = [:]
 
@@ -182,6 +174,19 @@ private final class SpriteBank {
                         bank.animDiv[String(kv[0])] = d
                     }
                 }
+            } else if line.hasPrefix("ANC|") {
+                let body = line.dropFirst(4)
+                if let eq = body.firstIndex(of: "=") {
+                    let stName = String(body[..<eq])
+                    let spec = body[body.index(after: eq)...]
+                    var list: [(Int, Int, Int, Int)] = []
+                    for fSpec in spec.split(separator: ";") {
+                        let nums = fSpec.split(separator: ",").compactMap { Int($0) }
+                        if nums.count == 4 { list.append((nums[0], nums[1], nums[2], nums[3])) }
+                        else { list.append((0, 0, 0, 0)) }
+                    }
+                    bank.anchors[stName] = list
+                }
             } else if line.hasPrefix("@") {
                 flush()
                 curState = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
@@ -228,128 +233,131 @@ private final class SpriteBank {
         return ch
     }
 
-    private static func fillRect(_ g: inout [[Character]], _ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int, _ ch: Character) {
-        for y in max(0, y0)...min(31, y1) {
-            for x in max(0, x0)...min(31, x1) { g[y][x] = ch }
+    private static func fillRect(_ g: inout [[Character]], _ dx: Int, _ dy: Int, _ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int, _ ch: Character) {
+        let loY = max(0, y0 + dy), hiY = min(31, y1 + dy)
+        let loX = max(0, x0 + dx), hiX = min(31, x1 + dx)
+        if loY > hiY || loX > hiX { return }
+        for y in loY...hiY {
+            for x in loX...hiX { g[y][x] = ch }
         }
     }
 
-    private static func putPx(_ g: inout [[Character]], _ x: Int, _ y: Int, _ ch: Character) {
-        if x >= 0 && x < 32 && y >= 0 && y < 32 { g[y][x] = ch }
+    private static func putPx(_ g: inout [[Character]], _ dx: Int, _ dy: Int, _ x: Int, _ y: Int, _ ch: Character) {
+        let nx = x + dx, ny = y + dy
+        if nx >= 0 && nx < 32 && ny >= 0 && ny < 32 { g[ny][nx] = ch }
     }
 
-    private static func applyOutfitAndTime(_ g: inout [[Character]], st: String, item: String, tired: Bool, vm: Bool) {
-        if skipOverlayStates.contains(st) { return }
-        let skipHead = skipHeadStates.contains(st)
-        let skipTorso = skipTorsoStates.contains(st)
+    private static func applyOutfitAndTime(_ g: inout [[Character]], st: String, item: String, hx: Int, hy: Int, tx: Int, ty: Int, tired: Bool, vm: Bool) {
+        let drawHead = hx != 99
+        let drawTorso = tx != 99
         switch item {
-        case "scarf" where !skipTorso:
-            fillRect(&g, 9, 17, 22, 18, "r")
-            putPx(&g, 9, 17, "k"); putPx(&g, 22, 17, "k")
-            for x in stride(from: 11, through: 20, by: 3) { putPx(&g, x, 17, "W") }
-            for x in stride(from: 10, through: 21, by: 3) { putPx(&g, x, 18, "R") }
-            fillRect(&g, 17, 19, 19, 22, "r")
-            putPx(&g, 18, 20, "W"); putPx(&g, 17, 21, "R"); putPx(&g, 19, 21, "R")
-            putPx(&g, 17, 23, "W"); putPx(&g, 19, 23, "W")
-        case "stickycap" where !skipHead:
-            fillRect(&g, 11, 1, 20, 1, "k")
-            fillRect(&g, 10, 2, 21, 4, "r")
-            putPx(&g, 10, 2, "k"); putPx(&g, 21, 2, "k")
-            fillRect(&g, 9, 5, 18, 5, "k")
-            fillRect(&g, 19, 5, 25, 5, "R"); putPx(&g, 25, 5, "k")
-            putPx(&g, 15, 3, "W"); putPx(&g, 16, 3, "W"); putPx(&g, 15, 4, "W")
-        case "hoodie" where !skipTorso:
-            fillRect(&g, 9, 17, 22, 18, "R")
-            fillRect(&g, 10, 18, 21, 24, "r")
-            fillRect(&g, 7, 19, 9, 22, "r"); fillRect(&g, 22, 19, 24, 22, "r")
-            putPx(&g, 7, 22, "R"); putPx(&g, 24, 22, "R")
-            fillRect(&g, 13, 21, 18, 23, "R")
-            fillRect(&g, 10, 24, 21, 24, "R")
-            putPx(&g, 14, 19, "W"); putPx(&g, 14, 20, "W")
-            putPx(&g, 17, 19, "W"); putPx(&g, 17, 20, "W")
-        case "headphones" where !skipHead:
-            fillRect(&g, 8, 3, 23, 3, "s"); fillRect(&g, 7, 4, 24, 4, "d")
-            putPx(&g, 5, 6, "d"); putPx(&g, 6, 5, "d"); putPx(&g, 25, 5, "d"); putPx(&g, 26, 6, "d")
-            fillRect(&g, 2, 7, 4, 11, "k"); fillRect(&g, 27, 7, 29, 11, "k")
-            fillRect(&g, 3, 8, 4, 10, "r"); fillRect(&g, 27, 8, 28, 10, "r")
-            putPx(&g, 5, 8, "w"); putPx(&g, 5, 9, "w"); putPx(&g, 5, 10, "w")
-            putPx(&g, 26, 8, "w"); putPx(&g, 26, 9, "w"); putPx(&g, 26, 10, "w")
-        case "shades" where !skipHead:
-            fillRect(&g, 9, 10, 14, 12, "k"); fillRect(&g, 17, 10, 22, 12, "k")
-            fillRect(&g, 10, 11, 13, 12, "d"); fillRect(&g, 18, 11, 21, 12, "d")
-            fillRect(&g, 14, 10, 17, 10, "k"); putPx(&g, 8, 10, "k"); putPx(&g, 23, 10, "k")
-            putPx(&g, 10, 11, "W"); putPx(&g, 11, 11, "W")
-            putPx(&g, 18, 11, "W"); putPx(&g, 19, 11, "W")
-        case "crown" where !skipHead:
-            fillRect(&g, 11, 5, 20, 5, "k")
-            fillRect(&g, 11, 3, 20, 4, "y")
-            putPx(&g, 11, 1, "y"); putPx(&g, 11, 2, "y")
-            putPx(&g, 15, 1, "y"); putPx(&g, 16, 1, "y"); putPx(&g, 15, 2, "y"); putPx(&g, 16, 2, "y")
-            putPx(&g, 20, 1, "y"); putPx(&g, 20, 2, "y")
-            putPx(&g, 13, 3, "Y"); putPx(&g, 18, 3, "Y")
-            putPx(&g, 15, 4, "R"); putPx(&g, 16, 4, "R")
-            putPx(&g, 12, 4, "b"); putPx(&g, 19, 4, "b")
-        case "wizard" where !skipHead:
-            fillRect(&g, 8, 5, 23, 5, "k")
-            fillRect(&g, 9, 4, 22, 4, "m"); fillRect(&g, 11, 4, 20, 4, "y")
-            fillRect(&g, 12, 2, 19, 3, "m")
-            fillRect(&g, 14, 0, 17, 1, "m"); putPx(&g, 18, 0, "m")
-            putPx(&g, 15, 2, "y"); putPx(&g, 16, 1, "W")
-        case "partyhat" where !skipHead:
-            fillRect(&g, 12, 5, 19, 5, "k")
-            fillRect(&g, 13, 3, 18, 4, "m"); fillRect(&g, 14, 1, 17, 2, "R")
-            putPx(&g, 15, 0, "y"); putPx(&g, 16, 0, "W")
-            putPx(&g, 14, 4, "y"); putPx(&g, 17, 4, "b"); putPx(&g, 15, 2, "y")
-        case "beanie" where !skipHead:
-            fillRect(&g, 11, 1, 20, 4, "r"); fillRect(&g, 12, 1, 19, 1, "k")
-            putPx(&g, 11, 1, "."); putPx(&g, 20, 1, ".")
-            fillRect(&g, 10, 4, 21, 5, "R"); putPx(&g, 10, 5, "k"); putPx(&g, 21, 5, "k")
-            for x in stride(from: 11, through: 20, by: 2) { putPx(&g, x, 5, "S") }
-            fillRect(&g, 15, 0, 16, 1, "W"); putPx(&g, 14, 0, "w"); putPx(&g, 17, 0, "w")
-        case "tophat" where !skipHead:
-            fillRect(&g, 9, 5, 22, 5, "k")
-            fillRect(&g, 11, 0, 20, 4, "k"); fillRect(&g, 12, 1, 19, 3, "d")
-            fillRect(&g, 12, 4, 19, 4, "r"); putPx(&g, 13, 1, "s"); putPx(&g, 13, 2, "s")
-        case "chef" where !skipHead:
-            fillRect(&g, 11, 5, 20, 5, "k"); fillRect(&g, 11, 4, 20, 4, "r")
-            fillRect(&g, 10, 1, 21, 3, "W"); fillRect(&g, 12, 0, 19, 1, "W")
-            putPx(&g, 10, 1, "w"); putPx(&g, 21, 1, "w"); putPx(&g, 14, 1, "w"); putPx(&g, 17, 1, "w")
-            putPx(&g, 14, 2, "w"); putPx(&g, 17, 2, "w"); fillRect(&g, 11, 3, 20, 3, "w")
-        case "halo" where !skipHead:
-            fillRect(&g, 11, 1, 20, 1, "y"); fillRect(&g, 10, 2, 21, 2, "Y")
-            fillRect(&g, 12, 2, 19, 2, "."); fillRect(&g, 11, 3, 20, 3, "y")
-            putPx(&g, 12, 1, "W"); putPx(&g, 13, 1, "t"); putPx(&g, 19, 1, "t")
-        case "bowtie" where !skipTorso:
-            fillRect(&g, 12, 17, 19, 17, "W"); putPx(&g, 11, 17, "w"); putPx(&g, 20, 17, "w")
-            fillRect(&g, 12, 18, 13, 20, "r"); putPx(&g, 14, 19, "r")
-            fillRect(&g, 18, 18, 19, 20, "r"); putPx(&g, 17, 19, "r")
-            putPx(&g, 12, 18, "k"); putPx(&g, 19, 18, "k"); putPx(&g, 12, 20, "k"); putPx(&g, 19, 20, "k")
-            putPx(&g, 15, 19, "R"); putPx(&g, 16, 19, "y")
-        case "cape" where !skipTorso:
-            fillRect(&g, 7, 18, 9, 26, "S"); fillRect(&g, 22, 18, 24, 26, "S")
-            fillRect(&g, 8, 19, 9, 25, "r"); fillRect(&g, 22, 19, 23, 25, "r")
-            putPx(&g, 6, 23, "S"); putPx(&g, 6, 24, "r"); putPx(&g, 6, 25, "S")
-            putPx(&g, 25, 23, "S"); putPx(&g, 25, 24, "r"); putPx(&g, 25, 25, "S")
-            fillRect(&g, 10, 17, 21, 18, "r"); fillRect(&g, 14, 17, 17, 18, "y"); putPx(&g, 15, 18, "W")
-        case "labcoat" where !skipTorso:
-            fillRect(&g, 9, 18, 22, 25, "W"); fillRect(&g, 7, 19, 9, 22, "W"); fillRect(&g, 22, 19, 24, 22, "W")
-            putPx(&g, 9, 18, "w"); putPx(&g, 22, 18, "w"); fillRect(&g, 9, 25, 22, 25, "w")
-            fillRect(&g, 15, 18, 16, 24, "b"); putPx(&g, 15, 18, "A"); putPx(&g, 16, 18, "A")
-            putPx(&g, 14, 18, "w"); putPx(&g, 17, 18, "w")
-            fillRect(&g, 18, 21, 20, 22, "w"); putPx(&g, 19, 20, "r")
-        case "nerd" where !skipHead:
-            fillRect(&g, 9, 10, 14, 13, "k"); fillRect(&g, 17, 10, 22, 13, "k")
-            fillRect(&g, 10, 11, 13, 12, "u"); fillRect(&g, 18, 11, 21, 12, "u")
-            putPx(&g, 12, 11, "k"); putPx(&g, 20, 11, "k"); putPx(&g, 11, 11, "W"); putPx(&g, 19, 11, "W")
-            fillRect(&g, 14, 11, 17, 11, "k"); putPx(&g, 15, 11, "W"); putPx(&g, 16, 11, "W")
-            putPx(&g, 8, 11, "k"); putPx(&g, 23, 11, "k")
+        case "scarf" where drawTorso:
+            fillRect(&g, tx, ty, 9, 17, 22, 18, "r")
+            putPx(&g, tx, ty, 9, 17, "k"); putPx(&g, tx, ty, 22, 17, "k")
+            for x in stride(from: 11, through: 20, by: 3) { putPx(&g, tx, ty, x, 17, "W") }
+            for x in stride(from: 10, through: 21, by: 3) { putPx(&g, tx, ty, x, 18, "R") }
+            fillRect(&g, tx, ty, 17, 19, 19, 22, "r")
+            putPx(&g, tx, ty, 18, 20, "W"); putPx(&g, tx, ty, 17, 21, "R"); putPx(&g, tx, ty, 19, 21, "R")
+            putPx(&g, tx, ty, 17, 23, "W"); putPx(&g, tx, ty, 19, 23, "W")
+        case "stickycap" where drawHead:
+            fillRect(&g, hx, hy, 11, 1, 20, 1, "k")
+            fillRect(&g, hx, hy, 10, 2, 21, 4, "r")
+            putPx(&g, hx, hy, 10, 2, "k"); putPx(&g, hx, hy, 21, 2, "k")
+            fillRect(&g, hx, hy, 9, 5, 18, 5, "k")
+            fillRect(&g, hx, hy, 19, 5, 25, 5, "R"); putPx(&g, hx, hy, 25, 5, "k")
+            putPx(&g, hx, hy, 15, 3, "W"); putPx(&g, hx, hy, 16, 3, "W"); putPx(&g, hx, hy, 15, 4, "W")
+        case "hoodie" where drawTorso:
+            fillRect(&g, tx, ty, 9, 17, 22, 18, "R")
+            fillRect(&g, tx, ty, 10, 18, 21, 24, "r")
+            fillRect(&g, tx, ty, 7, 19, 9, 22, "r"); fillRect(&g, tx, ty, 22, 19, 24, 22, "r")
+            putPx(&g, tx, ty, 7, 22, "R"); putPx(&g, tx, ty, 24, 22, "R")
+            fillRect(&g, tx, ty, 13, 21, 18, 23, "R")
+            fillRect(&g, tx, ty, 10, 24, 21, 24, "R")
+            putPx(&g, tx, ty, 14, 19, "W"); putPx(&g, tx, ty, 14, 20, "W")
+            putPx(&g, tx, ty, 17, 19, "W"); putPx(&g, tx, ty, 17, 20, "W")
+        case "headphones" where drawHead:
+            fillRect(&g, hx, hy, 8, 3, 23, 3, "s"); fillRect(&g, hx, hy, 7, 4, 24, 4, "d")
+            putPx(&g, hx, hy, 5, 6, "d"); putPx(&g, hx, hy, 6, 5, "d"); putPx(&g, hx, hy, 25, 5, "d"); putPx(&g, hx, hy, 26, 6, "d")
+            fillRect(&g, hx, hy, 2, 7, 4, 11, "k"); fillRect(&g, hx, hy, 27, 7, 29, 11, "k")
+            fillRect(&g, hx, hy, 3, 8, 4, 10, "r"); fillRect(&g, hx, hy, 27, 8, 28, 10, "r")
+            putPx(&g, hx, hy, 5, 8, "w"); putPx(&g, hx, hy, 5, 9, "w"); putPx(&g, hx, hy, 5, 10, "w")
+            putPx(&g, hx, hy, 26, 8, "w"); putPx(&g, hx, hy, 26, 9, "w"); putPx(&g, hx, hy, 26, 10, "w")
+        case "shades" where drawHead:
+            fillRect(&g, hx, hy, 9, 10, 14, 12, "k"); fillRect(&g, hx, hy, 17, 10, 22, 12, "k")
+            fillRect(&g, hx, hy, 10, 11, 13, 12, "d"); fillRect(&g, hx, hy, 18, 11, 21, 12, "d")
+            fillRect(&g, hx, hy, 14, 10, 17, 10, "k"); putPx(&g, hx, hy, 8, 10, "k"); putPx(&g, hx, hy, 23, 10, "k")
+            putPx(&g, hx, hy, 10, 11, "W"); putPx(&g, hx, hy, 11, 11, "W")
+            putPx(&g, hx, hy, 18, 11, "W"); putPx(&g, hx, hy, 19, 11, "W")
+        case "crown" where drawHead:
+            fillRect(&g, hx, hy, 11, 5, 20, 5, "k")
+            fillRect(&g, hx, hy, 11, 3, 20, 4, "y")
+            putPx(&g, hx, hy, 11, 1, "y"); putPx(&g, hx, hy, 11, 2, "y")
+            putPx(&g, hx, hy, 15, 1, "y"); putPx(&g, hx, hy, 16, 1, "y"); putPx(&g, hx, hy, 15, 2, "y"); putPx(&g, hx, hy, 16, 2, "y")
+            putPx(&g, hx, hy, 20, 1, "y"); putPx(&g, hx, hy, 20, 2, "y")
+            putPx(&g, hx, hy, 13, 3, "Y"); putPx(&g, hx, hy, 18, 3, "Y")
+            putPx(&g, hx, hy, 15, 4, "R"); putPx(&g, hx, hy, 16, 4, "R")
+            putPx(&g, hx, hy, 12, 4, "b"); putPx(&g, hx, hy, 19, 4, "b")
+        case "wizard" where drawHead:
+            fillRect(&g, hx, hy, 8, 5, 23, 5, "k")
+            fillRect(&g, hx, hy, 9, 4, 22, 4, "m"); fillRect(&g, hx, hy, 11, 4, 20, 4, "y")
+            fillRect(&g, hx, hy, 12, 2, 19, 3, "m")
+            fillRect(&g, hx, hy, 14, 0, 17, 1, "m"); putPx(&g, hx, hy, 18, 0, "m")
+            putPx(&g, hx, hy, 15, 2, "y"); putPx(&g, hx, hy, 16, 1, "W")
+        case "partyhat" where drawHead:
+            fillRect(&g, hx, hy, 12, 5, 19, 5, "k")
+            fillRect(&g, hx, hy, 13, 3, 18, 4, "m"); fillRect(&g, hx, hy, 14, 1, 17, 2, "R")
+            putPx(&g, hx, hy, 15, 0, "y"); putPx(&g, hx, hy, 16, 0, "W")
+            putPx(&g, hx, hy, 14, 4, "y"); putPx(&g, hx, hy, 17, 4, "b"); putPx(&g, hx, hy, 15, 2, "y")
+        case "beanie" where drawHead:
+            fillRect(&g, hx, hy, 11, 1, 20, 4, "r"); fillRect(&g, hx, hy, 12, 1, 19, 1, "k")
+            putPx(&g, hx, hy, 11, 1, "."); putPx(&g, hx, hy, 20, 1, ".")
+            fillRect(&g, hx, hy, 10, 4, 21, 5, "R"); putPx(&g, hx, hy, 10, 5, "k"); putPx(&g, hx, hy, 21, 5, "k")
+            for x in stride(from: 11, through: 20, by: 2) { putPx(&g, hx, hy, x, 5, "S") }
+            fillRect(&g, hx, hy, 15, 0, 16, 1, "W"); putPx(&g, hx, hy, 14, 0, "w"); putPx(&g, hx, hy, 17, 0, "w")
+        case "tophat" where drawHead:
+            fillRect(&g, hx, hy, 9, 5, 22, 5, "k")
+            fillRect(&g, hx, hy, 11, 0, 20, 4, "k"); fillRect(&g, hx, hy, 12, 1, 19, 3, "d")
+            fillRect(&g, hx, hy, 12, 4, 19, 4, "r"); putPx(&g, hx, hy, 13, 1, "s"); putPx(&g, hx, hy, 13, 2, "s")
+        case "chef" where drawHead:
+            fillRect(&g, hx, hy, 11, 5, 20, 5, "k"); fillRect(&g, hx, hy, 11, 4, 20, 4, "r")
+            fillRect(&g, hx, hy, 10, 1, 21, 3, "W"); fillRect(&g, hx, hy, 12, 0, 19, 1, "W")
+            putPx(&g, hx, hy, 10, 1, "w"); putPx(&g, hx, hy, 21, 1, "w"); putPx(&g, hx, hy, 14, 1, "w"); putPx(&g, hx, hy, 17, 1, "w")
+            putPx(&g, hx, hy, 14, 2, "w"); putPx(&g, hx, hy, 17, 2, "w"); fillRect(&g, hx, hy, 11, 3, 20, 3, "w")
+        case "halo" where drawHead:
+            fillRect(&g, hx, hy, 11, 1, 20, 1, "y"); fillRect(&g, hx, hy, 10, 2, 21, 2, "Y")
+            fillRect(&g, hx, hy, 12, 2, 19, 2, "."); fillRect(&g, hx, hy, 11, 3, 20, 3, "y")
+            putPx(&g, hx, hy, 12, 1, "W"); putPx(&g, hx, hy, 13, 1, "t"); putPx(&g, hx, hy, 19, 1, "t")
+        case "bowtie" where drawTorso:
+            fillRect(&g, tx, ty, 12, 17, 19, 17, "W"); putPx(&g, tx, ty, 11, 17, "w"); putPx(&g, tx, ty, 20, 17, "w")
+            fillRect(&g, tx, ty, 12, 18, 13, 20, "r"); putPx(&g, tx, ty, 14, 19, "r")
+            fillRect(&g, tx, ty, 18, 18, 19, 20, "r"); putPx(&g, tx, ty, 17, 19, "r")
+            putPx(&g, tx, ty, 12, 18, "k"); putPx(&g, tx, ty, 19, 18, "k"); putPx(&g, tx, ty, 12, 20, "k"); putPx(&g, tx, ty, 19, 20, "k")
+            putPx(&g, tx, ty, 15, 19, "R"); putPx(&g, tx, ty, 16, 19, "y")
+        case "cape" where drawTorso:
+            fillRect(&g, tx, ty, 7, 18, 9, 26, "S"); fillRect(&g, tx, ty, 22, 18, 24, 26, "S")
+            fillRect(&g, tx, ty, 8, 19, 9, 25, "r"); fillRect(&g, tx, ty, 22, 19, 23, 25, "r")
+            putPx(&g, tx, ty, 6, 23, "S"); putPx(&g, tx, ty, 6, 24, "r"); putPx(&g, tx, ty, 6, 25, "S")
+            putPx(&g, tx, ty, 25, 23, "S"); putPx(&g, tx, ty, 25, 24, "r"); putPx(&g, tx, ty, 25, 25, "S")
+            fillRect(&g, tx, ty, 10, 17, 21, 18, "r"); fillRect(&g, tx, ty, 14, 17, 17, 18, "y"); putPx(&g, tx, ty, 15, 18, "W")
+        case "labcoat" where drawTorso:
+            fillRect(&g, tx, ty, 9, 18, 22, 25, "W"); fillRect(&g, tx, ty, 7, 19, 9, 22, "W"); fillRect(&g, tx, ty, 22, 19, 24, 22, "W")
+            putPx(&g, tx, ty, 9, 18, "w"); putPx(&g, tx, ty, 22, 18, "w"); fillRect(&g, tx, ty, 9, 25, 22, 25, "w")
+            fillRect(&g, tx, ty, 15, 18, 16, 24, "b"); putPx(&g, tx, ty, 15, 18, "A"); putPx(&g, tx, ty, 16, 18, "A")
+            putPx(&g, tx, ty, 14, 18, "w"); putPx(&g, tx, ty, 17, 18, "w")
+            fillRect(&g, tx, ty, 18, 21, 20, 22, "w"); putPx(&g, tx, ty, 19, 20, "r")
+        case "nerd" where drawHead:
+            fillRect(&g, hx, hy, 9, 10, 14, 13, "k"); fillRect(&g, hx, hy, 17, 10, 22, 13, "k")
+            fillRect(&g, hx, hy, 10, 11, 13, 12, "u"); fillRect(&g, hx, hy, 18, 11, 21, 12, "u")
+            putPx(&g, hx, hy, 12, 11, "k"); putPx(&g, hx, hy, 20, 11, "k"); putPx(&g, hx, hy, 11, 11, "W"); putPx(&g, hx, hy, 19, 11, "W")
+            fillRect(&g, hx, hy, 14, 11, 17, 11, "k"); putPx(&g, hx, hy, 15, 11, "W"); putPx(&g, hx, hy, 16, 11, "W")
+            putPx(&g, hx, hy, 8, 11, "k"); putPx(&g, hx, hy, 23, 11, "k")
         default: break
         }
-        if tired && !skipHead {
-            for x in [11, 12, 19, 20] { for y in [11, 13] { putPx(&g, x, y, "s") } }
+        if tired && drawHead && st != "HYPER" {
+            for x in [11, 12, 19, 20] { for y in [11, 13] { putPx(&g, hx, hy, x, y, "s") } }
         }
-        if vm && st != "EAT" && st != "STUDY" && st != "JUMP" && st != "CLIMB" && st != "BORREL" {
-            fillRect(&g, 24, 18, 28, 23, "k"); fillRect(&g, 25, 19, 27, 22, "y"); fillRect(&g, 24, 17, 27, 18, "W")
+        if vm && drawTorso && st != "EAT" && st != "STUDY" && st != "JUMP" && st != "CLIMB" && st != "BORREL" {
+            fillRect(&g, tx, ty, 24, 18, 28, 23, "k"); fillRect(&g, tx, ty, 25, 19, 27, 22, "y"); fillRect(&g, tx, ty, 24, 17, 27, 18, "W")
         }
     }
 
@@ -380,7 +388,8 @@ private final class SpriteBank {
                 g[y][x] = ch == "." ? "." : Self.mapSkinChar(sk, ch)
             }
         }
-        Self.applyOutfitAndTime(&g, st: st, item: item, tired: tired, vm: vm)
+        let anc = (anchors[st].flatMap { fi < $0.count ? $0[fi] : nil }) ?? (0, 0, 0, 0)
+        Self.applyOutfitAndTime(&g, st: st, item: item, hx: anc.0, hy: anc.1, tx: anc.2, ty: anc.3, tired: tired, vm: vm)
 
         var rgba = [UInt8](repeating: 0, count: 32 * 32 * 4)
         for y in 0..<32 {
@@ -873,7 +882,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.5.0"
+    static let version = "2.5.1"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -2403,7 +2412,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.5.1", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.5.2", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

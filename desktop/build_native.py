@@ -27,12 +27,66 @@ def find_csc():
     raise FileNotFoundError(".NET Framework 4.x csc.exe niet gevonden.")
 
 
+SKIP_HEAD_STATES = {"MUSIC", "DJ", "PARTY_HORN", "UMBRELLA", "NINJA"}
+SKIP_TORSO_STATES = {
+    "STUDY", "GAMING", "LAPTOP_CODE", "GUITAR", "DRUM",
+    "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA", "DJ", "JETPACK",
+}
+
+
+def compute_anchors():
+    """Compute per-frame (hx, hy, tx, ty) outfit anchors by matching each frame against IDLE[0]."""
+    idle0 = SPRITES["IDLE"][0]
+    head_pts = [(x, y, idle0[y][x]) for y in range(6, 17) for x in range(4, 28) if idle0[y][x] in ("k", "g", "w")]
+    torso_pts = [(x, y, idle0[y][x]) for y in range(17, 26) for x in range(9, 23) if idle0[y][x] in ("k", "w", "g")]
+
+    def best_shift(fr, pts):
+        best = (0, 0, -1.0)
+        tot = len(pts)
+        for dy in range(-6, 10):
+            for dx in range(-6, 7):
+                m = 0
+                for x, y, c in pts:
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < 32 and 0 <= ny < 32 and fr[ny][nx] == c:
+                        m += 1
+                sc = m / tot
+                if sc > best[2] + 1e-6 or (abs(sc - best[2]) <= 1e-6 and (abs(dx) + abs(dy) < abs(best[0]) + abs(best[1]))):
+                    best = (dx, dy, sc)
+        return best
+
+    anchors = {}
+    for st, frames in SPRITES.items():
+        fr_anc = []
+        for fr in frames:
+            hx, hy, hsc = best_shift(fr, head_pts)
+            tx, ty, tsc = best_shift(fr, torso_pts)
+            if hsc < 0.62:
+                # Side/back/inverted/sleeping/peeking frame: hide both head & torso overlays
+                fr_anc.append((99, 0, 99, 0))
+            else:
+                ahx, ahy = (99, 0) if st in SKIP_HEAD_STATES else (hx, hy)
+                if st in SKIP_TORSO_STATES:
+                    atx, aty = (99, 0)
+                elif tsc >= 0.62:
+                    atx, aty = (tx, ty)
+                else:
+                    atx, aty = (hx, hy)
+                fr_anc.append((ahx, ahy, atx, aty))
+        if any(a != (0, 0, 0, 0) for a in fr_anc):
+            anchors[st] = fr_anc
+    return anchors
+
+
 def export_sprites_gz(out_path):
     lines = []
     pal_items = [f"{k}:{v}" for k, v in PALETTE.items() if v is not None and len(k) == 1]
     lines.append("PAL|" + ",".join(pal_items))
     div_items = [f"{k}={v}" for k, v in sorted(ANIM_DIV.items())]
     lines.append("DIV|" + ",".join(div_items))
+    for st, fr_anc in sorted(compute_anchors().items()):
+        spec = ";".join(f"{hx},{hy},{tx},{ty}" for hx, hy, tx, ty in fr_anc)
+        lines.append(f"ANC|{st}={spec}")
     for st, frames in SPRITES.items():
         lines.append("@" + st)
         for fi, fr in enumerate(frames):

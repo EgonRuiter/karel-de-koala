@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.5.0.0")]
-[assembly: AssemblyFileVersion("2.5.0.0")]
+[assembly: AssemblyVersion("2.5.1.0")]
+[assembly: AssemblyFileVersion("2.5.1.0")]
 
 namespace KarelNative {
 
@@ -147,6 +147,7 @@ namespace KarelNative {
     internal sealed class SpriteBank {
         public readonly Dictionary<string, List<string[]>> States = new Dictionary<string, List<string[]>>();
         public readonly Dictionary<string, int> AnimDiv = new Dictionary<string, int>();
+        public readonly Dictionary<string, List<int[]>> Anchors = new Dictionary<string, List<int[]>>();
         private readonly Dictionary<char, Color> pal = new Dictionary<char, Color>();
         private readonly Dictionary<string, Bitmap> cache = new Dictionary<string, Bitmap>();
 
@@ -158,20 +159,6 @@ namespace KarelNative {
             "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat",
             "beanie", "tophat", "chef", "halo", "bowtie", "cape", "labcoat", "nerd", ""
         };
-
-        private static readonly HashSet<string> SkipOverlayStates = new HashSet<string>(new string[] {
-            "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
-            "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-            "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-            "CELEBRATE", "JETPACK", "STUDY",
-            "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE"
-        });
-        private static readonly HashSet<string> SkipHeadStates = new HashSet<string>(new string[] {
-            "JUMP", "HYPER", "SNEEZE"
-        });
-        private static readonly HashSet<string> SkipTorsoStates = new HashSet<string>(new string[] {
-            "DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA"
-        });
 
         public static SpriteBank LoadEmbedded() {
             SpriteBank bank = new SpriteBank();
@@ -196,6 +183,23 @@ namespace KarelNative {
                             string[] kv = parts[i].Split('=');
                             int d;
                             if (kv.Length == 2 && int.TryParse(kv[1], out d)) bank.AnimDiv[kv[0]] = d;
+                        }
+                    } else if (line.StartsWith("ANC|")) {
+                        int eq = line.IndexOf('=', 4);
+                        if (eq > 4) {
+                            string stName = line.Substring(4, eq - 4);
+                            string[] framesSpec = line.Substring(eq + 1).Split(';');
+                            List<int[]> list = new List<int[]>();
+                            for (int i = 0; i < framesSpec.Length; i++) {
+                                string[] nums = framesSpec[i].Split(',');
+                                int hx = 0, hy = 0, tx = 0, ty = 0;
+                                if (nums.Length == 4) {
+                                    int.TryParse(nums[0], out hx); int.TryParse(nums[1], out hy);
+                                    int.TryParse(nums[2], out tx); int.TryParse(nums[3], out ty);
+                                }
+                                list.Add(new int[] { hx, hy, tx, ty });
+                            }
+                            bank.Anchors[stName] = list;
                         }
                     } else if (line.StartsWith("@")) {
                         FlushFrame(bank, curState, curRows);
@@ -239,128 +243,128 @@ namespace KarelNative {
             return ch;
         }
 
-        private static void FillRect(char[,] g, int x0, int y0, int x1, int y1, char ch) {
-            for (int y = Math.Max(0, y0); y <= Math.Min(31, y1); y++)
-                for (int x = Math.Max(0, x0); x <= Math.Min(31, x1); x++)
+        private static void FillRect(char[,] g, int dx, int dy, int x0, int y0, int x1, int y1, char ch) {
+            for (int y = Math.Max(0, y0 + dy); y <= Math.Min(31, y1 + dy); y++)
+                for (int x = Math.Max(0, x0 + dx); x <= Math.Min(31, x1 + dx); x++)
                     g[y, x] = ch;
         }
 
-        private static void PutPx(char[,] g, int x, int y, char ch) {
-            if (x >= 0 && x < 32 && y >= 0 && y < 32) g[y, x] = ch;
+        private static void PutPx(char[,] g, int dx, int dy, int x, int y, char ch) {
+            int nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < 32 && ny >= 0 && ny < 32) g[ny, nx] = ch;
         }
 
-        private static void ApplyOutfitAndTime(char[,] g, string st, string item, bool tired, bool vm) {
-            if (SkipOverlayStates.Contains(st)) return;
-            bool skipHead = SkipHeadStates.Contains(st);
-            bool skipTorso = SkipTorsoStates.Contains(st);
-            if (item == "scarf" && !skipTorso) {
-                FillRect(g, 9, 17, 22, 18, 'r');
-                PutPx(g, 9, 17, 'k'); PutPx(g, 22, 17, 'k');
-                for (int x = 11; x <= 20; x += 3) PutPx(g, x, 17, 'W');
-                for (int x = 10; x <= 21; x += 3) PutPx(g, x, 18, 'R');
-                FillRect(g, 17, 19, 19, 22, 'r');
-                PutPx(g, 18, 20, 'W'); PutPx(g, 17, 21, 'R'); PutPx(g, 19, 21, 'R');
-                PutPx(g, 17, 23, 'W'); PutPx(g, 19, 23, 'W');
-            } else if (item == "stickycap" && !skipHead) {
-                FillRect(g, 11, 1, 20, 1, 'k');
-                FillRect(g, 10, 2, 21, 4, 'r');
-                PutPx(g, 10, 2, 'k'); PutPx(g, 21, 2, 'k');
-                FillRect(g, 9, 5, 18, 5, 'k');
-                FillRect(g, 19, 5, 25, 5, 'R'); PutPx(g, 25, 5, 'k');
-                PutPx(g, 15, 3, 'W'); PutPx(g, 16, 3, 'W'); PutPx(g, 15, 4, 'W');
-            } else if (item == "hoodie" && !skipTorso) {
-                FillRect(g, 9, 17, 22, 18, 'R');
-                FillRect(g, 10, 18, 21, 24, 'r');
-                FillRect(g, 7, 19, 9, 22, 'r'); FillRect(g, 22, 19, 24, 22, 'r');
-                PutPx(g, 7, 22, 'R'); PutPx(g, 24, 22, 'R');
-                FillRect(g, 13, 21, 18, 23, 'R');
-                FillRect(g, 10, 24, 21, 24, 'R');
-                PutPx(g, 14, 19, 'W'); PutPx(g, 14, 20, 'W');
-                PutPx(g, 17, 19, 'W'); PutPx(g, 17, 20, 'W');
-            } else if (item == "headphones" && !skipHead) {
-                FillRect(g, 8, 3, 23, 3, 's'); FillRect(g, 7, 4, 24, 4, 'd');
-                PutPx(g, 5, 6, 'd'); PutPx(g, 6, 5, 'd'); PutPx(g, 25, 5, 'd'); PutPx(g, 26, 6, 'd');
-                FillRect(g, 2, 7, 4, 11, 'k'); FillRect(g, 27, 7, 29, 11, 'k');
-                FillRect(g, 3, 8, 4, 10, 'r'); FillRect(g, 27, 8, 28, 10, 'r');
-                PutPx(g, 5, 8, 'w'); PutPx(g, 5, 9, 'w'); PutPx(g, 5, 10, 'w');
-                PutPx(g, 26, 8, 'w'); PutPx(g, 26, 9, 'w'); PutPx(g, 26, 10, 'w');
-            } else if (item == "shades" && !skipHead) {
-                FillRect(g, 9, 10, 14, 12, 'k'); FillRect(g, 17, 10, 22, 12, 'k');
-                FillRect(g, 10, 11, 13, 12, 'd'); FillRect(g, 18, 11, 21, 12, 'd');
-                FillRect(g, 14, 10, 17, 10, 'k'); PutPx(g, 8, 10, 'k'); PutPx(g, 23, 10, 'k');
-                PutPx(g, 10, 11, 'W'); PutPx(g, 11, 11, 'W');
-                PutPx(g, 18, 11, 'W'); PutPx(g, 19, 11, 'W');
-            } else if (item == "crown" && !skipHead) {
-                FillRect(g, 11, 5, 20, 5, 'k');
-                FillRect(g, 11, 3, 20, 4, 'y');
-                PutPx(g, 11, 1, 'y'); PutPx(g, 11, 2, 'y');
-                PutPx(g, 15, 1, 'y'); PutPx(g, 16, 1, 'y'); PutPx(g, 15, 2, 'y'); PutPx(g, 16, 2, 'y');
-                PutPx(g, 20, 1, 'y'); PutPx(g, 20, 2, 'y');
-                PutPx(g, 13, 3, 'Y'); PutPx(g, 18, 3, 'Y');
-                PutPx(g, 15, 4, 'R'); PutPx(g, 16, 4, 'R');
-                PutPx(g, 12, 4, 'b'); PutPx(g, 19, 4, 'b');
-            } else if (item == "wizard" && !skipHead) {
-                FillRect(g, 8, 5, 23, 5, 'k');
-                FillRect(g, 9, 4, 22, 4, 'm'); FillRect(g, 11, 4, 20, 4, 'y');
-                FillRect(g, 12, 2, 19, 3, 'm');
-                FillRect(g, 14, 0, 17, 1, 'm'); PutPx(g, 18, 0, 'm');
-                PutPx(g, 15, 2, 'y'); PutPx(g, 16, 1, 'W');
-            } else if (item == "partyhat" && !skipHead) {
-                FillRect(g, 12, 5, 19, 5, 'k');
-                FillRect(g, 13, 3, 18, 4, 'm'); FillRect(g, 14, 1, 17, 2, 'R');
-                PutPx(g, 15, 0, 'y'); PutPx(g, 16, 0, 'W');
-                PutPx(g, 14, 4, 'y'); PutPx(g, 17, 4, 'b'); PutPx(g, 15, 2, 'y');
-            } else if (item == "beanie" && !skipHead) {
-                FillRect(g, 11, 1, 20, 4, 'r'); FillRect(g, 12, 1, 19, 1, 'k');
-                PutPx(g, 11, 1, '.'); PutPx(g, 20, 1, '.');
-                FillRect(g, 10, 4, 21, 5, 'R'); PutPx(g, 10, 5, 'k'); PutPx(g, 21, 5, 'k');
-                for (int x = 11; x <= 20; x += 2) PutPx(g, x, 5, 'S');
-                FillRect(g, 15, 0, 16, 1, 'W'); PutPx(g, 14, 0, 'w'); PutPx(g, 17, 0, 'w');
-            } else if (item == "tophat" && !skipHead) {
-                FillRect(g, 9, 5, 22, 5, 'k');
-                FillRect(g, 11, 0, 20, 4, 'k'); FillRect(g, 12, 1, 19, 3, 'd');
-                FillRect(g, 12, 4, 19, 4, 'r'); PutPx(g, 13, 1, 's'); PutPx(g, 13, 2, 's');
-            } else if (item == "chef" && !skipHead) {
-                FillRect(g, 11, 5, 20, 5, 'k'); FillRect(g, 11, 4, 20, 4, 'r');
-                FillRect(g, 10, 1, 21, 3, 'W'); FillRect(g, 12, 0, 19, 1, 'W');
-                PutPx(g, 10, 1, 'w'); PutPx(g, 21, 1, 'w'); PutPx(g, 14, 1, 'w'); PutPx(g, 17, 1, 'w');
-                PutPx(g, 14, 2, 'w'); PutPx(g, 17, 2, 'w'); FillRect(g, 11, 3, 20, 3, 'w');
-            } else if (item == "halo" && !skipHead) {
-                FillRect(g, 11, 1, 20, 1, 'y'); FillRect(g, 10, 2, 21, 2, 'Y');
-                FillRect(g, 12, 2, 19, 2, '.'); FillRect(g, 11, 3, 20, 3, 'y');
-                PutPx(g, 12, 1, 'W'); PutPx(g, 13, 1, 't'); PutPx(g, 19, 1, 't');
-            } else if (item == "bowtie" && !skipTorso) {
-                FillRect(g, 12, 17, 19, 17, 'W'); PutPx(g, 11, 17, 'w'); PutPx(g, 20, 17, 'w');
-                FillRect(g, 12, 18, 13, 20, 'r'); PutPx(g, 14, 19, 'r');
-                FillRect(g, 18, 18, 19, 20, 'r'); PutPx(g, 17, 19, 'r');
-                PutPx(g, 12, 18, 'k'); PutPx(g, 19, 18, 'k'); PutPx(g, 12, 20, 'k'); PutPx(g, 19, 20, 'k');
-                PutPx(g, 15, 19, 'R'); PutPx(g, 16, 19, 'y');
-            } else if (item == "cape" && !skipTorso) {
-                FillRect(g, 7, 18, 9, 26, 'S'); FillRect(g, 22, 18, 24, 26, 'S');
-                FillRect(g, 8, 19, 9, 25, 'r'); FillRect(g, 22, 19, 23, 25, 'r');
-                PutPx(g, 6, 23, 'S'); PutPx(g, 6, 24, 'r'); PutPx(g, 6, 25, 'S');
-                PutPx(g, 25, 23, 'S'); PutPx(g, 25, 24, 'r'); PutPx(g, 25, 25, 'S');
-                FillRect(g, 10, 17, 21, 18, 'r'); FillRect(g, 14, 17, 17, 18, 'y'); PutPx(g, 15, 18, 'W');
-            } else if (item == "labcoat" && !skipTorso) {
-                FillRect(g, 9, 18, 22, 25, 'W'); FillRect(g, 7, 19, 9, 22, 'W'); FillRect(g, 22, 19, 24, 22, 'W');
-                PutPx(g, 9, 18, 'w'); PutPx(g, 22, 18, 'w'); FillRect(g, 9, 25, 22, 25, 'w');
-                FillRect(g, 15, 18, 16, 24, 'b'); PutPx(g, 15, 18, 'A'); PutPx(g, 16, 18, 'A');
-                PutPx(g, 14, 18, 'w'); PutPx(g, 17, 18, 'w');
-                FillRect(g, 18, 21, 20, 22, 'w'); PutPx(g, 19, 20, 'r');
-            } else if (item == "nerd" && !skipHead) {
-                FillRect(g, 9, 10, 14, 13, 'k'); FillRect(g, 17, 10, 22, 13, 'k');
-                FillRect(g, 10, 11, 13, 12, 'u'); FillRect(g, 18, 11, 21, 12, 'u');
-                PutPx(g, 12, 11, 'k'); PutPx(g, 20, 11, 'k'); PutPx(g, 11, 11, 'W'); PutPx(g, 19, 11, 'W');
-                FillRect(g, 14, 11, 17, 11, 'k'); PutPx(g, 15, 11, 'W'); PutPx(g, 16, 11, 'W');
-                PutPx(g, 8, 11, 'k'); PutPx(g, 23, 11, 'k');
+        private static void ApplyOutfitAndTime(char[,] g, string st, string item, int hx, int hy, int tx, int ty, bool tired, bool vm) {
+            bool drawHead = hx != 99;
+            bool drawTorso = tx != 99;
+            if (item == "scarf" && drawTorso) {
+                FillRect(g, tx, ty, 9, 17, 22, 18, 'r');
+                PutPx(g, tx, ty, 9, 17, 'k'); PutPx(g, tx, ty, 22, 17, 'k');
+                for (int x = 11; x <= 20; x += 3) PutPx(g, tx, ty, x, 17, 'W');
+                for (int x = 10; x <= 21; x += 3) PutPx(g, tx, ty, x, 18, 'R');
+                FillRect(g, tx, ty, 17, 19, 19, 22, 'r');
+                PutPx(g, tx, ty, 18, 20, 'W'); PutPx(g, tx, ty, 17, 21, 'R'); PutPx(g, tx, ty, 19, 21, 'R');
+                PutPx(g, tx, ty, 17, 23, 'W'); PutPx(g, tx, ty, 19, 23, 'W');
+            } else if (item == "stickycap" && drawHead) {
+                FillRect(g, hx, hy, 11, 1, 20, 1, 'k');
+                FillRect(g, hx, hy, 10, 2, 21, 4, 'r');
+                PutPx(g, hx, hy, 10, 2, 'k'); PutPx(g, hx, hy, 21, 2, 'k');
+                FillRect(g, hx, hy, 9, 5, 18, 5, 'k');
+                FillRect(g, hx, hy, 19, 5, 25, 5, 'R'); PutPx(g, hx, hy, 25, 5, 'k');
+                PutPx(g, hx, hy, 15, 3, 'W'); PutPx(g, hx, hy, 16, 3, 'W'); PutPx(g, hx, hy, 15, 4, 'W');
+            } else if (item == "hoodie" && drawTorso) {
+                FillRect(g, tx, ty, 9, 17, 22, 18, 'R');
+                FillRect(g, tx, ty, 10, 18, 21, 24, 'r');
+                FillRect(g, tx, ty, 7, 19, 9, 22, 'r'); FillRect(g, tx, ty, 22, 19, 24, 22, 'r');
+                PutPx(g, tx, ty, 7, 22, 'R'); PutPx(g, tx, ty, 24, 22, 'R');
+                FillRect(g, tx, ty, 13, 21, 18, 23, 'R');
+                FillRect(g, tx, ty, 10, 24, 21, 24, 'R');
+                PutPx(g, tx, ty, 14, 19, 'W'); PutPx(g, tx, ty, 14, 20, 'W');
+                PutPx(g, tx, ty, 17, 19, 'W'); PutPx(g, tx, ty, 17, 20, 'W');
+            } else if (item == "headphones" && drawHead) {
+                FillRect(g, hx, hy, 8, 3, 23, 3, 's'); FillRect(g, hx, hy, 7, 4, 24, 4, 'd');
+                PutPx(g, hx, hy, 5, 6, 'd'); PutPx(g, hx, hy, 6, 5, 'd'); PutPx(g, hx, hy, 25, 5, 'd'); PutPx(g, hx, hy, 26, 6, 'd');
+                FillRect(g, hx, hy, 2, 7, 4, 11, 'k'); FillRect(g, hx, hy, 27, 7, 29, 11, 'k');
+                FillRect(g, hx, hy, 3, 8, 4, 10, 'r'); FillRect(g, hx, hy, 27, 8, 28, 10, 'r');
+                PutPx(g, hx, hy, 5, 8, 'w'); PutPx(g, hx, hy, 5, 9, 'w'); PutPx(g, hx, hy, 5, 10, 'w');
+                PutPx(g, hx, hy, 26, 8, 'w'); PutPx(g, hx, hy, 26, 9, 'w'); PutPx(g, hx, hy, 26, 10, 'w');
+            } else if (item == "shades" && drawHead) {
+                FillRect(g, hx, hy, 9, 10, 14, 12, 'k'); FillRect(g, hx, hy, 17, 10, 22, 12, 'k');
+                FillRect(g, hx, hy, 10, 11, 13, 12, 'd'); FillRect(g, hx, hy, 18, 11, 21, 12, 'd');
+                FillRect(g, hx, hy, 14, 10, 17, 10, 'k'); PutPx(g, hx, hy, 8, 10, 'k'); PutPx(g, hx, hy, 23, 10, 'k');
+                PutPx(g, hx, hy, 10, 11, 'W'); PutPx(g, hx, hy, 11, 11, 'W');
+                PutPx(g, hx, hy, 18, 11, 'W'); PutPx(g, hx, hy, 19, 11, 'W');
+            } else if (item == "crown" && drawHead) {
+                FillRect(g, hx, hy, 11, 5, 20, 5, 'k');
+                FillRect(g, hx, hy, 11, 3, 20, 4, 'y');
+                PutPx(g, hx, hy, 11, 1, 'y'); PutPx(g, hx, hy, 11, 2, 'y');
+                PutPx(g, hx, hy, 15, 1, 'y'); PutPx(g, hx, hy, 16, 1, 'y'); PutPx(g, hx, hy, 15, 2, 'y'); PutPx(g, hx, hy, 16, 2, 'y');
+                PutPx(g, hx, hy, 20, 1, 'y'); PutPx(g, hx, hy, 20, 2, 'y');
+                PutPx(g, hx, hy, 13, 3, 'Y'); PutPx(g, hx, hy, 18, 3, 'Y');
+                PutPx(g, hx, hy, 15, 4, 'R'); PutPx(g, hx, hy, 16, 4, 'R');
+                PutPx(g, hx, hy, 12, 4, 'b'); PutPx(g, hx, hy, 19, 4, 'b');
+            } else if (item == "wizard" && drawHead) {
+                FillRect(g, hx, hy, 8, 5, 23, 5, 'k');
+                FillRect(g, hx, hy, 9, 4, 22, 4, 'm'); FillRect(g, hx, hy, 11, 4, 20, 4, 'y');
+                FillRect(g, hx, hy, 12, 2, 19, 3, 'm');
+                FillRect(g, hx, hy, 14, 0, 17, 1, 'm'); PutPx(g, hx, hy, 18, 0, 'm');
+                PutPx(g, hx, hy, 15, 2, 'y'); PutPx(g, hx, hy, 16, 1, 'W');
+            } else if (item == "partyhat" && drawHead) {
+                FillRect(g, hx, hy, 12, 5, 19, 5, 'k');
+                FillRect(g, hx, hy, 13, 3, 18, 4, 'm'); FillRect(g, hx, hy, 14, 1, 17, 2, 'R');
+                PutPx(g, hx, hy, 15, 0, 'y'); PutPx(g, hx, hy, 16, 0, 'W');
+                PutPx(g, hx, hy, 14, 4, 'y'); PutPx(g, hx, hy, 17, 4, 'b'); PutPx(g, hx, hy, 15, 2, 'y');
+            } else if (item == "beanie" && drawHead) {
+                FillRect(g, hx, hy, 11, 1, 20, 4, 'r'); FillRect(g, hx, hy, 12, 1, 19, 1, 'k');
+                PutPx(g, hx, hy, 11, 1, '.'); PutPx(g, hx, hy, 20, 1, '.');
+                FillRect(g, hx, hy, 10, 4, 21, 5, 'R'); PutPx(g, hx, hy, 10, 5, 'k'); PutPx(g, hx, hy, 21, 5, 'k');
+                for (int x = 11; x <= 20; x += 2) PutPx(g, hx, hy, x, 5, 'S');
+                FillRect(g, hx, hy, 15, 0, 16, 1, 'W'); PutPx(g, hx, hy, 14, 0, 'w'); PutPx(g, hx, hy, 17, 0, 'w');
+            } else if (item == "tophat" && drawHead) {
+                FillRect(g, hx, hy, 9, 5, 22, 5, 'k');
+                FillRect(g, hx, hy, 11, 0, 20, 4, 'k'); FillRect(g, hx, hy, 12, 1, 19, 3, 'd');
+                FillRect(g, hx, hy, 12, 4, 19, 4, 'r'); PutPx(g, hx, hy, 13, 1, 's'); PutPx(g, hx, hy, 13, 2, 's');
+            } else if (item == "chef" && drawHead) {
+                FillRect(g, hx, hy, 11, 5, 20, 5, 'k'); FillRect(g, hx, hy, 11, 4, 20, 4, 'r');
+                FillRect(g, hx, hy, 10, 1, 21, 3, 'W'); FillRect(g, hx, hy, 12, 0, 19, 1, 'W');
+                PutPx(g, hx, hy, 10, 1, 'w'); PutPx(g, hx, hy, 21, 1, 'w'); PutPx(g, hx, hy, 14, 1, 'w'); PutPx(g, hx, hy, 17, 1, 'w');
+                PutPx(g, hx, hy, 14, 2, 'w'); PutPx(g, hx, hy, 17, 2, 'w'); FillRect(g, hx, hy, 11, 3, 20, 3, 'w');
+            } else if (item == "halo" && drawHead) {
+                FillRect(g, hx, hy, 11, 1, 20, 1, 'y'); FillRect(g, hx, hy, 10, 2, 21, 2, 'Y');
+                FillRect(g, hx, hy, 12, 2, 19, 2, '.'); FillRect(g, hx, hy, 11, 3, 20, 3, 'y');
+                PutPx(g, hx, hy, 12, 1, 'W'); PutPx(g, hx, hy, 13, 1, 't'); PutPx(g, hx, hy, 19, 1, 't');
+            } else if (item == "bowtie" && drawTorso) {
+                FillRect(g, tx, ty, 12, 17, 19, 17, 'W'); PutPx(g, tx, ty, 11, 17, 'w'); PutPx(g, tx, ty, 20, 17, 'w');
+                FillRect(g, tx, ty, 12, 18, 13, 20, 'r'); PutPx(g, tx, ty, 14, 19, 'r');
+                FillRect(g, tx, ty, 18, 18, 19, 20, 'r'); PutPx(g, tx, ty, 17, 19, 'r');
+                PutPx(g, tx, ty, 12, 18, 'k'); PutPx(g, tx, ty, 19, 18, 'k'); PutPx(g, tx, ty, 12, 20, 'k'); PutPx(g, tx, ty, 19, 20, 'k');
+                PutPx(g, tx, ty, 15, 19, 'R'); PutPx(g, tx, ty, 16, 19, 'y');
+            } else if (item == "cape" && drawTorso) {
+                FillRect(g, tx, ty, 7, 18, 9, 26, 'S'); FillRect(g, tx, ty, 22, 18, 24, 26, 'S');
+                FillRect(g, tx, ty, 8, 19, 9, 25, 'r'); FillRect(g, tx, ty, 22, 19, 23, 25, 'r');
+                PutPx(g, tx, ty, 6, 23, 'S'); PutPx(g, tx, ty, 6, 24, 'r'); PutPx(g, tx, ty, 6, 25, 'S');
+                PutPx(g, tx, ty, 25, 23, 'S'); PutPx(g, tx, ty, 25, 24, 'r'); PutPx(g, tx, ty, 25, 25, 'S');
+                FillRect(g, tx, ty, 10, 17, 21, 18, 'r'); FillRect(g, tx, ty, 14, 17, 17, 18, 'y'); PutPx(g, tx, ty, 15, 18, 'W');
+            } else if (item == "labcoat" && drawTorso) {
+                FillRect(g, tx, ty, 9, 18, 22, 25, 'W'); FillRect(g, tx, ty, 7, 19, 9, 22, 'W'); FillRect(g, tx, ty, 22, 19, 24, 22, 'W');
+                PutPx(g, tx, ty, 9, 18, 'w'); PutPx(g, tx, ty, 22, 18, 'w'); FillRect(g, tx, ty, 9, 25, 22, 25, 'w');
+                FillRect(g, tx, ty, 15, 18, 16, 24, 'b'); PutPx(g, tx, ty, 15, 18, 'A'); PutPx(g, tx, ty, 16, 18, 'A');
+                PutPx(g, tx, ty, 14, 18, 'w'); PutPx(g, tx, ty, 17, 18, 'w');
+                FillRect(g, tx, ty, 18, 21, 20, 22, 'w'); PutPx(g, tx, ty, 19, 20, 'r');
+            } else if (item == "nerd" && drawHead) {
+                FillRect(g, hx, hy, 9, 10, 14, 13, 'k'); FillRect(g, hx, hy, 17, 10, 22, 13, 'k');
+                FillRect(g, hx, hy, 10, 11, 13, 12, 'u'); FillRect(g, hx, hy, 18, 11, 21, 12, 'u');
+                PutPx(g, hx, hy, 12, 11, 'k'); PutPx(g, hx, hy, 20, 11, 'k'); PutPx(g, hx, hy, 11, 11, 'W'); PutPx(g, hx, hy, 19, 11, 'W');
+                FillRect(g, hx, hy, 14, 11, 17, 11, 'k'); PutPx(g, hx, hy, 15, 11, 'W'); PutPx(g, hx, hy, 16, 11, 'W');
+                PutPx(g, hx, hy, 8, 11, 'k'); PutPx(g, hx, hy, 23, 11, 'k');
             }
-            if (tired && !skipHead) {
+            if (tired && drawHead && st != "HYPER") {
                 int[] xs = { 11, 12, 19, 20 }, ys = { 11, 13 };
                 for (int ix = 0; ix < xs.Length; ix++)
-                    for (int iy = 0; iy < ys.Length; iy++) PutPx(g, xs[ix], ys[iy], 's');
+                    for (int iy = 0; iy < ys.Length; iy++) PutPx(g, hx, hy, xs[ix], ys[iy], 's');
             }
-            if (vm && st != "EAT" && st != "STUDY" && st != "JUMP" && st != "CLIMB" && st != "BORREL") {
-                FillRect(g, 24, 18, 28, 23, 'k'); FillRect(g, 25, 19, 27, 22, 'y'); FillRect(g, 24, 17, 27, 18, 'W');
+            if (vm && drawTorso && st != "EAT" && st != "STUDY" && st != "JUMP" && st != "CLIMB" && st != "BORREL") {
+                FillRect(g, tx, ty, 24, 18, 28, 23, 'k'); FillRect(g, tx, ty, 25, 19, 27, 22, 'y'); FillRect(g, tx, ty, 24, 17, 27, 18, 'W');
             }
         }
 
@@ -389,7 +393,13 @@ namespace KarelNative {
                     g[y, x] = ch == '.' ? '.' : MapSkinChar(sk, ch);
                 }
             }
-            ApplyOutfitAndTime(g, st, it, tired, vm);
+            int hx = 0, hy = 0, tx = 0, ty = 0;
+            List<int[]> ancList;
+            if (Anchors.TryGetValue(st, out ancList) && fi < ancList.Count) {
+                int[] a = ancList[fi];
+                hx = a[0]; hy = a[1]; tx = a[2]; ty = a[3];
+            }
+            ApplyOutfitAndTime(g, st, it, hx, hy, tx, ty, tired, vm);
 
             Bitmap bmp = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
             for (int y = 0; y < 32; y++)
@@ -886,7 +896,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.5.0";
+        public const string Version = "2.5.1";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -2411,7 +2421,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.5.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.5.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;

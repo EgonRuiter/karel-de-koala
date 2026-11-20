@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.5.0"
+#define KAREL_VERSION "2.5.1"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -355,7 +355,7 @@ static int compare_ver(const char *a, const char *b) {
 #define MAX_FRAMES 16
 
 typedef struct { uint8_t r, g, b, a; } Rgba;
-typedef struct { char name[32]; int nframes, div; char rows[MAX_FRAMES][32][33]; } AnimState;
+typedef struct { char name[32]; int nframes, div; char rows[MAX_FRAMES][32][33]; int8_t anc[MAX_FRAMES][4]; } AnimState;
 typedef struct { Rgba pal[128]; AnimState states[MAX_STATES]; int nstates; } SpriteBank;
 
 static const char *SKIN_IDS[] = {
@@ -368,28 +368,6 @@ static const char *OUTFIT_IDS[] = {
 };
 #define NUM_SKINS 14
 #define NUM_OUTFITS 17
-
-static int skip_overlay(const char *st) {
-    static const char *skip[] = {
-        "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
-        "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
-        "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-        "CELEBRATE", "JETPACK", "STUDY",
-        "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE", NULL
-    };
-    for (int i = 0; skip[i]; i++) if (strcmp(st, skip[i]) == 0) return 1;
-    return 0;
-}
-
-static int skip_head(const char *st) {
-    return strcmp(st, "JUMP") == 0 || strcmp(st, "HYPER") == 0 || strcmp(st, "SNEEZE") == 0;
-}
-
-static int skip_torso(const char *st) {
-    static const char *sk[] = {"DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA", NULL};
-    for (int i = 0; sk[i]; i++) if (strcmp(st, sk[i]) == 0) return 1;
-    return 0;
-}
 
 static int find_state_idx(const SpriteBank *sb, const char *st) {
     for (int i = 0; i < sb->nstates; i++) if (strcmp(sb->states[i].name, st) == 0) return i;
@@ -452,6 +430,29 @@ static int load_sprites_gz(SpriteBank *sb, const char *path) {
                 if (!comma) break;
                 q = comma + 1;
             }
+        } else if (strncmp(p, "ANC|", 4) == 0) {
+            char *eq = strchr(p + 4, '=');
+            if (eq) {
+                *eq = 0;
+                int idx = find_state_idx(sb, p + 4);
+                if (idx < 0 && sb->nstates < MAX_STATES) { idx = sb->nstates++; snprintf(sb->states[idx].name, 32, "%.31s", p + 4); sb->states[idx].div = 2; }
+                if (idx >= 0) {
+                    char *q = eq + 1; int fi_a = 0;
+                    while (*q && fi_a < MAX_FRAMES) {
+                        char *semi = strchr(q, ';'); if (semi) *semi = 0;
+                        int hx = 0, hy = 0, tx = 0, ty = 0;
+                        if (sscanf(q, "%d,%d,%d,%d", &hx, &hy, &tx, &ty) == 4) {
+                            sb->states[idx].anc[fi_a][0] = (int8_t)hx;
+                            sb->states[idx].anc[fi_a][1] = (int8_t)hy;
+                            sb->states[idx].anc[fi_a][2] = (int8_t)tx;
+                            sb->states[idx].anc[fi_a][3] = (int8_t)ty;
+                        }
+                        fi_a++;
+                        if (!semi) break;
+                        q = semi + 1;
+                    }
+                }
+            }
         } else if (p[0] == '@') {
             int idx = find_state_idx(sb, p + 1);
             if (idx < 0 && sb->nstates < MAX_STATES) { idx = sb->nstates++; snprintf(sb->states[idx].name, 32, "%.31s", p + 1); sb->states[idx].div = 2; }
@@ -488,11 +489,16 @@ static char map_skin(const char *skin, char ch) {
     return ch;
 }
 
-static void g_rect(char g[32][32], int x0, int y0, int x1, int y1, char ch) {
-    for (int y = y0 < 0 ? 0 : y0; y <= (y1 > 31 ? 31 : y1); y++)
-        for (int x = x0 < 0 ? 0 : x0; x <= (x1 > 31 ? 31 : x1); x++) g[y][x] = ch;
+static void g_rect(char g[32][32], int dx, int dy, int x0, int y0, int x1, int y1, char ch) {
+    int ly = y0 + dy < 0 ? 0 : y0 + dy, hy = y1 + dy > 31 ? 31 : y1 + dy;
+    int lx = x0 + dx < 0 ? 0 : x0 + dx, hx = x1 + dx > 31 ? 31 : x1 + dx;
+    for (int y = ly; y <= hy; y++)
+        for (int x = lx; x <= hx; x++) g[y][x] = ch;
 }
-static void g_px(char g[32][32], int x, int y, char ch) { if (x >= 0 && x < 32 && y >= 0 && y < 32) g[y][x] = ch; }
+static void g_px(char g[32][32], int dx, int dy, int x, int y, char ch) {
+    int nx = x + dx, ny = y + dy;
+    if (nx >= 0 && nx < 32 && ny >= 0 && ny < 32) g[ny][nx] = ch;
+}
 
 static void render_frame_rgba(const SpriteBank *sb, const char *req_st, int frame_idx,
                               const char *skin, const char *item, Rgba out[32][32]) {
@@ -520,116 +526,118 @@ static void render_frame_rgba(const SpriteBank *sb, const char *req_st, int fram
     int tired = lt && lt->tm_hour >= 0 && lt->tm_hour < 4;
     int vm = lt && lt->tm_wday == 5 && lt->tm_hour >= 16;
 
-    if (!skip_overlay(st) && item) {
-        int sk_h = skip_head(st), sk_t = skip_torso(st);
-        if (strcmp(item, "scarf") == 0 && !sk_t) {
-            g_rect(g, 9, 17, 22, 18, 'r');
-            g_px(g, 9, 17, 'k'); g_px(g, 22, 17, 'k');
-            for (int x = 11; x <= 20; x += 3) g_px(g, x, 17, 'W');
-            for (int x = 10; x <= 21; x += 3) g_px(g, x, 18, 'R');
-            g_rect(g, 17, 19, 19, 22, 'r');
-            g_px(g, 18, 20, 'W'); g_px(g, 17, 21, 'R'); g_px(g, 19, 21, 'R');
-            g_px(g, 17, 23, 'W'); g_px(g, 19, 23, 'W');
-        } else if (strcmp(item, "stickycap") == 0 && !sk_h) {
-            g_rect(g, 11, 1, 20, 1, 'k');
-            g_rect(g, 10, 2, 21, 4, 'r');
-            g_px(g, 10, 2, 'k'); g_px(g, 21, 2, 'k');
-            g_rect(g, 9, 5, 18, 5, 'k');
-            g_rect(g, 19, 5, 25, 5, 'R'); g_px(g, 25, 5, 'k');
-            g_px(g, 15, 3, 'W'); g_px(g, 16, 3, 'W'); g_px(g, 15, 4, 'W');
-        } else if (strcmp(item, "hoodie") == 0 && !sk_t) {
-            g_rect(g, 9, 17, 22, 18, 'R');
-            g_rect(g, 10, 18, 21, 24, 'r');
-            g_rect(g, 7, 19, 9, 22, 'r'); g_rect(g, 22, 19, 24, 22, 'r');
-            g_px(g, 7, 22, 'R'); g_px(g, 24, 22, 'R');
-            g_rect(g, 13, 21, 18, 23, 'R');
-            g_rect(g, 10, 24, 21, 24, 'R');
-            g_px(g, 14, 19, 'W'); g_px(g, 14, 20, 'W');
-            g_px(g, 17, 19, 'W'); g_px(g, 17, 20, 'W');
-        } else if (strcmp(item, "headphones") == 0 && !sk_h) {
-            g_rect(g, 8, 3, 23, 3, 's'); g_rect(g, 7, 4, 24, 4, 'd');
-            g_px(g, 5, 6, 'd'); g_px(g, 6, 5, 'd'); g_px(g, 25, 5, 'd'); g_px(g, 26, 6, 'd');
-            g_rect(g, 2, 7, 4, 11, 'k'); g_rect(g, 27, 7, 29, 11, 'k');
-            g_rect(g, 3, 8, 4, 10, 'r'); g_rect(g, 27, 8, 28, 10, 'r');
-            g_px(g, 5, 8, 'w'); g_px(g, 5, 9, 'w'); g_px(g, 5, 10, 'w');
-            g_px(g, 26, 8, 'w'); g_px(g, 26, 9, 'w'); g_px(g, 26, 10, 'w');
-        } else if (strcmp(item, "shades") == 0 && !sk_h) {
-            g_rect(g, 9, 10, 14, 12, 'k'); g_rect(g, 17, 10, 22, 12, 'k');
-            g_rect(g, 10, 11, 13, 12, 'd'); g_rect(g, 18, 11, 21, 12, 'd');
-            g_rect(g, 14, 10, 17, 10, 'k'); g_px(g, 8, 10, 'k'); g_px(g, 23, 10, 'k');
-            g_px(g, 10, 11, 'W'); g_px(g, 11, 11, 'W');
-            g_px(g, 18, 11, 'W'); g_px(g, 19, 11, 'W');
-        } else if (strcmp(item, "crown") == 0 && !sk_h) {
-            g_rect(g, 11, 5, 20, 5, 'k');
-            g_rect(g, 11, 3, 20, 4, 'y');
-            g_px(g, 11, 1, 'y'); g_px(g, 11, 2, 'y');
-            g_px(g, 15, 1, 'y'); g_px(g, 16, 1, 'y'); g_px(g, 15, 2, 'y'); g_px(g, 16, 2, 'y');
-            g_px(g, 20, 1, 'y'); g_px(g, 20, 2, 'y');
-            g_px(g, 13, 3, 'Y'); g_px(g, 18, 3, 'Y');
-            g_px(g, 15, 4, 'R'); g_px(g, 16, 4, 'R');
-            g_px(g, 12, 4, 'b'); g_px(g, 19, 4, 'b');
-        } else if (strcmp(item, "wizard") == 0 && !sk_h) {
-            g_rect(g, 8, 5, 23, 5, 'k');
-            g_rect(g, 9, 4, 22, 4, 'm'); g_rect(g, 11, 4, 20, 4, 'y');
-            g_rect(g, 12, 2, 19, 3, 'm');
-            g_rect(g, 14, 0, 17, 1, 'm'); g_px(g, 18, 0, 'm');
-            g_px(g, 15, 2, 'y'); g_px(g, 16, 1, 'W');
-        } else if (strcmp(item, "partyhat") == 0 && !sk_h) {
-            g_rect(g, 12, 5, 19, 5, 'k');
-            g_rect(g, 13, 3, 18, 4, 'm'); g_rect(g, 14, 1, 17, 2, 'R');
-            g_px(g, 15, 0, 'y'); g_px(g, 16, 0, 'W');
-            g_px(g, 14, 4, 'y'); g_px(g, 17, 4, 'b'); g_px(g, 15, 2, 'y');
-        } else if (strcmp(item, "beanie") == 0 && !sk_h) {
-            g_rect(g, 11, 1, 20, 4, 'r'); g_rect(g, 12, 1, 19, 1, 'k');
-            g_px(g, 11, 1, '.'); g_px(g, 20, 1, '.');
-            g_rect(g, 10, 4, 21, 5, 'R'); g_px(g, 10, 5, 'k'); g_px(g, 21, 5, 'k');
-            for (int x = 11; x <= 20; x += 2) g_px(g, x, 5, 'S');
-            g_rect(g, 15, 0, 16, 1, 'W'); g_px(g, 14, 0, 'w'); g_px(g, 17, 0, 'w');
-        } else if (strcmp(item, "tophat") == 0 && !sk_h) {
-            g_rect(g, 9, 5, 22, 5, 'k');
-            g_rect(g, 11, 0, 20, 4, 'k'); g_rect(g, 12, 1, 19, 3, 'd');
-            g_rect(g, 12, 4, 19, 4, 'r'); g_px(g, 13, 1, 's'); g_px(g, 13, 2, 's');
-        } else if (strcmp(item, "chef") == 0 && !sk_h) {
-            g_rect(g, 11, 5, 20, 5, 'k'); g_rect(g, 11, 4, 20, 4, 'r');
-            g_rect(g, 10, 1, 21, 3, 'W'); g_rect(g, 12, 0, 19, 1, 'W');
-            g_px(g, 10, 1, 'w'); g_px(g, 21, 1, 'w'); g_px(g, 14, 1, 'w'); g_px(g, 17, 1, 'w');
-            g_px(g, 14, 2, 'w'); g_px(g, 17, 2, 'w'); g_rect(g, 11, 3, 20, 3, 'w');
-        } else if (strcmp(item, "halo") == 0 && !sk_h) {
-            g_rect(g, 11, 1, 20, 1, 'y'); g_rect(g, 10, 2, 21, 2, 'Y');
-            g_rect(g, 12, 2, 19, 2, '.'); g_rect(g, 11, 3, 20, 3, 'y');
-            g_px(g, 12, 1, 'W'); g_px(g, 13, 1, 't'); g_px(g, 19, 1, 't');
-        } else if (strcmp(item, "bowtie") == 0 && !sk_t) {
-            g_rect(g, 12, 17, 19, 17, 'W'); g_px(g, 11, 17, 'w'); g_px(g, 20, 17, 'w');
-            g_rect(g, 12, 18, 13, 20, 'r'); g_px(g, 14, 19, 'r');
-            g_rect(g, 18, 18, 19, 20, 'r'); g_px(g, 17, 19, 'r');
-            g_px(g, 12, 18, 'k'); g_px(g, 19, 18, 'k'); g_px(g, 12, 20, 'k'); g_px(g, 19, 20, 'k');
-            g_px(g, 15, 19, 'R'); g_px(g, 16, 19, 'y');
-        } else if (strcmp(item, "cape") == 0 && !sk_t) {
-            g_rect(g, 7, 18, 9, 26, 'S'); g_rect(g, 22, 18, 24, 26, 'S');
-            g_rect(g, 8, 19, 9, 25, 'r'); g_rect(g, 22, 19, 23, 25, 'r');
-            g_px(g, 6, 23, 'S'); g_px(g, 6, 24, 'r'); g_px(g, 6, 25, 'S');
-            g_px(g, 25, 23, 'S'); g_px(g, 25, 24, 'r'); g_px(g, 25, 25, 'S');
-            g_rect(g, 10, 17, 21, 18, 'r'); g_rect(g, 14, 17, 17, 18, 'y'); g_px(g, 15, 18, 'W');
-        } else if (strcmp(item, "labcoat") == 0 && !sk_t) {
-            g_rect(g, 9, 18, 22, 25, 'W'); g_rect(g, 7, 19, 9, 22, 'W'); g_rect(g, 22, 19, 24, 22, 'W');
-            g_px(g, 9, 18, 'w'); g_px(g, 22, 18, 'w'); g_rect(g, 9, 25, 22, 25, 'w');
-            g_rect(g, 15, 18, 16, 24, 'b'); g_px(g, 15, 18, 'A'); g_px(g, 16, 18, 'A');
-            g_px(g, 14, 18, 'w'); g_px(g, 17, 18, 'w');
-            g_rect(g, 18, 21, 20, 22, 'w'); g_px(g, 19, 20, 'r');
-        } else if (strcmp(item, "nerd") == 0 && !sk_h) {
-            g_rect(g, 9, 10, 14, 13, 'k'); g_rect(g, 17, 10, 22, 13, 'k');
-            g_rect(g, 10, 11, 13, 12, 'u'); g_rect(g, 18, 11, 21, 12, 'u');
-            g_px(g, 12, 11, 'k'); g_px(g, 20, 11, 'k'); g_px(g, 11, 11, 'W'); g_px(g, 19, 11, 'W');
-            g_rect(g, 14, 11, 17, 11, 'k'); g_px(g, 15, 11, 'W'); g_px(g, 16, 11, 'W');
-            g_px(g, 8, 11, 'k'); g_px(g, 23, 11, 'k');
+    int hx = sb->states[si].anc[fi][0], hy = sb->states[si].anc[fi][1];
+    int tx = sb->states[si].anc[fi][2], ty = sb->states[si].anc[fi][3];
+    int draw_h = (hx != 99), draw_t = (tx != 99);
+    if (item) {
+        if (strcmp(item, "scarf") == 0 && draw_t) {
+            g_rect(g, tx, ty, 9, 17, 22, 18, 'r');
+            g_px(g, tx, ty, 9, 17, 'k'); g_px(g, tx, ty, 22, 17, 'k');
+            for (int x = 11; x <= 20; x += 3) g_px(g, tx, ty, x, 17, 'W');
+            for (int x = 10; x <= 21; x += 3) g_px(g, tx, ty, x, 18, 'R');
+            g_rect(g, tx, ty, 17, 19, 19, 22, 'r');
+            g_px(g, tx, ty, 18, 20, 'W'); g_px(g, tx, ty, 17, 21, 'R'); g_px(g, tx, ty, 19, 21, 'R');
+            g_px(g, tx, ty, 17, 23, 'W'); g_px(g, tx, ty, 19, 23, 'W');
+        } else if (strcmp(item, "stickycap") == 0 && draw_h) {
+            g_rect(g, hx, hy, 11, 1, 20, 1, 'k');
+            g_rect(g, hx, hy, 10, 2, 21, 4, 'r');
+            g_px(g, hx, hy, 10, 2, 'k'); g_px(g, hx, hy, 21, 2, 'k');
+            g_rect(g, hx, hy, 9, 5, 18, 5, 'k');
+            g_rect(g, hx, hy, 19, 5, 25, 5, 'R'); g_px(g, hx, hy, 25, 5, 'k');
+            g_px(g, hx, hy, 15, 3, 'W'); g_px(g, hx, hy, 16, 3, 'W'); g_px(g, hx, hy, 15, 4, 'W');
+        } else if (strcmp(item, "hoodie") == 0 && draw_t) {
+            g_rect(g, tx, ty, 9, 17, 22, 18, 'R');
+            g_rect(g, tx, ty, 10, 18, 21, 24, 'r');
+            g_rect(g, tx, ty, 7, 19, 9, 22, 'r'); g_rect(g, tx, ty, 22, 19, 24, 22, 'r');
+            g_px(g, tx, ty, 7, 22, 'R'); g_px(g, tx, ty, 24, 22, 'R');
+            g_rect(g, tx, ty, 13, 21, 18, 23, 'R');
+            g_rect(g, tx, ty, 10, 24, 21, 24, 'R');
+            g_px(g, tx, ty, 14, 19, 'W'); g_px(g, tx, ty, 14, 20, 'W');
+            g_px(g, tx, ty, 17, 19, 'W'); g_px(g, tx, ty, 17, 20, 'W');
+        } else if (strcmp(item, "headphones") == 0 && draw_h) {
+            g_rect(g, hx, hy, 8, 3, 23, 3, 's'); g_rect(g, hx, hy, 7, 4, 24, 4, 'd');
+            g_px(g, hx, hy, 5, 6, 'd'); g_px(g, hx, hy, 6, 5, 'd'); g_px(g, hx, hy, 25, 5, 'd'); g_px(g, hx, hy, 26, 6, 'd');
+            g_rect(g, hx, hy, 2, 7, 4, 11, 'k'); g_rect(g, hx, hy, 27, 7, 29, 11, 'k');
+            g_rect(g, hx, hy, 3, 8, 4, 10, 'r'); g_rect(g, hx, hy, 27, 8, 28, 10, 'r');
+            g_px(g, hx, hy, 5, 8, 'w'); g_px(g, hx, hy, 5, 9, 'w'); g_px(g, hx, hy, 5, 10, 'w');
+            g_px(g, hx, hy, 26, 8, 'w'); g_px(g, hx, hy, 26, 9, 'w'); g_px(g, hx, hy, 26, 10, 'w');
+        } else if (strcmp(item, "shades") == 0 && draw_h) {
+            g_rect(g, hx, hy, 9, 10, 14, 12, 'k'); g_rect(g, hx, hy, 17, 10, 22, 12, 'k');
+            g_rect(g, hx, hy, 10, 11, 13, 12, 'd'); g_rect(g, hx, hy, 18, 11, 21, 12, 'd');
+            g_rect(g, hx, hy, 14, 10, 17, 10, 'k'); g_px(g, hx, hy, 8, 10, 'k'); g_px(g, hx, hy, 23, 10, 'k');
+            g_px(g, hx, hy, 10, 11, 'W'); g_px(g, hx, hy, 11, 11, 'W');
+            g_px(g, hx, hy, 18, 11, 'W'); g_px(g, hx, hy, 19, 11, 'W');
+        } else if (strcmp(item, "crown") == 0 && draw_h) {
+            g_rect(g, hx, hy, 11, 5, 20, 5, 'k');
+            g_rect(g, hx, hy, 11, 3, 20, 4, 'y');
+            g_px(g, hx, hy, 11, 1, 'y'); g_px(g, hx, hy, 11, 2, 'y');
+            g_px(g, hx, hy, 15, 1, 'y'); g_px(g, hx, hy, 16, 1, 'y'); g_px(g, hx, hy, 15, 2, 'y'); g_px(g, hx, hy, 16, 2, 'y');
+            g_px(g, hx, hy, 20, 1, 'y'); g_px(g, hx, hy, 20, 2, 'y');
+            g_px(g, hx, hy, 13, 3, 'Y'); g_px(g, hx, hy, 18, 3, 'Y');
+            g_px(g, hx, hy, 15, 4, 'R'); g_px(g, hx, hy, 16, 4, 'R');
+            g_px(g, hx, hy, 12, 4, 'b'); g_px(g, hx, hy, 19, 4, 'b');
+        } else if (strcmp(item, "wizard") == 0 && draw_h) {
+            g_rect(g, hx, hy, 8, 5, 23, 5, 'k');
+            g_rect(g, hx, hy, 9, 4, 22, 4, 'm'); g_rect(g, hx, hy, 11, 4, 20, 4, 'y');
+            g_rect(g, hx, hy, 12, 2, 19, 3, 'm');
+            g_rect(g, hx, hy, 14, 0, 17, 1, 'm'); g_px(g, hx, hy, 18, 0, 'm');
+            g_px(g, hx, hy, 15, 2, 'y'); g_px(g, hx, hy, 16, 1, 'W');
+        } else if (strcmp(item, "partyhat") == 0 && draw_h) {
+            g_rect(g, hx, hy, 12, 5, 19, 5, 'k');
+            g_rect(g, hx, hy, 13, 3, 18, 4, 'm'); g_rect(g, hx, hy, 14, 1, 17, 2, 'R');
+            g_px(g, hx, hy, 15, 0, 'y'); g_px(g, hx, hy, 16, 0, 'W');
+            g_px(g, hx, hy, 14, 4, 'y'); g_px(g, hx, hy, 17, 4, 'b'); g_px(g, hx, hy, 15, 2, 'y');
+        } else if (strcmp(item, "beanie") == 0 && draw_h) {
+            g_rect(g, hx, hy, 11, 1, 20, 4, 'r'); g_rect(g, hx, hy, 12, 1, 19, 1, 'k');
+            g_px(g, hx, hy, 11, 1, '.'); g_px(g, hx, hy, 20, 1, '.');
+            g_rect(g, hx, hy, 10, 4, 21, 5, 'R'); g_px(g, hx, hy, 10, 5, 'k'); g_px(g, hx, hy, 21, 5, 'k');
+            for (int x = 11; x <= 20; x += 2) g_px(g, hx, hy, x, 5, 'S');
+            g_rect(g, hx, hy, 15, 0, 16, 1, 'W'); g_px(g, hx, hy, 14, 0, 'w'); g_px(g, hx, hy, 17, 0, 'w');
+        } else if (strcmp(item, "tophat") == 0 && draw_h) {
+            g_rect(g, hx, hy, 9, 5, 22, 5, 'k');
+            g_rect(g, hx, hy, 11, 0, 20, 4, 'k'); g_rect(g, hx, hy, 12, 1, 19, 3, 'd');
+            g_rect(g, hx, hy, 12, 4, 19, 4, 'r'); g_px(g, hx, hy, 13, 1, 's'); g_px(g, hx, hy, 13, 2, 's');
+        } else if (strcmp(item, "chef") == 0 && draw_h) {
+            g_rect(g, hx, hy, 11, 5, 20, 5, 'k'); g_rect(g, hx, hy, 11, 4, 20, 4, 'r');
+            g_rect(g, hx, hy, 10, 1, 21, 3, 'W'); g_rect(g, hx, hy, 12, 0, 19, 1, 'W');
+            g_px(g, hx, hy, 10, 1, 'w'); g_px(g, hx, hy, 21, 1, 'w'); g_px(g, hx, hy, 14, 1, 'w'); g_px(g, hx, hy, 17, 1, 'w');
+            g_px(g, hx, hy, 14, 2, 'w'); g_px(g, hx, hy, 17, 2, 'w'); g_rect(g, hx, hy, 11, 3, 20, 3, 'w');
+        } else if (strcmp(item, "halo") == 0 && draw_h) {
+            g_rect(g, hx, hy, 11, 1, 20, 1, 'y'); g_rect(g, hx, hy, 10, 2, 21, 2, 'Y');
+            g_rect(g, hx, hy, 12, 2, 19, 2, '.'); g_rect(g, hx, hy, 11, 3, 20, 3, 'y');
+            g_px(g, hx, hy, 12, 1, 'W'); g_px(g, hx, hy, 13, 1, 't'); g_px(g, hx, hy, 19, 1, 't');
+        } else if (strcmp(item, "bowtie") == 0 && draw_t) {
+            g_rect(g, tx, ty, 12, 17, 19, 17, 'W'); g_px(g, tx, ty, 11, 17, 'w'); g_px(g, tx, ty, 20, 17, 'w');
+            g_rect(g, tx, ty, 12, 18, 13, 20, 'r'); g_px(g, tx, ty, 14, 19, 'r');
+            g_rect(g, tx, ty, 18, 18, 19, 20, 'r'); g_px(g, tx, ty, 17, 19, 'r');
+            g_px(g, tx, ty, 12, 18, 'k'); g_px(g, tx, ty, 19, 18, 'k'); g_px(g, tx, ty, 12, 20, 'k'); g_px(g, tx, ty, 19, 20, 'k');
+            g_px(g, tx, ty, 15, 19, 'R'); g_px(g, tx, ty, 16, 19, 'y');
+        } else if (strcmp(item, "cape") == 0 && draw_t) {
+            g_rect(g, tx, ty, 7, 18, 9, 26, 'S'); g_rect(g, tx, ty, 22, 18, 24, 26, 'S');
+            g_rect(g, tx, ty, 8, 19, 9, 25, 'r'); g_rect(g, tx, ty, 22, 19, 23, 25, 'r');
+            g_px(g, tx, ty, 6, 23, 'S'); g_px(g, tx, ty, 6, 24, 'r'); g_px(g, tx, ty, 6, 25, 'S');
+            g_px(g, tx, ty, 25, 23, 'S'); g_px(g, tx, ty, 25, 24, 'r'); g_px(g, tx, ty, 25, 25, 'S');
+            g_rect(g, tx, ty, 10, 17, 21, 18, 'r'); g_rect(g, tx, ty, 14, 17, 17, 18, 'y'); g_px(g, tx, ty, 15, 18, 'W');
+        } else if (strcmp(item, "labcoat") == 0 && draw_t) {
+            g_rect(g, tx, ty, 9, 18, 22, 25, 'W'); g_rect(g, tx, ty, 7, 19, 9, 22, 'W'); g_rect(g, tx, ty, 22, 19, 24, 22, 'W');
+            g_px(g, tx, ty, 9, 18, 'w'); g_px(g, tx, ty, 22, 18, 'w'); g_rect(g, tx, ty, 9, 25, 22, 25, 'w');
+            g_rect(g, tx, ty, 15, 18, 16, 24, 'b'); g_px(g, tx, ty, 15, 18, 'A'); g_px(g, tx, ty, 16, 18, 'A');
+            g_px(g, tx, ty, 14, 18, 'w'); g_px(g, tx, ty, 17, 18, 'w');
+            g_rect(g, tx, ty, 18, 21, 20, 22, 'w'); g_px(g, tx, ty, 19, 20, 'r');
+        } else if (strcmp(item, "nerd") == 0 && draw_h) {
+            g_rect(g, hx, hy, 9, 10, 14, 13, 'k'); g_rect(g, hx, hy, 17, 10, 22, 13, 'k');
+            g_rect(g, hx, hy, 10, 11, 13, 12, 'u'); g_rect(g, hx, hy, 18, 11, 21, 12, 'u');
+            g_px(g, hx, hy, 12, 11, 'k'); g_px(g, hx, hy, 20, 11, 'k'); g_px(g, hx, hy, 11, 11, 'W'); g_px(g, hx, hy, 19, 11, 'W');
+            g_rect(g, hx, hy, 14, 11, 17, 11, 'k'); g_px(g, hx, hy, 15, 11, 'W'); g_px(g, hx, hy, 16, 11, 'W');
+            g_px(g, hx, hy, 8, 11, 'k'); g_px(g, hx, hy, 23, 11, 'k');
         }
-        if (tired && !sk_h) {
+        if (tired && draw_h && strcmp(st, "HYPER") != 0) {
             int xs[4] = {11, 12, 19, 20}, ys[2] = {11, 13};
-            for (int ix = 0; ix < 4; ix++) for (int iy = 0; iy < 2; iy++) g_px(g, xs[ix], ys[iy], 's');
+            for (int ix = 0; ix < 4; ix++) for (int iy = 0; iy < 2; iy++) g_px(g, hx, hy, xs[ix], ys[iy], 's');
         }
-        if (vm && strcmp(st, "EAT") != 0 && strcmp(st, "STUDY") != 0 && strcmp(st, "JUMP") != 0 &&
+        if (vm && draw_t && strcmp(st, "EAT") != 0 && strcmp(st, "STUDY") != 0 && strcmp(st, "JUMP") != 0 &&
             strcmp(st, "CLIMB") != 0 && strcmp(st, "BORREL") != 0) {
-            g_rect(g, 24, 18, 28, 23, 'k'); g_rect(g, 25, 19, 27, 22, 'y'); g_rect(g, 24, 17, 27, 18, 'W');
+            g_rect(g, tx, ty, 24, 18, 28, 23, 'k'); g_rect(g, tx, ty, 25, 19, 27, 22, 'y'); g_rect(g, tx, ty, 24, 17, 27, 18, 'W');
         }
     }
 
@@ -2159,7 +2167,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.1", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.2", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
