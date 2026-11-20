@@ -920,7 +920,7 @@ namespace KarelNative {
 
     // Read-only GitHub Releases version checker (fetches version.json capped at 64 KB; never downloads or runs code).
     internal static class AutoUpdater {
-        public const string Version = "2.7.2";
+        public const string Version = "2.7.3";
         public const string ManifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json";
         public const string ReleasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest";
         private const int MaxManifestBytes = 65536;
@@ -1012,12 +1012,13 @@ namespace KarelNative {
         }
     }
 
-    // Loads centralized NL/EN voice lines, titles, outfit quotes, and tricks from embedded locale.json.
+    // Loads centralized NL/EN voice lines, titles, outfit quotes, UI labels, and tricks from embedded locale.json.
     internal sealed class LocaleSet {
         public string[] Quotes = new string[0], Morning = new string[0], Night = new string[0], Friday = new string[0];
         public string[] Pet = new string[0], Feed = new string[0], Coffee = new string[0], Wash = new string[0];
         public string[] TossSoft = new string[0], TossHard = new string[0], LevelTitles = new string[0];
         public Dictionary<string, string> OutfitQuotes = new Dictionary<string, string>();
+        public Dictionary<string, string> Ui = new Dictionary<string, string>();
     }
 
     internal sealed class TrickEntry {
@@ -1030,6 +1031,13 @@ namespace KarelNative {
         public readonly List<TrickEntry> Tricks = new List<TrickEntry>();
 
         public LocaleSet For(bool en) { return en ? En : Nl; }
+
+        public string Tr(string key, bool en) {
+            string val;
+            if (For(en).Ui.TryGetValue(key, out val) && !string.IsNullOrEmpty(val)) return val;
+            if (Nl.Ui.TryGetValue(key, out val) && !string.IsNullOrEmpty(val)) return val;
+            return key;
+        }
 
         public string LevelTitle(int lvl, bool en) {
             LocaleSet ls = For(en);
@@ -1076,6 +1084,15 @@ namespace KarelNative {
                 if (m != null) {
                     foreach (KeyValuePair<string, object> kv in m) {
                         if (kv.Value != null) s.OutfitQuotes[kv.Key] = kv.Value.ToString();
+                    }
+                }
+            }
+            object uiObj;
+            if (d.TryGetValue("ui", out uiObj)) {
+                Dictionary<string, object> um = uiObj as Dictionary<string, object>;
+                if (um != null) {
+                    foreach (KeyValuePair<string, object> kv in um) {
+                        if (kv.Value != null) s.Ui[kv.Key] = kv.Value.ToString();
                     }
                 }
             }
@@ -1168,6 +1185,7 @@ namespace KarelNative {
 
         private string LevelTitle(int lvl, bool en) { return locale.LevelTitle(lvl, en); }
         private string OutfitQuote(string item, bool en) { return locale.OutfitQuote(item, en); }
+        private string Tr(string key) { return locale.Tr(key, IsEn()); }
 
         private void PlayChirp() {
             string[] c = { "chirp", "chirp2", "chirp3", "chirp4" };
@@ -1191,7 +1209,7 @@ namespace KarelNative {
                 if (!string.IsNullOrEmpty(oq)) return oq;
             }
             DateTime now = DateTime.Now;
-            if (now.Hour == 21 && now.Minute == 21) return en ? "21:21 on the clock... Vo' B21!!" : "21:21 op de klok... Vo' B21!!";
+            if (now.Hour == 21 && now.Minute == 21) return Tr("msg_b21_clock");
             if (now.Hour >= 0 && now.Hour < 5) return LocaleBank.Pick(ls.Night, rng);
             if (now.DayOfWeek == DayOfWeek.Friday && now.Hour >= 16 && rng.NextDouble() < 0.40) return LocaleBank.Pick(ls.Friday, rng);
             if (now.Hour >= 6 && now.Hour < 11 && rng.NextDouble() < 0.35) return LocaleBank.Pick(ls.Morning, rng);
@@ -1286,7 +1304,7 @@ namespace KarelNative {
                 Shown += delegate { Hide(); Opacity = 1.0; };
             } else {
                 tick.Start();
-                TriggerClimb(IsEn() ? "Karel climbed onto your desktop!" : "Karel klimt je bureau op!");
+                TriggerClimb(Tr("msg_welcome"));
             }
         }
 
@@ -1444,7 +1462,7 @@ namespace KarelNative {
                 SpawnParticles("*", Color.Gold, 21);
                 snd.Play("levelup");
                 ser.Send("STATE:B21");
-                Say(IsEn() ? "Vo' B21!! 21x pet bonus! +21 XP!" : "Vo' B21!! 21x geaaid bonus! +21 XP!", 65);
+                Say(Tr("msg_b21_pet"), 65);
             } else {
                 SetAction(save.GetInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28);
                 AwardXp(8);
@@ -1480,7 +1498,7 @@ namespace KarelNative {
             if (coffeeTimes.Count >= 3) {
                 hyperTicks = 95;
                 ser.Send("STATE:HYPER");
-                Say(IsEn() ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75);
+                Say(Tr("msg_caffeine_od"), 75);
             } else {
                 Say(LocaleBank.Pick(locale.For(IsEn()).Coffee, rng), 45);
             }
@@ -1501,11 +1519,11 @@ namespace KarelNative {
         private void NapToggle() {
             if (state == "SLEEP") {
                 state = "STRETCH"; actTicks = 18;
-                Say(IsEn() ? "Good morning! Refreshed!" : "Goedemorgen! Uitgerust!", 40);
+                Say(Tr("msg_nap_wake"), 40);
             } else {
                 state = "SLEEP"; actTicks = 220;
                 snd.Play("dive");
-                Say(IsEn() ? "Zzz... Sticky powernap!" : "Zzz... Sticky powernap!", 45);
+                Say(Tr("msg_nap_start"), 45);
             }
         }
 
@@ -1516,7 +1534,7 @@ namespace KarelNative {
             SpawnParticles("*", Color.Gold, 16);
             ser.Send("STATE:PARTY");
             snd.Play("levelup");
-            Say(IsEn() ? "DISCO BORREL MODE ON!" : "DISCO BORREL MODE AAN!", 80);
+            Say(Tr("msg_disco"), 80);
             save.Save(); RefreshHub();
         }
 
@@ -1528,7 +1546,7 @@ namespace KarelNative {
             SpawnParticles("*", Color.Gold, 21);
             ser.Send("STATE:B21");
             snd.Play("levelup");
-            Say(IsEn() ? "Vo' B21!! Board 21 represent! +21 XP!" : "Vo' B21!! Bestuur 21 represent! +21 XP!", 85);
+            Say(Tr("msg_b21_code"), 85);
             save.Save(); RefreshHub();
         }
 
@@ -1536,7 +1554,7 @@ namespace KarelNative {
             AwardXp(10);
             snd.Play("boop");
             SpawnParticles("*", Color.Gold, 10);
-            TriggerClimb("SuperMini Boop! +10 XP!");
+            TriggerClimb(Tr("msg_boop"));
             save.Save(); RefreshHub();
         }
 
@@ -1549,7 +1567,7 @@ namespace KarelNative {
             climbing = true; climbStep = 0; climbMsg = msg;
             roamTx = wx; roamTy = wy; roamWait = 95;
             snd.Play("climb");
-            Say(IsEn() ? "Climbing up..." : "Even over de taakbalk klimmen...", 26);
+            Say(Tr("msg_climbing"), 26);
         }
 
         private void WakeFromTray() {
@@ -1561,7 +1579,7 @@ namespace KarelNative {
                 TopMost = true;
                 try { NativeWin.SetWindowPos(Handle, (IntPtr)(-1), (int)Math.Round(wx), (int)Math.Round(wy), Width, Height, 0x0050); } catch { }
             }
-            TriggerClimb(IsEn() ? "I'm back! (Ctrl+Alt+K)" : "Daar ben ik weer! (Ctrl+Alt+K)");
+            TriggerClimb(Tr("msg_back"));
         }
 
         private void TriggerDive(string mode, string customMsg = null) {
@@ -1569,9 +1587,7 @@ namespace KarelNative {
             diveMode = mode; closing = true; closeStep = 0; climbing = false; flying = false; dragging = false; umbrellaFall = false;
             jumpY = 0; closeStartY = wy; actTicks = 0;
             string diveMsg = !string.IsNullOrEmpty(customMsg) ? customMsg
-                : (mode == "tray"
-                    ? (IsEn() ? "Napping in tray! (Ctrl+Alt+K)" : "Even dutten in systeemvak! (Ctrl+Alt+K)")
-                    : (IsEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!"));
+                : (mode == "tray" ? Tr("msg_dive_tray") : Tr("msg_dive_quit"));
             Say(diveMsg, 40);
             SpawnParticles("*", Color.FromArgb(255, 122, 144), 4);
             snd.Play("dive");
@@ -1611,20 +1627,20 @@ namespace KarelNative {
             TopMost = true;
             try { NativeWin.SetWindowPos(Handle, (IntPtr)(-1), (int)Math.Round(wx), (int)Math.Round(wy), Width, Height, 0x0050); } catch { }
             tick.Start();
-            TriggerClimb(IsEn() ? "KAREL USB connected!" : "KAREL USB verbonden!");
+            TriggerClimb(Tr("msg_usb_connected"));
             Invalidate();
         }
 
         private void CheckForUpdatesManual() {
             if (updateBusy) return;
             updateBusy = true;
-            Say(IsEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55);
+            Say(Tr("msg_upd_checking"), 55);
             AutoUpdater.CheckNowAsync(
                 delegate(string ver) {
                     try {
                         BeginInvoke(new Action(delegate {
                             updateBusy = false;
-                            Say(string.Format(IsEn() ? "Update v{0} available! Opening GitHub..." : "Update v{0} beschikbaar! GitHub openen...", ver), 80);
+                            Say(string.Format(Tr("msg_upd_available"), ver), 80);
                             try { Process.Start(new ProcessStartInfo(AutoUpdater.ReleasesUrl) { UseShellExecute = true }); } catch { }
                         }));
                     } catch { updateBusy = false; }
@@ -1633,20 +1649,18 @@ namespace KarelNative {
                     try {
                         BeginInvoke(new Action(delegate {
                             updateBusy = false;
-                            if (status == "uptodate") Say(string.Format(IsEn() ? "Up to date (v{0})!" : "Al de nieuwste versie (v{0})!", AutoUpdater.Version), 65);
-                            else if (status == "offline") Say(IsEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60);
-                            else Say(IsEn() ? "Update check failed." : "Update-check mislukt.", 60);
+                            if (status == "uptodate") Say(string.Format(Tr("msg_upd_uptodate"), AutoUpdater.Version), 65);
+                            else if (status == "offline") Say(Tr("msg_upd_offline"), 60);
+                            else Say(Tr("msg_upd_error"), 60);
                         }));
                     } catch { updateBusy = false; }
                 });
         }
 
         private void DoUninstallFromPc() {
-            bool en = IsEn();
             DialogResult r = MessageBox.Show(
-                en ? "Remove all Karel files from this PC (auto-start, local copy & local backup)?\nYour USB stick will NOT be touched."
-                   : "Alle Karel-bestanden van deze laptop verwijderen (auto-start, lokale kopie & lokale back-up)?\nJe USB-stick blijft gewoon bewaard.",
-                en ? "Uninstall Karel from this PC" : "Karel verwijderen van deze laptop",
+                Tr("uninst_body"),
+                Tr("uninst_title"),
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question
             );
@@ -1751,9 +1765,9 @@ namespace KarelNative {
                             FinalizeQuit(false); return;
                         }
                     } else if (autoOn) {
-                        TriggerDive(onLocal ? "usb_sleep" : "handoff", IsEn() ? "USB unplugged! See you next time!" : "USB los! Tot de volgende keer!");
+                        TriggerDive(onLocal ? "usb_sleep" : "handoff", Tr("msg_usb_sleep"));
                     } else {
-                        TriggerDive("quit", IsEn() ? "USB unplugged! Bye!" : "USB los! Doei!");
+                        TriggerDive("quit", Tr("msg_usb_unplugged"));
                     }
                 } else if (usb == "on") {
                     save.Load();
@@ -1761,7 +1775,7 @@ namespace KarelNative {
                     UpdateFormSize();
                     RefreshHub();
                     if (trayHidden) WakeFromTray();
-                    else TriggerClimb(IsEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!");
+                    else TriggerClimb(Tr("msg_usb_reconnected"));
                 }
             }
             if (focusActive && (DateTime.Now - focusLastTick).TotalSeconds >= 1.0) {
@@ -1773,7 +1787,7 @@ namespace KarelNative {
                     SetAction("CELEBRATE", 40);
                     SpawnParticles("*", Color.Gold, 14);
                     snd.Play("levelup");
-                    Say(IsEn() ? "Focus complete! +45 XP!" : "Focus klaar! +45 XP!", 70);
+                    Say(Tr("msg_focus_done"), 70);
                     save.Save(); RefreshHub();
                 }
             }
@@ -1897,7 +1911,7 @@ namespace KarelNative {
                 } else roamTy = gy;
                 if ((!curLedge.HasValue && wy < gy - 18) || roamTy > wy + 28) {
                     umbrellaFall = true; roamWait = 0; roamTicks = 0; actTicks = 0;
-                    Say(IsEn() ? "Window gone! Sticky umbrella open!" : "Oeps, venster weg! Paraplu open!", 42);
+                    Say(Tr("msg_umbrella"), 42);
                     return;
                 }
             }
@@ -1964,7 +1978,7 @@ namespace KarelNative {
                     if (noseClicks >= 7) {
                         noseClicks = 0; snd.Play("sneeze"); SetAction("SNEEZE", 24);
                         SpawnParticles("*", Color.WhiteSmoke, 10);
-                        Say(IsEn() ? "Achoo! BBG dust!" : "Hatsjoe! BBG stof!", 55);
+                        Say(Tr("msg_sneeze"), 55);
                     }
                 } else if (actTicks == 0 && state != "SLEEP") {
                     Say(PickSmartQuote(), 55); PlayChirp();
@@ -2057,58 +2071,58 @@ namespace KarelNative {
         private void ShowKarelContextMenu(Point pt) {
             ContextMenuStrip m = new ContextMenuStrip();
             bool en = IsEn();
-            m.Items.Add(en ? "Open Sticky Hub" : "Open Sticky Hub", null, delegate { OpenHub(); });
+            m.Items.Add(Tr("open_hub"), null, delegate { OpenHub(); });
             m.Items.Add(new ToolStripSeparator());
-            m.Items.Add(en ? "Feed Eucalyptus" : "Voer Eucalyptus", null, delegate { DoFeed(); });
-            m.Items.Add(en ? "Sticky Coffee" : "Sticky Koffie", null, delegate { DoCoffee(); });
-            m.Items.Add(en ? "Pet Karel" : "Aai Karel", null, delegate { DoPet(); });
-            m.Items.Add(en ? "Wash Karel" : "Was Karel", null, delegate { DoWash(); });
-            m.Items.Add(en ? "Powernap ON/OFF" : "Powernap AAN/UIT", null, delegate { NapToggle(); });
-            m.Items.Add(focusActive ? "Stop Focus" : (en ? "Focus Mode (25m)" : "Focus Modus (25m)"), null, delegate { ToggleFocus(); });
+            m.Items.Add(Tr("menu_feed"), null, delegate { DoFeed(); });
+            m.Items.Add(Tr("menu_coffee"), null, delegate { DoCoffee(); });
+            m.Items.Add(Tr("menu_pet"), null, delegate { DoPet(); });
+            m.Items.Add(Tr("menu_wash"), null, delegate { DoWash(); });
+            m.Items.Add(Tr("menu_nap"), null, delegate { NapToggle(); });
+            m.Items.Add(focusActive ? Tr("menu_focus_stop") : Tr("menu_focus_start"), null, delegate { ToggleFocus(); });
             m.Items.Add(new ToolStripSeparator());
 
-            ToolStripMenuItem tm = new ToolStripMenuItem(en ? "Tricks & Animations" : "Trucjes & Animaties");
+            ToolStripMenuItem tm = new ToolStripMenuItem(Tr("menu_tricks"));
             for (int i = 0; i < locale.Tricks.Count; i++) {
                 TrickEntry tr = locale.Tricks[i];
                 tm.DropDownItems.Add(tr.Label, null, delegate { SetAction(tr.State, 42); Say(tr.Msg, 48); PlayTrickSound(tr.State); });
             }
             m.Items.Add(tm);
 
-            ToolStripMenuItem rm = new ToolStripMenuItem(en ? "Roam Mode" : "Loopgedrag");
-            rm.DropDownItems.Add(en ? "Free Roam" : "Heel Scherm", null, delegate { SetRoam("free"); });
-            rm.DropDownItems.Add(en ? "Active Window" : "Op Actief Venster", null, delegate { SetRoam("window"); });
-            rm.DropDownItems.Add(en ? "Follow Mouse" : "Volg Muis", null, delegate { SetRoam("cursor"); });
-            rm.DropDownItems.Add(en ? "Stay Put" : "Blijf Zitten", null, delegate { SetRoam("park"); });
+            ToolStripMenuItem rm = new ToolStripMenuItem(Tr("menu_roam"));
+            rm.DropDownItems.Add(Tr("roam_free"), null, delegate { SetRoam("free"); });
+            rm.DropDownItems.Add(Tr("roam_window"), null, delegate { SetRoam("window"); });
+            rm.DropDownItems.Add(Tr("roam_cursor"), null, delegate { SetRoam("cursor"); });
+            rm.DropDownItems.Add(Tr("roam_park"), null, delegate { SetRoam("park"); });
             m.Items.Add(rm);
 
-            ToolStripMenuItem sm = new ToolStripMenuItem(en ? "Size" : "Grootte");
+            ToolStripMenuItem sm = new ToolStripMenuItem(Tr("menu_size"));
             for (int sc = 2; sc <= 5; sc++) {
                 int sVal = sc;
                 sm.DropDownItems.Add(string.Format("{0}x ({1}px)", sVal, sVal * 32), null, delegate { SetScale(sVal); });
             }
             m.Items.Add(sm);
 
-            m.Items.Add(en ? "Sound On/Off" : "Geluid Aan/Uit", null, delegate { snd.Muted = !snd.Muted; RefreshHub(); });
-            m.Items.Add(en ? "Auto-Quiet Fullscreen" : "Auto-Stil Fullscreen", null, delegate {
+            m.Items.Add(Tr("menu_sound"), null, delegate { snd.Muted = !snd.Muted; RefreshHub(); });
+            m.Items.Add(Tr("menu_auto_quiet"), null, delegate {
                 save.Data["auto_quiet_fullscreen"] = !save.GetBool("auto_quiet_fullscreen", true);
                 save.Save(); RefreshHub();
             });
-            m.Items.Add(en ? "Language: NL / EN" : "Taal: NL / EN", null, delegate {
+            m.Items.Add(Tr("menu_lang"), null, delegate {
                 save.Data["language"] = en ? "nl" : "en"; save.Save(); RefreshHub();
             });
-            ToolStripMenuItem bgIt = new ToolStripMenuItem(en ? "Auto-open on USB plug-in" : "Automatisch openen bij USB");
+            ToolStripMenuItem bgIt = new ToolStripMenuItem(Tr("menu_autostart"));
             bgIt.Checked = StartupHelper.IsEnabled();
             bgIt.Click += delegate {
                 bool on = StartupHelper.Toggle();
-                Say(on ? (en ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (en ? "Auto-open on USB OFF." : "Automatisch openen bij USB UIT."), 55);
+                Say(on ? Tr("msg_autostart_on") : Tr("msg_autostart_off"), 55);
                 RefreshHub();
             };
             m.Items.Add(bgIt);
-            m.Items.Add(en ? "Check for updates" : "Check op updates", null, delegate { CheckForUpdatesManual(); });
-            m.Items.Add(en ? "Uninstall from this PC..." : "Verwijder van deze laptop...", null, delegate { DoUninstallFromPc(); });
+            m.Items.Add(Tr("menu_check_updates"), null, delegate { CheckForUpdatesManual(); });
+            m.Items.Add(Tr("menu_uninstall"), null, delegate { DoUninstallFromPc(); });
             m.Items.Add(new ToolStripSeparator());
-            m.Items.Add(en ? "Hide Behind Taskbar (Ctrl+Alt+K)" : "Verberg achter Taakbalk (Ctrl+Alt+K)", null, delegate { Enqueue("EVENT:TRAY_TOGGLE"); });
-            m.Items.Add(en ? "Dive & Quit" : "Duik achter Taakbalk & Sluit", null, delegate { Enqueue("EVENT:QUIT_NOW"); });
+            m.Items.Add(Tr("menu_hide") + " (Ctrl+Alt+K)", null, delegate { Enqueue("EVENT:TRAY_TOGGLE"); });
+            m.Items.Add(Tr("menu_dive_quit"), null, delegate { Enqueue("EVENT:QUIT_NOW"); });
             m.Show(pt);
         }
 
@@ -2128,8 +2142,8 @@ namespace KarelNative {
 
         private void ToggleFocus() {
             focusActive = !focusActive;
-            if (focusActive) { focusRem = 25 * 60; focusLastTick = DateTime.Now; Say("Focus: 25m!", 45); }
-            else Say(IsEn() ? "Focus stopped." : "Focus gestopt.", 35);
+            if (focusActive) { focusRem = 25 * 60; focusLastTick = DateTime.Now; Say(Tr("msg_focus_start"), 45); }
+            else Say(Tr("msg_focus_stop"), 35);
             RefreshHub();
         }
 
@@ -2153,7 +2167,7 @@ namespace KarelNative {
                 if (botL != null) botL.Text = HubVitalsLine();
             }
 
-            string[] actKeys = { en ? "Feed" : "Voer", en ? "Coffee" : "Koffie", en ? "Pet" : "Aai", en ? "Wash" : "Was", "Powernap", focusActive ? "Stop Focus" : "Focus 25m" };
+            string[] actKeys = { Tr("btn_feed"), Tr("btn_coffee"), Tr("btn_pet"), Tr("btn_wash"), Tr("btn_nap"), focusActive ? Tr("btn_focus_stop") : Tr("btn_focus_start") };
             for (int i = 0; i < 6; i++) {
                 Control ab = hubForm.Controls["actBtn" + i];
                 if (ab != null) ab.Text = actKeys[i];
@@ -2162,13 +2176,13 @@ namespace KarelNative {
             Control styleCard = hubForm.Controls["styleCard"];
             if (styleCard != null) {
                 Control sl = styleCard.Controls["styleLbl"];
-                if (sl != null) sl.Text = en ? "Style:" : "Stijl:";
+                if (sl != null) sl.Text = Tr("lbl_style");
                 Control sb = styleCard.Controls["skinBtn"];
-                if (sb != null) sb.Text = string.Format("{0}: {1}  v", en ? "Coat" : "Vacht", save.GetStr("skin", "classic"));
+                if (sb != null) sb.Text = string.Format("{0}: {1}  v", Tr("lbl_coat"), save.GetStr("skin", "classic"));
                 Control ob = styleCard.Controls["outBtn"];
                 if (ob != null) {
                     string eq = save.GetEquippedItem();
-                    ob.Text = string.Format("Outfit: {0}  v", string.IsNullOrEmpty(eq) ? (en ? "none" : "geen") : eq);
+                    ob.Text = string.Format("{0}: {1}  v", Tr("lbl_outfit"), string.IsNullOrEmpty(eq) ? Tr("lbl_none") : eq);
                 }
             }
 
@@ -2183,8 +2197,8 @@ namespace KarelNative {
             if (hidBtn != null && usb != null) {
                 hidBtn.Visible = true;
                 hidBtn.Text = HidFlagLabel();
-                if (updBtn != null) updBtn.Text = en ? "Check for updates" : "Check op updates";
-                if (uninstBtn != null) uninstBtn.Text = en ? "Uninstall from PC" : "Verwijder van laptop";
+                if (updBtn != null) updBtn.Text = Tr("menu_check_updates");
+                if (uninstBtn != null) uninstBtn.Text = Tr("btn_uninstall");
                 usb.Text = HubUsbLine();
                 int anchorBottom = (updBtn != null) ? updBtn.Bottom : hidBtn.Bottom;
                 usb.Top = anchorBottom + Sc(8, GetDpiScale());
@@ -2195,36 +2209,30 @@ namespace KarelNative {
         }
 
         private string AutoQuietLabel() {
-            bool aq = save.GetBool("auto_quiet_fullscreen", true);
-            return (IsEn() ? "Quiet: " : "Auto-Stil: ") + (aq ? (IsEn() ? "ON" : "AAN") : (IsEn() ? "OFF" : "UIT"));
+            return save.GetBool("auto_quiet_fullscreen", true) ? Tr("btn_quiet_on") : Tr("btn_quiet_off");
         }
 
         private string SoundLabel() {
-            return (IsEn() ? "Sound: " : "Geluid: ") + (snd.Muted ? (IsEn() ? "OFF" : "UIT") : (IsEn() ? "ON" : "AAN"));
+            return snd.Muted ? Tr("btn_sound_off") : Tr("btn_sound_on");
         }
 
         private string HidFlagLabel() {
-            bool on = StartupHelper.IsEnabled();
-            return on
-                ? (IsEn() ? "Auto-open on USB plug-in: ON" : "Automatisch openen bij USB: AAN")
-                : (IsEn() ? "Auto-open on USB plug-in: OFF" : "Automatisch openen bij USB: UIT");
+            return StartupHelper.IsEnabled() ? Tr("btn_autostart_on") : Tr("btn_autostart_off");
         }
 
         private string HubUsbLine() {
-            bool en = IsEn();
-            string usbTxt = save.Connected ? ("● USB: KAREL (" + save.DriveRoot + ")") : (en ? "○ Memory mode (no USB)" : "○ Geheugen-modus (geen USB)");
-            string serTxt = string.IsNullOrEmpty(ser.PortName) ? (en ? "Serial: waiting..." : "Serial: wachten...") : ("RP2350 @ " + ser.PortName);
+            string usbTxt = save.Connected ? ("● USB: KAREL (" + save.DriveRoot + ")") : ("○ " + Tr("status_no_usb"));
+            string serTxt = string.IsNullOrEmpty(ser.PortName) ? Tr("status_serial_wait") : ("RP2350 @ " + ser.PortName);
             return usbTxt + "   |   " + serTxt;
         }
 
         private string HubVitalsLine() {
-            bool en = IsEn();
             return string.Format(
                 "{0}: {1}%  ·  {2}: {3}%  ·  {4}: {5}%  ·  {6}: {7}%",
-                en ? "Hungry" : "Honger", save.GetInt("hunger", 80),
-                en ? "Happy" : "Blij", save.GetInt("happiness", 85),
-                en ? "Energy" : "Energie", save.GetInt("energy", 85),
-                en ? "Clean" : "Fris", save.GetInt("hygiene", 90)
+                Tr("stat_hungry"), save.GetInt("hunger", 80),
+                Tr("stat_happy"), save.GetInt("happiness", 85),
+                Tr("stat_energy"), save.GetInt("energy", 85),
+                Tr("stat_clean"), save.GetInt("hygiene", 90)
             );
         }
 
@@ -2239,12 +2247,11 @@ namespace KarelNative {
         }
 
         private void ShowPickerMenu(Control anchor, string[] ids, bool isSkin) {
-            bool en = IsEn();
             ContextMenuStrip m = new ContextMenuStrip();
             string cur = isSkin ? save.GetStr("skin", "classic") : save.GetEquippedItem();
             for (int i = 0; i < ids.Length; i++) {
                 string id = ids[i];
-                string lbl = string.IsNullOrEmpty(id) ? (en ? "(none)" : "(geen)") : id;
+                string lbl = string.IsNullOrEmpty(id) ? Tr("lbl_none_parens") : id;
                 ToolStripMenuItem it = new ToolStripMenuItem((id == cur ? "✓ " : "   ") + lbl);
                 it.Click += delegate {
                     if (isSkin) save.Data["skin"] = id; else save.SetEquippedItem(id);
@@ -2258,7 +2265,6 @@ namespace KarelNative {
         private void OpenHub() {
             if (trayHidden) WakeFromTray();
             if (hubForm != null && !hubForm.IsDisposed) { hubForm.Activate(); RefreshHub(); return; }
-            bool en = IsEn();
             float s = GetDpiScale();
             int W = Sc(560, s), P = Sc(18, s), Win = W - 2 * P, gap = Sc(10, s);
 
@@ -2317,7 +2323,7 @@ namespace KarelNative {
 
             curY += cardH + Sc(14, s);
             int bw = (Win - 2 * gap) / 3, bh = Sc(38, s);
-            string[] lbls = { en ? "Feed" : "Voer", en ? "Coffee" : "Koffie", en ? "Pet" : "Aai", en ? "Wash" : "Was", "Powernap", "Focus 25m" };
+            string[] lbls = { Tr("btn_feed"), Tr("btn_coffee"), Tr("btn_pet"), Tr("btn_wash"), Tr("btn_nap"), Tr("btn_focus_start") };
             Action[] acts = { DoFeed, DoCoffee, DoPet, DoWash, NapToggle, ToggleFocus };
             Color[] cols = {
                 Color.FromArgb(38, 115, 77), Color.FromArgb(115, 75, 58), Color.FromArgb(168, 32, 90),
@@ -2338,7 +2344,7 @@ namespace KarelNative {
                 BackColor = Color.FromArgb(27, 31, 42)
             };
             Label stLbl = new Label {
-                Name = "styleLbl", Text = en ? "Style:" : "Stijl:",
+                Name = "styleLbl", Text = Tr("lbl_style"),
                 Location = new Point(Sc(12, s), Sc(10, s)), Size = new Size(Sc(52, s), Sc(28, s)),
                 Font = new Font("Segoe UI", 9.0f, FontStyle.Bold), ForeColor = Color.FromArgb(152, 162, 184),
                 TextAlign = ContentAlignment.MiddleLeft
@@ -2350,7 +2356,7 @@ namespace KarelNative {
             Button outBtn = MakeFlatBtn("", Sc(72, s) + pkw, Sc(8, s), pkw, Sc(32, s), Color.FromArgb(42, 48, 66), 8.5f);
             outBtn.Name = "outBtn";
             outBtn.Click += delegate { ShowPickerMenu(outBtn, SpriteBank.OutfitIds, false); };
-            Button rndBtn = MakeFlatBtn("Random", Sc(78, s) + 2 * pkw, Sc(8, s), Win - Sc(88, s) - 2 * pkw, Sc(32, s), Color.FromArgb(132, 42, 108), 8.5f);
+            Button rndBtn = MakeFlatBtn(Tr("btn_random"), Sc(78, s) + 2 * pkw, Sc(8, s), Win - Sc(88, s) - 2 * pkw, Sc(32, s), Color.FromArgb(132, 42, 108), 8.5f);
             rndBtn.Name = "rndBtn";
             rndBtn.Click += delegate { DoRandomStyle(); };
             styleCard.Controls.Add(stLbl); styleCard.Controls.Add(skinBtn); styleCard.Controls.Add(outBtn); styleCard.Controls.Add(rndBtn);
@@ -2380,7 +2386,7 @@ namespace KarelNative {
             hidBtn.Name = "hidBtn";
             hidBtn.Click += delegate {
                 bool on = StartupHelper.Toggle();
-                Say(on ? (IsEn() ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (IsEn() ? "Auto-open on USB OFF." : "Automatisch openen bij USB UIT."), 55);
+                Say(on ? Tr("msg_autostart_on") : Tr("msg_autostart_off"), 55);
                 RefreshHub();
             };
             f.Controls.Add(hidBtn);
@@ -2429,6 +2435,7 @@ namespace KarelNative {
             s.Load();
             bool en = s.GetStr("language", "nl") == "en";
             SpriteBank bank = SpriteBank.LoadEmbedded();
+            LocaleBank lb = LocaleBank.LoadEmbedded();
             Bitmap sprite = bank.GetFrame("IDLE", 0, s.GetStr("skin", "classic"), s.GetEquippedItem());
 
             float sc = 1.0f;
@@ -2473,15 +2480,13 @@ namespace KarelNative {
 
                 int tx = P + boxSz + KarelForm.Sc(16, sc), tw = W - tx - P;
                 Label titleLbl = new Label {
-                    Text = en ? "Auto-start Karel on USB plug-in?" : "Karel voortaan automatisch starten?",
+                    Text = lb.Tr("ask_autostart_title", en),
                     Location = new Point(tx, hdrH + KarelForm.Sc(18, sc)), Size = new Size(tw, KarelForm.Sc(46, sc)),
                     Font = new Font("Segoe UI", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(242, 245, 250),
                     TextAlign = ContentAlignment.TopLeft
                 };
                 Label subLbl = new Label {
-                    Text = en
-                        ? "Should Karel automatically appear whenever you plug in this USB stick? (You can change this anytime in the menu.)"
-                        : "Wil je dat Karel voortaan vanzelf verschijnt zodra je deze USB-stick inplugt? (Altijd weer uit te zetten in het menu.)",
+                    Text = lb.Tr("ask_autostart_body", en),
                     Location = new Point(tx, hdrH + KarelForm.Sc(64, sc)), Size = new Size(tw, KarelForm.Sc(58, sc)),
                     Font = new Font("Segoe UI", 9.5f), ForeColor = Color.FromArgb(176, 184, 202),
                     TextAlign = ContentAlignment.TopLeft
@@ -2490,8 +2495,8 @@ namespace KarelNative {
                 f.Controls.Add(subLbl);
 
                 int btnY = H - KarelForm.Sc(54, sc), btnH = KarelForm.Sc(36, sc);
-                Button btnYes = KarelForm.MakeFlatBtn(en ? "Yes, auto-start" : "Ja, automatisch", P, btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
-                Button btnNo = KarelForm.MakeFlatBtn(en ? "No, just start" : "Nee, alleen nu", P + KarelForm.Sc(172, sc), btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
+                Button btnYes = KarelForm.MakeFlatBtn(lb.Tr("ask_btn_yes_auto", en), P, btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(38, 115, 77), 9.5f);
+                Button btnNo = KarelForm.MakeFlatBtn(lb.Tr("ask_btn_no_once", en), P + KarelForm.Sc(172, sc), btnY, KarelForm.Sc(162, sc), btnH, Color.FromArgb(42, 48, 66), 9.5f);
                 Button btnReadme = KarelForm.MakeFlatBtn("README", W - P - KarelForm.Sc(110, sc), btnY, KarelForm.Sc(110, sc), btnH, Color.FromArgb(32, 37, 52), 9.5f);
 
                 btnYes.Click += delegate {
@@ -2555,12 +2560,13 @@ namespace KarelNative {
                 LocaleBank lb = LocaleBank.LoadEmbedded();
                 Bitmap testBmp = b.GetFrame("IDLE", 0, "sticky", "crown");
                 if (testBmp.Width != 32 || testBmp.Height != 32) throw new InvalidOperationException("Bad frame");
-                if (lb.Nl.Quotes.Length < 25 || lb.En.Quotes.Length < 25 || lb.Tricks.Count < 28)
+                if (lb.Nl.Quotes.Length < 25 || lb.En.Quotes.Length < 25 || lb.Tricks.Count < 28
+                    || lb.Nl.Ui.Count < 60 || lb.En.Ui.Count < 60)
                     throw new InvalidOperationException("Bad locale bank");
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.7.3", AutoUpdater.Version) <= 0
+                if (AutoUpdater.CompareVer("2.7.4", AutoUpdater.Version) <= 0
                     || !AutoUpdater.IsValidSemver(AutoUpdater.Version)
                     || AutoUpdater.IsValidSemver("2.7.2&calc")
                     || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)

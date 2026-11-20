@@ -891,7 +891,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Version Check (Read-Only)
 
 private enum AutoUpdater {
-    static let version = "2.7.2"
+    static let version = "2.7.3"
     static let manifestUrl = "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
     static let releasesUrl = "https://github.com/svsticky/karel-de-koala/releases/latest"
     private static let maxManifestBytes = 65536
@@ -1088,6 +1088,7 @@ private struct LocaleSet {
     var tossHard: [String] = []
     var levelTitles: [String] = []
     var outfitQuotes: [String: String] = [:]
+    var ui: [String: String] = [:]
 }
 
 private final class LocaleBank {
@@ -1096,6 +1097,12 @@ private final class LocaleBank {
     var tricks: [(label: String, state: String, msg: String)] = []
 
     func setFor(en isEn: Bool) -> LocaleSet { return isEn ? en : nl }
+
+    func tr(_ key: String, en isEn: Bool) -> String {
+        if let v = setFor(en: isEn).ui[key], !v.isEmpty { return v }
+        if let v = nl.ui[key], !v.isEmpty { return v }
+        return key
+    }
 
     func levelTitle(_ lvl: Int, en isEn: Bool) -> String {
         let titles = setFor(en: isEn).levelTitles
@@ -1138,6 +1145,7 @@ private final class LocaleBank {
         s.tossHard = (d["toss_hard"] as? [String]) ?? []
         s.levelTitles = (d["level_titles"] as? [String]) ?? []
         s.outfitQuotes = (d["outfit_quotes"] as? [String: String]) ?? [:]
+        s.ui = (d["ui"] as? [String: String]) ?? [:]
         return s
     }
 
@@ -1218,6 +1226,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private var b21Buf = ""
     private var ipcPort: UInt16 = 42421
 
+    private func tr(_ key: String) -> String { return locale.tr(key, en: isEn()) }
+
     private func playChirp() {
         snd.play(["chirp", "chirp2", "chirp3", "chirp4"].randomElement() ?? "chirp")
     }
@@ -1243,7 +1253,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         let hr = cal.component(.hour, from: now)
         let mn = cal.component(.minute, from: now)
         let wd = cal.component(.weekday, from: now)
-        if hr == 21 && mn == 21 { return en ? "21:21 on the clock... Vo' B21!!" : "21:21 op de klok... Vo' B21!!" }
+        if hr == 21 && mn == 21 { return tr("msg_b21_clock") }
         if hr >= 0 && hr < 5 { return ls.night.randomElement() ?? "" }
         if wd == 6 && hr >= 16 && Double.random(in: 0..<1) < 0.40 { return ls.friday.randomElement() ?? "" }
         if hr >= 6 && hr < 11 && Double.random(in: 0..<1) < 0.35 { return ls.morning.randomElement() ?? "" }
@@ -1332,7 +1342,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             self?.onTick()
         }
         if !trayHidden {
-            triggerClimb(isEn() ? "Karel climbed onto your Mac desktop!" : "Karel klimt je Dock op!")
+            triggerClimb(tr("msg_welcome"))
         }
     }
 
@@ -1493,7 +1503,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             spawnParticles("*", .systemYellow, 21)
             snd.play("levelup")
             ser.send("STATE:B21")
-            say(isEn() ? "Vo' B21!! 21x pet bonus! +21 XP!" : "Vo' B21!! 21x geaaid bonus! +21 XP!", 65)
+            say(tr("msg_b21_pet"), 65)
         } else {
             setAction(save.getInt("happiness", 85) >= 95 ? "LOVE" : "PET", 28)
             awardXp(8)
@@ -1529,7 +1539,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         if coffeeTimes.count >= 3 {
             hyperTicks = 95
             ser.send("STATE:HYPER")
-            say(isEn() ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75)
+            say(tr("msg_caffeine_od"), 75)
         } else {
             say(locale.setFor(en: isEn()).coffee.randomElement() ?? "", 45)
         }
@@ -1550,11 +1560,11 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private func napToggle() {
         if state == "SLEEP" {
             state = "STRETCH"; actTicks = 18
-            say(isEn() ? "Good morning! Refreshed!" : "Goedemorgen! Uitgerust!", 40)
+            say(tr("msg_nap_wake"), 40)
         } else {
             state = "SLEEP"; actTicks = 220
             snd.play("dive")
-            say("Zzz... Sticky powernap!", 45)
+            say(tr("msg_nap_start"), 45)
         }
     }
 
@@ -1565,7 +1575,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         spawnParticles("*", .systemYellow, 16)
         ser.send("STATE:PARTY")
         snd.play("levelup")
-        say(isEn() ? "DISCO BORREL MODE ON!" : "DISCO BORREL MODE AAN!", 80)
+        say(tr("msg_disco"), 80)
         save.save(); refreshHub()
     }
 
@@ -1577,7 +1587,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         spawnParticles("*", .systemYellow, 21)
         ser.send("STATE:B21")
         snd.play("levelup")
-        say(isEn() ? "Vo' B21!! Board 21 represent! +21 XP!" : "Vo' B21!! Bestuur 21 represent! +21 XP!", 85)
+        say(tr("msg_b21_code"), 85)
         save.save(); refreshHub()
     }
 
@@ -1585,7 +1595,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         awardXp(10)
         snd.play("boop")
         spawnParticles("*", .systemYellow, 10)
-        triggerClimb("SuperMini Boop! +10 XP!")
+        triggerClimb(tr("msg_boop"))
         save.save(); refreshHub()
     }
 
@@ -1597,7 +1607,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         climbing = true; climbStep = 0; climbMsg = msg
         roamTx = wx; roamTy = wy; roamWait = 95
         snd.play("climb")
-        say(isEn() ? "Climbing up..." : "Even boven de Dock klimmen...", 26)
+        say(tr("msg_climbing"), 26)
     }
 
     private func wakeFromTray() {
@@ -1605,7 +1615,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             trayHidden = false
             panel.orderFrontRegardless()
         }
-        triggerClimb(isEn() ? "I'm back!" : "Daar ben ik weer!")
+        triggerClimb(tr("msg_back"))
     }
 
     private func triggerDive(_ mode: String, customMsg: String? = nil) {
@@ -1613,9 +1623,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         diveMode = mode; closing = true; closeStep = 0
         climbing = false; flying = false; dragging = false; umbrellaFall = false
         jumpY = 0; closeStartY = wy; actTicks = 0
-        let msg = customMsg ?? (mode == "tray"
-            ? (isEn() ? "Napping in menu bar!" : "Even dutten in de menubalk!")
-            : (isEn() ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!"))
+        let msg = customMsg ?? (mode == "tray" ? tr("msg_dive_tray") : tr("msg_dive_quit"))
         say(msg, 40)
         spawnParticles("*", NSColor(red: 1.0, green: 0.48, blue: 0.56, alpha: 1.0), 4)
         snd.play("dive")
@@ -1624,13 +1632,13 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private func checkForUpdatesManual() {
         if updateBusy { return }
         updateBusy = true
-        say(isEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55)
+        say(tr("msg_upd_checking"), 55)
         AutoUpdater.checkNowAsync(
             onNewVersion: { [weak self] ver in
                 DispatchQueue.main.async {
                     guard let s = self else { return }
                     s.updateBusy = false
-                    s.say(s.isEn() ? "Update v\(ver) available! Opening GitHub..." : "Update v\(ver) beschikbaar! GitHub openen...", 80)
+                    s.say(s.tr("msg_upd_available").replacingOccurrences(of: "{0}", with: ver), 80)
                     if let url = URL(string: AutoUpdater.releasesUrl) {
                         NSWorkspace.shared.open(url)
                     }
@@ -1640,22 +1648,19 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     guard let s = self else { return }
                     s.updateBusy = false
-                    if status == "uptodate" { s.say(s.isEn() ? "Up to date (v\(AutoUpdater.version))!" : "Al de nieuwste versie (v\(AutoUpdater.version))!", 65) }
-                    else if status == "offline" { s.say(s.isEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60) }
-                    else { s.say(s.isEn() ? "Update check failed." : "Update-check mislukt.", 60) }
+                    if status == "uptodate" { s.say(s.tr("msg_upd_uptodate").replacingOccurrences(of: "{0}", with: AutoUpdater.version), 65) }
+                    else if status == "offline" { s.say(s.tr("msg_upd_offline"), 60) }
+                    else { s.say(s.tr("msg_upd_error"), 60) }
                 }
             })
     }
 
     private func doUninstallFromMac() {
-        let en = isEn()
         let a = NSAlert()
-        a.messageText = en ? "Uninstall Karel from this Mac?" : "Karel verwijderen van deze Mac?"
-        a.informativeText = en
-            ? "Removes auto-start (LaunchAgent), local app copy and local backup from this Mac. Your USB stick will NOT be touched."
-            : "Verwijdert auto-start (LaunchAgent), lokale app-kopie en lokale back-up van deze Mac. Je USB-stick blijft gewoon bewaard."
-        a.addButton(withTitle: en ? "Uninstall" : "Verwijderen")
-        a.addButton(withTitle: en ? "Cancel" : "Annuleren")
+        a.messageText = tr("uninst_title")
+        a.informativeText = tr("uninst_body")
+        a.addButton(withTitle: tr("uninst_btn_confirm"))
+        a.addButton(withTitle: tr("uninst_btn_cancel"))
         NSApp.activate(ignoringOtherApps: true)
         guard a.runModal() == .alertFirstButtonReturn else { return }
         uninstalling = true
@@ -1746,7 +1751,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                     finalizeQuit()
                     return
                 } else {
-                    triggerDive("quit", customMsg: isEn() ? "USB unplugged! Bye!" : "USB los! Doei!")
+                    triggerDive("quit", customMsg: tr("msg_usb_unplugged"))
                 }
             } else if usb == "on" {
                 save.load()
@@ -1754,7 +1759,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 updatePanelSize()
                 refreshHub()
                 if trayHidden { wakeFromTray() }
-                else { triggerClimb(isEn() ? "KAREL USB reconnected!" : "KAREL USB herverbonden!") }
+                else { triggerClimb(tr("msg_usb_reconnected")) }
             }
         }
         if focusActive && Date().timeIntervalSince(focusLastTick) >= 1.0 {
@@ -1766,7 +1771,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 setAction("CELEBRATE", 40)
                 spawnParticles("*", .systemYellow, 14)
                 snd.play("levelup")
-                say(isEn() ? "Focus complete! +45 XP!" : "Focus klaar! +45 XP!", 70)
+                say(tr("msg_focus_done"), 70)
                 save.save(); refreshHub()
             }
         }
@@ -1876,7 +1881,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             }
             if (curLedge == nil && wy < gy - 18) || roamTy > wy + 28 {
                 umbrellaFall = true; roamWait = 0; roamTicks = 0; actTicks = 0
-                say(isEn() ? "Window gone! Sticky umbrella open!" : "Oeps, venster weg! Paraplu open!", 42)
+                say(tr("msg_umbrella"), 42)
                 return
             }
         }
@@ -1953,7 +1958,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
                 if noseClicks >= 7 {
                     noseClicks = 0; snd.play("sneeze"); setAction("SNEEZE", 24)
                     spawnParticles("*", .white, 10)
-                    say(isEn() ? "Achoo! BBG dust!" : "Hatsjoe! BBG stof!", 55)
+                    say(tr("msg_sneeze"), 55)
                 }
             } else if actTicks == 0 && state != "SLEEP" {
                 say(pickSmartQuote(), 55)
@@ -2085,60 +2090,58 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private func buildContextMenu() -> NSMenu {
         let m = NSMenu()
         let en = isEn()
-        addMenuItem(m, "Open Sticky Hub") { [weak self] in self?.openHub() }
+        addMenuItem(m, tr("open_hub")) { [weak self] in self?.openHub() }
         m.addItem(.separator())
-        addMenuItem(m, en ? "Feed Eucalyptus" : "Voer Eucalyptus") { [weak self] in self?.doFeed() }
-        addMenuItem(m, en ? "Sticky Coffee" : "Sticky Koffie") { [weak self] in self?.doCoffee() }
-        addMenuItem(m, en ? "Pet Karel" : "Aai Karel") { [weak self] in self?.doPet() }
-        addMenuItem(m, en ? "Wash Karel" : "Was Karel") { [weak self] in self?.doWash() }
-        addMenuItem(m, en ? "Powernap ON/OFF" : "Powernap AAN/UIT") { [weak self] in self?.napToggle() }
-        addMenuItem(m, focusActive ? "Stop Focus" : (en ? "Focus Mode (25m)" : "Focus Modus (25m)")) { [weak self] in self?.toggleFocus() }
+        addMenuItem(m, tr("menu_feed")) { [weak self] in self?.doFeed() }
+        addMenuItem(m, tr("menu_coffee")) { [weak self] in self?.doCoffee() }
+        addMenuItem(m, tr("menu_pet")) { [weak self] in self?.doPet() }
+        addMenuItem(m, tr("menu_wash")) { [weak self] in self?.doWash() }
+        addMenuItem(m, tr("menu_nap")) { [weak self] in self?.napToggle() }
+        addMenuItem(m, focusActive ? tr("menu_focus_stop") : tr("menu_focus_start")) { [weak self] in self?.toggleFocus() }
         m.addItem(.separator())
 
-        let tmItem = NSMenuItem(title: en ? "Tricks & Animations" : "Trucjes & Animaties", action: nil, keyEquivalent: "")
+        let tmItem = NSMenuItem(title: tr("menu_tricks"), action: nil, keyEquivalent: "")
         let tm = NSMenu()
         for t in locale.tricks {
             addMenuItem(tm, t.label) { [weak self] in self?.setAction(t.state, 42); self?.say(t.msg, 48); self?.playTrickSound(t.state) }
         }
         tmItem.submenu = tm; m.addItem(tmItem)
 
-        let rmItem = NSMenuItem(title: en ? "Roam Mode" : "Loopgedrag", action: nil, keyEquivalent: "")
+        let rmItem = NSMenuItem(title: tr("menu_roam"), action: nil, keyEquivalent: "")
         let rm = NSMenu()
-        addMenuItem(rm, en ? "Free Roam" : "Heel Scherm") { [weak self] in self?.setRoam("free") }
-        addMenuItem(rm, en ? "Active Window" : "Op Actief Venster") { [weak self] in self?.setRoam("window") }
-        addMenuItem(rm, en ? "Follow Mouse" : "Volg Muis") { [weak self] in self?.setRoam("cursor") }
-        addMenuItem(rm, en ? "Stay Put" : "Blijf Zitten") { [weak self] in self?.setRoam("park") }
+        addMenuItem(rm, tr("roam_free")) { [weak self] in self?.setRoam("free") }
+        addMenuItem(rm, tr("roam_window")) { [weak self] in self?.setRoam("window") }
+        addMenuItem(rm, tr("roam_cursor")) { [weak self] in self?.setRoam("cursor") }
+        addMenuItem(rm, tr("roam_park")) { [weak self] in self?.setRoam("park") }
         rmItem.submenu = rm; m.addItem(rmItem)
 
-        let smItem = NSMenuItem(title: en ? "Size" : "Grootte", action: nil, keyEquivalent: "")
+        let smItem = NSMenuItem(title: tr("menu_size"), action: nil, keyEquivalent: "")
         let sm = NSMenu()
         for sc in 2...5 { addMenuItem(sm, "\(sc)x (\(sc * 32)px)") { [weak self] in self?.setScale(sc) } }
         smItem.submenu = sm; m.addItem(smItem)
 
-        addMenuItem(m, en ? "Sound On/Off" : "Geluid Aan/Uit") { [weak self] in guard let s = self else { return }; s.snd.muted.toggle(); s.refreshHub() }
-        addMenuItem(m, en ? "Auto-Quiet Fullscreen" : "Auto-Stil Fullscreen") { [weak self] in
+        addMenuItem(m, tr("menu_sound")) { [weak self] in guard let s = self else { return }; s.snd.muted.toggle(); s.refreshHub() }
+        addMenuItem(m, tr("menu_auto_quiet")) { [weak self] in
             guard let s = self else { return }
             s.save.data["auto_quiet_fullscreen"] = !s.save.getBool("auto_quiet_fullscreen", true)
             s.save.save(); s.refreshHub()
         }
-        addMenuItem(m, en ? "Language: NL / EN" : "Taal: NL / EN") { [weak self] in
+        addMenuItem(m, tr("menu_lang")) { [weak self] in
             guard let s = self else { return }
-            s.save.data["language"] = s.isEn() ? "nl" : "en"; s.save.save(); s.refreshHub()
+            s.save.data["language"] = en ? "nl" : "en"; s.save.save(); s.refreshHub()
         }
         let stOn = MacStartupHelper.isEnabled()
-        addMenuItem(m, (stOn ? "✓ " : "") + (en ? "Auto-open on USB plug-in" : "Automatisch openen bij USB")) { [weak self] in
+        addMenuItem(m, (stOn ? "✓ " : "") + tr("menu_autostart")) { [weak self] in
+            guard let s = self else { return }
             let on = MacStartupHelper.toggle()
-            let msg = on
-                ? (self?.isEn() == true ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!")
-                : (self?.isEn() == true ? "Auto-open on USB OFF" : "Automatisch openen bij USB UIT")
-            self?.say(msg, 45)
-            self?.refreshHub()
+            s.say(on ? s.tr("msg_autostart_on") : s.tr("msg_autostart_off"), 45)
+            s.refreshHub()
         }
-        addMenuItem(m, en ? "Check for updates" : "Check op updates") { [weak self] in self?.checkForUpdatesManual() }
-        addMenuItem(m, en ? "Uninstall from this Mac..." : "Verwijder van deze Mac...") { [weak self] in self?.doUninstallFromMac() }
+        addMenuItem(m, tr("menu_check_updates")) { [weak self] in self?.checkForUpdatesManual() }
+        addMenuItem(m, tr("menu_uninstall")) { [weak self] in self?.doUninstallFromMac() }
         m.addItem(.separator())
-        addMenuItem(m, trayHidden ? (en ? "Wake Karel" : "Wek Karel") : (en ? "Hide Behind Dock" : "Verberg achter Dock")) { [weak self] in self?.enqueue("EVENT:TRAY_TOGGLE") }
-        addMenuItem(m, en ? "Dive & Quit" : "Duik weg & Sluit") { [weak self] in self?.enqueue("EVENT:QUIT_NOW") }
+        addMenuItem(m, trayHidden ? tr("menu_wake") : tr("menu_hide")) { [weak self] in self?.enqueue("EVENT:TRAY_TOGGLE") }
+        addMenuItem(m, tr("menu_dive_quit")) { [weak self] in self?.enqueue("EVENT:QUIT_NOW") }
         return m
     }
 
@@ -2153,8 +2156,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
 
     private func toggleFocus() {
         focusActive.toggle()
-        if focusActive { focusRem = 25 * 60; focusLastTick = Date(); say("Focus: 25m!", 45) }
-        else { say(isEn() ? "Focus stopped." : "Focus gestopt.", 35) }
+        if focusActive { focusRem = 25 * 60; focusLastTick = Date(); say(tr("msg_focus_start"), 45) }
+        else { say(tr("msg_focus_stop"), 35) }
         refreshHub()
     }
 
@@ -2250,10 +2253,10 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         hubSkinPop.target = self; hubSkinPop.action = #selector(onSkinPick(_:))
 
         hubOutPop = NSPopUpButton(frame: NSRect(x: 70 + pkw, y: 10, width: pkw, height: 28), pullsDown: false)
-        hubOutPop.addItems(withTitles: SpriteBank.outfitIds.map { $0.isEmpty ? "(geen)" : $0 })
+        hubOutPop.addItems(withTitles: SpriteBank.outfitIds.map { $0.isEmpty ? tr("lbl_none_parens") : $0 })
         hubOutPop.target = self; hubOutPop.action = #selector(onOutPick(_:))
 
-        let rndBtn = makeFlatBtn("Random", frame: NSRect(x: 76 + 2 * pkw, y: 10, width: Win - 86 - 2 * pkw, height: 28), bg: NSColor(red: 0.52, green: 0.16, blue: 0.42, alpha: 1.0)) { [weak self] in
+        let rndBtn = makeFlatBtn(tr("btn_random"), frame: NSRect(x: 76 + 2 * pkw, y: 10, width: Win - 86 - 2 * pkw, height: 28), bg: NSColor(red: 0.52, green: 0.16, blue: 0.42, alpha: 1.0)) { [weak self] in
             self?.doRandomStyle()
         }
         styleCard.addSubview(hubStyleLbl); styleCard.addSubview(hubSkinPop); styleCard.addSubview(hubOutPop); styleCard.addSubview(rndBtn)
@@ -2279,7 +2282,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         hubHidBtn = makeFlatBtn("", frame: NSRect(x: P, y: y, width: Win, height: 32), bg: NSColor(red: 0.08, green: 0.41, blue: 0.62, alpha: 1.0)) { [weak self] in
             guard let s = self else { return }
             let on = MacStartupHelper.toggle()
-            s.say(on ? (s.isEn() ? "Auto-open on USB ON!" : "Automatisch openen bij USB AAN!") : (s.isEn() ? "Auto-open on USB OFF" : "Automatisch openen bij USB UIT"), 55)
+            s.say(on ? s.tr("msg_autostart_on") : s.tr("msg_autostart_off"), 55)
             s.refreshHub()
         }
         y += 38
@@ -2332,36 +2335,35 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         }
         hubStatsBot.stringValue = String(
             format: "%@: %d%%  ·  %@: %d%%  ·  %@: %d%%  ·  %@: %d%%",
-            en ? "Hungry" : "Honger", save.getInt("hunger", 80),
-            en ? "Happy" : "Blij", save.getInt("happiness", 85),
-            en ? "Energy" : "Energie", save.getInt("energy", 85),
-            en ? "Clean" : "Fris", save.getInt("hygiene", 90)
+            tr("stat_hungry"), save.getInt("hunger", 80),
+            tr("stat_happy"), save.getInt("happiness", 85),
+            tr("stat_energy"), save.getInt("energy", 85),
+            tr("stat_clean"), save.getInt("hygiene", 90)
         )
 
-        let actLbls = [en ? "Feed" : "Voer", en ? "Coffee" : "Koffie", en ? "Pet" : "Aai", en ? "Wash" : "Was", "Powernap", focusActive ? "Stop Focus" : "Focus 25m"]
+        let actLbls = [tr("btn_feed"), tr("btn_coffee"), tr("btn_pet"), tr("btn_wash"), tr("btn_nap"), focusActive ? tr("btn_focus_stop") : tr("btn_focus_start")]
         for (i, b) in hubActBtns.enumerated() {
             (b as? ActionButton)?.setStyledTitle(actLbls[i], size: 12.5)
         }
-        hubStyleLbl.stringValue = en ? "Style:" : "Stijl:"
+        hubStyleLbl.stringValue = tr("lbl_style")
         if let si = SpriteBank.skinIds.firstIndex(of: save.getStr("skin", "classic")) { hubSkinPop.selectItem(at: si) }
         if let oi = SpriteBank.outfitIds.firstIndex(of: save.getEquippedItem()) { hubOutPop.selectItem(at: oi) }
-        hubOutPop.item(at: SpriteBank.outfitIds.count - 1)?.title = en ? "(none)" : "(geen)"
+        hubOutPop.item(at: SpriteBank.outfitIds.count - 1)?.title = tr("lbl_none_parens")
 
-        (hubSndBtn as? ActionButton)?.setStyledTitle((en ? "Sound: " : "Geluid: ") + (snd.muted ? (en ? "OFF" : "UIT") : (en ? "ON" : "AAN")), size: 12)
+        (hubSndBtn as? ActionButton)?.setStyledTitle(snd.muted ? tr("btn_sound_off") : tr("btn_sound_on"), size: 12)
         let aq = save.getBool("auto_quiet_fullscreen", true)
-        (hubAqBtn as? ActionButton)?.setStyledTitle((en ? "Quiet: " : "Auto-Stil: ") + (aq ? (en ? "ON" : "AAN") : (en ? "OFF" : "UIT")), size: 12)
+        (hubAqBtn as? ActionButton)?.setStyledTitle(aq ? tr("btn_quiet_on") : tr("btn_quiet_off"), size: 12)
 
         hubHidBtn.isHidden = false
         let stOn = MacStartupHelper.isEnabled()
         (hubHidBtn as? ActionButton)?.setStyledTitle(
-            stOn ? (en ? "Auto-open on USB plug-in: ON" : "Automatisch openen bij USB: AAN")
-                 : (en ? "Auto-open on USB plug-in: OFF" : "Automatisch openen bij USB: UIT"),
+            stOn ? tr("btn_autostart_on") : tr("btn_autostart_off"),
             size: 11.5
         )
-        (hubUpdBtn as? ActionButton)?.setStyledTitle(en ? "Check for updates" : "Check op updates", size: 11.5)
-        (hubUninstBtn as? ActionButton)?.setStyledTitle(en ? "Uninstall from Mac" : "Verwijder van Mac", size: 11.5)
-        let usbTxt = save.connected ? "● USB: KAREL (\(save.driveRoot))" : (en ? "○ Memory mode (no USB)" : "○ Geheugen-modus (geen USB)")
-        let serTxt = ser.portName.isEmpty ? (en ? "Serial: waiting..." : "Serial: wachten...") : "RP2350 @ \(ser.portName)"
+        (hubUpdBtn as? ActionButton)?.setStyledTitle(tr("menu_check_updates"), size: 11.5)
+        (hubUninstBtn as? ActionButton)?.setStyledTitle(tr("btn_uninstall"), size: 11.5)
+        let usbTxt = save.connected ? "● USB: KAREL (\(save.driveRoot))" : "○ \(tr("status_no_usb"))"
+        let serTxt = ser.portName.isEmpty ? tr("status_serial_wait") : "RP2350 @ \(ser.portName)"
         hubUsbLbl.stringValue = "\(usbTxt)   |   \(serTxt)"
 
         var uFrame = hubUsbLbl.frame
@@ -2431,19 +2433,18 @@ private func showAutoStartPrompt() {
     let s = SaveStore(); s.load()
     let en = s.getStr("language", "nl") == "en"
     let bank = SpriteBank.loadBundled()
+    let loc = LocaleBank.loadBundled()
     let ico = bank.getFrame(state: "IDLE", frameIdx: 0, skin: s.getStr("skin", "classic"), item: s.getEquippedItem())
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
     app.activate(ignoringOtherApps: true)
     while true {
         let a = NSAlert()
-        a.messageText = en ? "Auto-start Karel on USB plug-in?" : "Karel voortaan automatisch starten?"
-        a.informativeText = en
-            ? "Should Karel automatically appear whenever you plug in this USB stick? (You can change this anytime in the menu.)"
-            : "Wil je dat Karel voortaan vanzelf verschijnt zodra je deze USB-stick inplugt? (Altijd weer uit te zetten in het menu.)"
+        a.messageText = loc.tr("ask_autostart_title", en: en)
+        a.informativeText = loc.tr("ask_autostart_body", en: en)
         a.icon = ico
-        a.addButton(withTitle: en ? "Yes, auto-start" : "Ja, automatisch")
-        a.addButton(withTitle: en ? "No, just start" : "Nee, alleen nu")
+        a.addButton(withTitle: loc.tr("ask_btn_yes_auto", en: en))
+        a.addButton(withTitle: loc.tr("ask_btn_no_once", en: en))
         a.addButton(withTitle: "README")
         let r = a.runModal()
         if r == .alertFirstButtonReturn {
@@ -2495,7 +2496,8 @@ if selfTest {
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
     if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty
         || loc.nl.quotes.count < 25 || loc.en.quotes.count < 25 || loc.tricks.count < 28
-        || AutoUpdater.compareVer("2.7.3", AutoUpdater.version) <= 0
+        || loc.nl.ui.count < 60 || loc.en.ui.count < 60
+        || AutoUpdater.compareVer("2.7.4", AutoUpdater.version) <= 0
         || !AutoUpdater.isValidSemver(AutoUpdater.version)
         || AutoUpdater.isValidSemver("2.7.2;id") {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count) tricks=\(loc.tricks.count)\n", stderr)

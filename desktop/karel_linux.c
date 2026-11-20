@@ -191,6 +191,17 @@ static const LocaleSet *active_locale(const KarelApp *k) {
     return is_en(k) ? &k->loc.en : &k->loc.nl;
 }
 
+static const char *loc_str(const KarelApp *k, const char *key) {
+    const LocaleSet *ls = active_locale(k);
+    for (int i = 0; i < ls->n_ui; i++) {
+        if (strcmp(ls->ui_keys[i], key) == 0) return ls->ui_vals[i];
+    }
+    for (int i = 0; i < k->loc.nl.n_ui; i++) {
+        if (strcmp(k->loc.nl.ui_keys[i], key) == 0) return k->loc.nl.ui_vals[i];
+    }
+    return key;
+}
+
 static const char *pick_arr(const void *base, int count, size_t stride, const char *fb) {
     if (count <= 0) return fb;
     return (const char *)base + (size_t)(rand() % count) * stride;
@@ -221,7 +232,7 @@ static const char *pick_smart_quote(const KarelApp *k) {
     time_t now = time(NULL);
     struct tm *lt = localtime(&now);
     if (lt && lt->tm_hour == 21 && lt->tm_min == 21) {
-        return is_en(k) ? "21:21 on the clock... Vo' B21!!" : "21:21 op de klok... Vo' B21!!";
+        return loc_str(k, "msg_b21_clock");
     }
     if (lt && lt->tm_hour >= 0 && lt->tm_hour < 5 && ls->n_night > 0) {
         return pick_arr(ls->night, ls->n_night, sizeof(ls->night[0]), "Zzz...");
@@ -279,7 +290,7 @@ static void trigger_climb(KarelApp *k, const char *msg) {
     snprintf(k->climb_msg, sizeof(k->climb_msg), "%.120s", msg);
     k->roam_tx = k->wx; k->roam_ty = k->wy; k->roam_wait = 95;
     play_sound_key("climb", k->muted, k->auto_paused);
-    say_msg(k, is_en(k) ? "Climbing up..." : "Even omhoog klimmen...", 26);
+    say_msg(k, loc_str(k, "msg_climbing"), 26);
 }
 
 static void do_pet(KarelApp *k) {
@@ -292,7 +303,7 @@ static void do_pet(KarelApp *k) {
         spawn_particles(k, "*", 245, 196, 81, 21);
         play_sound_key("levelup", k->muted, k->auto_paused);
         ser_send(&k->ser, "STATE:B21");
-        say_msg(k, is_en(k) ? "Vo' B21!! 21x pet bonus! +21 XP!" : "Vo' B21!! 21x geaaid bonus! +21 XP!", 65);
+        say_msg(k, loc_str(k, "msg_b21_pet"), 65);
     } else {
         set_act(k, k->save.happiness >= 95 ? "LOVE" : "PET", 28);
         award_xp(k, 8);
@@ -344,7 +355,7 @@ static void do_coffee(KarelApp *k) {
     if (k->coffee_n >= 3) {
         k->hyper_ticks = 95;
         ser_send(&k->ser, "STATE:HYPER");
-        say_msg(k, is_en(k) ? "CAFFEINE OVERDOSE! 200 MHz!" : "CAFEINE OVERDOSIS! 200 MHz MODE!", 75);
+        say_msg(k, loc_str(k, "msg_caffeine_od"), 75);
     } else {
         say_msg(k, pick_arr(ls->coffee, ls->n_coffee, sizeof(ls->coffee[0]), "+9 XP!"), 45);
     }
@@ -369,12 +380,12 @@ static void nap_toggle(KarelApp *k) {
     if (strcmp(k->state, "SLEEP") == 0) {
         strcpy(k->state, "STRETCH");
         k->act_ticks = 18;
-        say_msg(k, is_en(k) ? "Good morning! Refreshed!" : "Goedemorgen! Uitgerust!", 40);
+        say_msg(k, loc_str(k, "msg_nap_wake"), 40);
     } else {
         strcpy(k->state, "SLEEP");
         k->act_ticks = 220;
         play_sound_key("dive", k->muted, k->auto_paused);
-        say_msg(k, "Zzz... Sticky powernap!", 45);
+        say_msg(k, loc_str(k, "msg_nap_start"), 45);
     }
 }
 
@@ -385,7 +396,7 @@ static void trigger_konami(KarelApp *k) {
     spawn_particles(k, "*", 245, 196, 81, 16);
     ser_send(&k->ser, "STATE:PARTY");
     play_sound_key("levelup", k->muted, k->auto_paused);
-    say_msg(k, is_en(k) ? "DISCO BORREL MODE ON!" : "DISCO BORREL MODE AAN!", 80);
+    say_msg(k, loc_str(k, "msg_disco"), 80);
     save_persist(&k->save);
     draw_hub(k);
 }
@@ -398,7 +409,7 @@ static void trigger_b21(KarelApp *k) {
     spawn_particles(k, "*", 245, 196, 81, 21);
     ser_send(&k->ser, "STATE:B21");
     play_sound_key("levelup", k->muted, k->auto_paused);
-    say_msg(k, is_en(k) ? "Vo' B21!! Board 21 represent! +21 XP!" : "Vo' B21!! Bestuur 21 represent! +21 XP!", 85);
+    say_msg(k, loc_str(k, "msg_b21_code"), 85);
     save_persist(&k->save);
     draw_hub(k);
 }
@@ -407,7 +418,7 @@ static void do_boop(KarelApp *k) {
     award_xp(k, 10);
     play_sound_key("boop", k->muted, k->auto_paused);
     spawn_particles(k, "*", 245, 196, 81, 10);
-    trigger_climb(k, "SuperMini Boop! +10 XP!");
+    trigger_climb(k, loc_str(k, "msg_boop"));
     save_persist(&k->save);
     draw_hub(k);
 }
@@ -418,9 +429,7 @@ static void trigger_dive(KarelApp *k, const char *mode) {
     k->closing = 1; k->close_step = 0; k->climbing = 0; k->flying = 0;
     k->dragging = 0; k->umbrella_fall = 0;
     k->jump_y = 0; k->close_sy = k->wy; k->act_ticks = 0;
-    say_msg(k, strcmp(mode, "tray") == 0
-        ? (is_en(k) ? "Napping! --toggle to wake" : "Dutje! --toggle wekt Karel")
-        : (is_en(k) ? "See ya! Diving back!" : "Tot ziens! Ik duik weg!"), 40);
+    say_msg(k, strcmp(mode, "tray") == 0 ? loc_str(k, "msg_dive_tray") : loc_str(k, "msg_dive_quit"), 40);
     spawn_particles(k, "*", 255, 122, 144, 4);
     play_sound_key("dive", k->muted, k->auto_paused);
 }
@@ -582,7 +591,6 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
     k->npop = 0;
     k->pop_mode = mode;
     k->pop_hover = -1;
-    int en = is_en(k);
     #define P_ADD(txt, kd, ix) do { \
         if (k->npop < 40) { \
             snprintf(k->pop_items[k->npop].lbl, 48, "%.47s", (txt)); \
@@ -593,31 +601,35 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
     } while (0)
 
     if (mode == POP_MAIN) {
-        P_ADD("Open Sticky Hub", 1, 0);
+        char tr_lbl[48], rm_lbl[48], sz_lbl[48];
+        snprintf(tr_lbl, sizeof(tr_lbl), "%.40s  >", loc_str(k, "menu_tricks"));
+        snprintf(rm_lbl, sizeof(rm_lbl), "%.40s  >", loc_str(k, "menu_roam"));
+        snprintf(sz_lbl, sizeof(sz_lbl), "%.40s  >", loc_str(k, "menu_size"));
+        P_ADD(loc_str(k, "open_hub"), 1, 0);
         P_ADD("---", 0, 0);
-        P_ADD(en ? "Feed Eucalyptus" : "Voer Eucalyptus", 2, 0);
-        P_ADD(en ? "Sticky Coffee" : "Sticky Koffie", 2, 1);
-        P_ADD(en ? "Pet Karel" : "Aai Karel", 2, 2);
-        P_ADD(en ? "Wash Karel" : "Was Karel", 2, 3);
-        P_ADD(en ? "Powernap ON/OFF" : "Powernap AAN/UIT", 2, 4);
-        P_ADD(k->focus_active ? "Stop Focus" : (en ? "Focus Mode (25m)" : "Focus Modus (25m)"), 2, 5);
+        P_ADD(loc_str(k, "menu_feed"), 2, 0);
+        P_ADD(loc_str(k, "menu_coffee"), 2, 1);
+        P_ADD(loc_str(k, "menu_pet"), 2, 2);
+        P_ADD(loc_str(k, "menu_wash"), 2, 3);
+        P_ADD(loc_str(k, "menu_nap"), 2, 4);
+        P_ADD(k->focus_active ? loc_str(k, "menu_focus_stop") : loc_str(k, "menu_focus_start"), 2, 5);
         P_ADD("---", 0, 0);
-        P_ADD(en ? "Tricks (28)  >" : "Trucjes (28)  >", 3, POP_TRICKS);
-        P_ADD(en ? "Roam Mode  >" : "Loopgedrag  >", 3, POP_ROAM);
-        P_ADD(en ? "Size  >" : "Grootte  >", 3, POP_SCALE);
-        P_ADD(en ? "Sound On/Off" : "Geluid Aan/Uit", 4, 0);
-        P_ADD(en ? "Auto-Quiet Fullscreen" : "Auto-Stil Fullscreen", 4, 1);
-        P_ADD(en ? "Language: NL / EN" : "Taal: NL / EN", 4, 2);
+        P_ADD(tr_lbl, 3, POP_TRICKS);
+        P_ADD(rm_lbl, 3, POP_ROAM);
+        P_ADD(sz_lbl, 3, POP_SCALE);
+        P_ADD(loc_str(k, "menu_sound"), 4, 0);
+        P_ADD(loc_str(k, "menu_auto_quiet"), 4, 1);
+        P_ADD(loc_str(k, "menu_lang"), 4, 2);
         P_ADD("---", 0, 0);
-        P_ADD(en ? "Hide (Ctrl/Cmd --toggle)" : "Verberg (--toggle)", 4, 3);
-        P_ADD(en ? "Dive & Quit" : "Duik & Sluit", 4, 4);
+        P_ADD(loc_str(k, "menu_hide"), 4, 3);
+        P_ADD(loc_str(k, "menu_dive_quit"), 4, 4);
     } else if (mode == POP_TRICKS) {
         for (int i = 0; i < k->loc.n_tricks; i++) P_ADD(k->loc.tricks[i].lbl, 5, i);
     } else if (mode == POP_ROAM) {
-        P_ADD(en ? "Free Roam" : "Heel Scherm", 6, 0);
-        P_ADD(en ? "Active Window" : "Op Actief Venster", 6, 1);
-        P_ADD(en ? "Follow Mouse" : "Volg Muis", 6, 2);
-        P_ADD(en ? "Stay Put" : "Blijf Zitten", 6, 3);
+        P_ADD(loc_str(k, "roam_free"), 6, 0);
+        P_ADD(loc_str(k, "roam_window"), 6, 1);
+        P_ADD(loc_str(k, "roam_cursor"), 6, 2);
+        P_ADD(loc_str(k, "roam_park"), 6, 3);
     } else if (mode == POP_SCALE) {
         for (int s = 2; s <= 5; s++) {
             char b[32];
@@ -632,7 +644,7 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
         }
     } else if (mode == POP_OUTFIT) {
         for (int i = 0; i < NUM_OUTFITS; i++) {
-            const char *nm = *OUTFIT_IDS[i] ? OUTFIT_IDS[i] : (en ? "(none)" : "(geen)");
+            const char *nm = *OUTFIT_IDS[i] ? OUTFIT_IDS[i] : loc_str(k, "lbl_none_parens");
             char b[48];
             snprintf(b, sizeof(b), "%s%s", strcmp(k->save.equipped, OUTFIT_IDS[i]) == 0 ? "* " : "  ", nm);
             P_ADD(b, 9, i);
@@ -692,9 +704,9 @@ static void click_popup(KarelApp *k, int my, int x_root, int y_root) {
             if (k->focus_active) {
                 k->focus_rem = 25 * 60;
                 k->focus_last = time(NULL);
-                say_msg(k, "Focus: 25m!", 45);
+                say_msg(k, loc_str(k, "msg_focus_start"), 45);
             } else {
-                say_msg(k, is_en(k) ? "Focus stopped." : "Focus gestopt.", 35);
+                say_msg(k, loc_str(k, "msg_focus_stop"), 35);
             }
             draw_hub(k);
         }
@@ -733,7 +745,7 @@ static void add_hub_btn(KarelApp *k, int x, int y, int w, int h, int id) {
     }
 }
 
-static int draw_hub_stats_card(KarelApp *k, float s, int P, int Win, int curY, int en) {
+static int draw_hub_stats_card(KarelApp *k, float s, int P, int Win, int curY) {
     int cardH = Sc(88, s);
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 27, 31, 42));
     XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)cardH);
@@ -744,11 +756,11 @@ static int draw_hub_stats_card(KarelApp *k, float s, int P, int Win, int curY, i
     if (pct < 0) pct = 0;
     if (pct > 1) pct = 1;
 
-    char l1[128], l2[140];
+    char l1[128], l2[160];
     snprintf(l1, sizeof(l1), "Lv.%d  %s  -  %d / %d XP", lvl, level_title(k, lvl), k->save.xp, n_xp);
     snprintf(l2, sizeof(l2), "%s: %d%%  |  %s: %d%%  |  %s: %d%%  |  %s: %d%%",
-             en ? "Hungry" : "Honger", k->save.hunger, en ? "Happy" : "Blij", k->save.happiness,
-             en ? "Energy" : "Energie", k->save.energy, en ? "Clean" : "Fris", k->save.hygiene);
+             loc_str(k, "stat_hungry"), k->save.hunger, loc_str(k, "stat_happy"), k->save.happiness,
+             loc_str(k, "stat_energy"), k->save.energy, loc_str(k, "stat_clean"), k->save.hygiene);
 
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 242, 245, 250));
     XDrawString(k->dpy, k->hub_win, k->hub_gc, P + Sc(14, s), curY + Sc(24, s), l1, (int)strlen(l1));
@@ -770,7 +782,7 @@ static int draw_hub_stats_card(KarelApp *k, float s, int P, int Win, int curY, i
 static void draw_hub(KarelApp *k) {
     if (!k->hub_win) return;
     float s = k->dpi;
-    int W = Sc(560, s), P = Sc(18, s), Win = W - 2 * P, gap = Sc(10, s), en = is_en(k);
+    int W = Sc(560, s), P = Sc(18, s), Win = W - 2 * P, gap = Sc(10, s);
     int totH = Sc(k->save.connected ? 446 : 408, s);
     XResizeWindow(k->dpy, k->hub_win, (unsigned)W, (unsigned)totH);
 
@@ -786,12 +798,12 @@ static void draw_hub(KarelApp *k) {
     XDrawString(k->dpy, k->hub_win, k->hub_gc, P, Sc(28, s), hdr, (int)strlen(hdr));
 
     k->nhub_btns = 0;
-    int curY = draw_hub_stats_card(k, s, P, Win, Sc(58, s), en);
+    int curY = draw_hub_stats_card(k, s, P, Win, Sc(58, s));
 
     const char *act_lbls[6] = {
-        en ? "Feed" : "Voer", en ? "Coffee" : "Koffie",
-        en ? "Pet" : "Aai",   en ? "Wash" : "Was",
-        "Powernap", k->focus_active ? "Stop Focus" : "Focus 25m"
+        loc_str(k, "btn_feed"), loc_str(k, "btn_coffee"),
+        loc_str(k, "btn_pet"),  loc_str(k, "btn_wash"),
+        loc_str(k, "btn_nap"),  k->focus_active ? loc_str(k, "btn_focus_stop") : loc_str(k, "btn_focus_start")
     };
     static const uint8_t bc[6][3] = {
         {38, 115, 77}, {115, 75, 58}, {168, 32, 90},
@@ -812,12 +824,14 @@ static void draw_hub(KarelApp *k) {
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 27, 31, 42));
     XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)stH);
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 152, 162, 184));
-    const char *sl = en ? "Style:" : "Stijl:";
+    const char *sl = loc_str(k, "lbl_style");
     XDrawString(k->dpy, k->hub_win, k->hub_gc, P + Sc(14, s), curY + Sc(28, s), sl, (int)strlen(sl));
 
     char sk_l[48], out_l[48];
-    snprintf(sk_l, sizeof(sk_l), "%s: %s  v", en ? "Coat" : "Vacht", k->save.skin);
-    snprintf(out_l, sizeof(out_l), "Outfit: %s  v", *k->save.equipped ? k->save.equipped : (en ? "none" : "geen"));
+    snprintf(sk_l, sizeof(sk_l), "%s: %s  v", loc_str(k, "lbl_coat"), k->save.skin);
+    snprintf(out_l, sizeof(out_l), "%s: %s  v", loc_str(k, "lbl_outfit"),
+             *k->save.equipped ? k->save.equipped : loc_str(k, "lbl_none"));
+    const char *rnd_l = loc_str(k, "btn_random");
     int rndW = Sc(76, s), pkw = (Win - Sc(88, s) - rndW) / 2;
     int px0 = P + Sc(66, s), px1 = P + Sc(72, s) + pkw, px2 = P + Sc(78, s) + 2 * pkw, pw2 = Win - Sc(88, s) - 2 * pkw;
     add_hub_btn(k, px0, curY + Sc(8, s), pkw, Sc(32, s), 10);
@@ -831,13 +845,14 @@ static void draw_hub(KarelApp *k) {
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
     XDrawString(k->dpy, k->hub_win, k->hub_gc, px0 + Sc(10, s), curY + Sc(28, s), sk_l, (int)strlen(sk_l));
     XDrawString(k->dpy, k->hub_win, k->hub_gc, px1 + Sc(10, s), curY + Sc(28, s), out_l, (int)strlen(out_l));
-    XDrawString(k->dpy, k->hub_win, k->hub_gc, px2 + Sc(12, s), curY + Sc(28, s), "Random", 6);
+    XDrawString(k->dpy, k->hub_win, k->hub_gc, px2 + Sc(12, s), curY + Sc(28, s), rnd_l, (int)strlen(rnd_l));
 
     curY += stH + Sc(12, s);
-    char snd_l[32], aq_l[32];
-    snprintf(snd_l, sizeof(snd_l), "%s%s", en ? "Sound: " : "Geluid: ", k->muted ? (en ? "OFF" : "UIT") : (en ? "ON" : "AAN"));
-    snprintf(aq_l, sizeof(aq_l), "%s%s", en ? "Quiet: " : "Auto-Stil: ", k->save.auto_quiet ? (en ? "ON" : "AAN") : (en ? "OFF" : "UIT"));
-    const char *row3[3] = {snd_l, aq_l, "NL / EN"};
+    const char *row3[3] = {
+        k->muted ? loc_str(k, "btn_sound_off") : loc_str(k, "btn_sound_on"),
+        k->save.auto_quiet ? loc_str(k, "btn_quiet_on") : loc_str(k, "btn_quiet_off"),
+        "NL / EN"
+    };
     int sh = Sc(36, s);
     for (int i = 0; i < 3; i++) {
         int bx = P + i * (bw + gap);
@@ -849,7 +864,7 @@ static void draw_hub(KarelApp *k) {
     }
 
     curY += sh + Sc(12, s);
-    const char *hl = en ? "Check for updates (GitHub)" : "Check op updates (GitHub)";
+    const char *hl = loc_str(k, "menu_check_updates");
     add_hub_btn(k, P, curY, Win, Sc(30, s), 26);
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 28, 42, 62));
     XFillRectangle(k->dpy, k->hub_win, k->hub_gc, P, curY, (unsigned)Win, (unsigned)Sc(30, s));
@@ -859,8 +874,8 @@ static void draw_hub(KarelApp *k) {
 
     char foot[700];
     snprintf(foot, sizeof(foot), "%.200s   |   %.60s",
-             k->save.connected ? k->save.drive_root : (en ? "Memory mode (no USB)" : "Geheugen-modus (geen USB)"),
-             *k->ser.port ? k->ser.port : (en ? "Serial: waiting..." : "Serial: wachten..."));
+             k->save.connected ? k->save.drive_root : loc_str(k, "status_no_usb"),
+             *k->ser.port ? k->ser.port : loc_str(k, "status_serial_wait"));
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 62, 207, 142));
     XDrawString(k->dpy, k->hub_win, k->hub_gc, P, curY + Sc(18, s), foot, (int)strlen(foot));
 
@@ -869,7 +884,7 @@ static void draw_hub(KarelApp *k) {
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 150, 28, 36));
     XFillRectangle(k->dpy, k->hub_win, k->hub_gc, W - P - qw, curY, (unsigned)qw, (unsigned)Sc(26, s));
     XSetForeground(k->dpy, k->hub_gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
-    const char *qlbl = en ? "Dive & Quit" : "Sluit Karel";
+    const char *qlbl = loc_str(k, "menu_dive_quit");
     XDrawString(k->dpy, k->hub_win, k->hub_gc, W - P - qw + Sc(12, s), curY + Sc(17, s), qlbl, (int)strlen(qlbl));
 }
 
@@ -877,7 +892,7 @@ static void open_hub(KarelApp *k) {
     if (k->hidden) {
         k->hidden = 0;
         XMapRaised(k->dpy, k->karel_win);
-        trigger_climb(k, is_en(k) ? "I'm back!" : "Daar ben ik weer!");
+        trigger_climb(k, loc_str(k, "msg_back"));
     }
     if (k->hub_win) {
         XMapRaised(k->dpy, k->hub_win);
@@ -910,9 +925,9 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
             if (k->focus_active) {
                 k->focus_rem = 25 * 60;
                 k->focus_last = time(NULL);
-                say_msg(k, "Focus: 25m!", 45);
+                say_msg(k, loc_str(k, "msg_focus_start"), 45);
             } else {
-                say_msg(k, is_en(k) ? "Focus stopped." : "Focus gestopt.", 35);
+                say_msg(k, loc_str(k, "msg_focus_stop"), 35);
             }
         }
         else if (b.id == 10) { open_popup(k, POP_SKIN, x_root - mx + b.x, y_root - my + b.y + b.h); return; }
@@ -922,7 +937,7 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
         else if (b.id == 21) { k->save.auto_quiet = !k->save.auto_quiet; save_persist(&k->save); }
         else if (b.id == 22) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); }
         else if (b.id == 26) {
-            say_msg(k, is_en(k) ? "Checking GitHub for updates..." : "Controleren op updates...", 60);
+            say_msg(k, loc_str(k, "msg_upd_checking"), 60);
             if (k->upd_pipe < 0) start_updater_async(&k->upd_pipe);
         }
         else if (b.id == 30) { trigger_dive(k, "quit"); return; }
@@ -980,10 +995,10 @@ static void poll_background_events(KarelApp *k, int maxx, int miny) {
         int usb = poll_usb(&k->save);
         if (usb < 0) {
             if (k->hub_win) XUnmapWindow(k->dpy, k->hub_win);
-            say_msg(k, is_en(k) ? "USB unplugged! Bye!" : "USB los! Doei!", 45);
+            say_msg(k, loc_str(k, "msg_usb_unplugged"), 45);
             trigger_dive(k, "quit");
         } else if (usb > 0) {
-            trigger_climb(k, is_en(k) ? "KAREL USB reconnected!" : "KAREL USB herverbonden!");
+            trigger_climb(k, loc_str(k, "msg_usb_reconnected"));
             draw_hub(k);
         }
     }
@@ -996,20 +1011,14 @@ static void poll_background_events(KarelApp *k, int maxx, int miny) {
             close(k->upd_pipe);
             k->upd_pipe = -1;
             if (strncmp(buf, "NEW:", 4) == 0 && is_valid_semver(buf + 4)) {
-                char um[96];
-                snprintf(um, sizeof(um),
-                         is_en(k) ? "Update v%.16s available! Opening GitHub..." : "Update v%.16s beschikbaar! GitHub openen...",
-                         buf + 4);
-                say_msg(k, um, 80);
+                say_msg(k, loc_str(k, "msg_upd_available"), 80);
                 open_with_xdg(KAREL_RELEASES_URL);
             } else if (strcmp(buf, "UPTODATE") == 0) {
-                char um[64];
-                snprintf(um, sizeof(um), is_en(k) ? "Up to date (v%s)!" : "Al nieuwste versie (v%s)!", KAREL_VERSION);
-                say_msg(k, um, 65);
+                say_msg(k, loc_str(k, "msg_upd_uptodate"), 65);
             } else if (strcmp(buf, "OFFLINE") == 0) {
-                say_msg(k, is_en(k) ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60);
+                say_msg(k, loc_str(k, "msg_upd_offline"), 60);
             } else {
-                say_msg(k, is_en(k) ? "Update check failed." : "Update-check mislukt.", 60);
+                say_msg(k, loc_str(k, "msg_upd_error"), 60);
             }
         } else if (nr == 0) {
             close(k->upd_pipe);
@@ -1026,7 +1035,7 @@ static void poll_background_events(KarelApp *k, int maxx, int miny) {
             set_act(k, "CELEBRATE", 40);
             spawn_particles(k, "*", 245, 196, 81, 14);
             play_sound_key("levelup", k->muted, k->auto_paused);
-            say_msg(k, is_en(k) ? "Focus complete! +45 XP!" : "Focus klaar! +45 XP!", 70);
+            say_msg(k, loc_str(k, "msg_focus_done"), 70);
             save_persist(&k->save);
             draw_hub(k);
         }
@@ -1065,7 +1074,7 @@ static void step_window_ledge_roam(KarelApp *k, int wy, int wh, int minx, int ma
         if ((!k->has_ledge && k->wy < gy - 18) || k->roam_ty > k->wy + 28) {
             k->umbrella_fall = 1;
             k->roam_wait = 0; k->roam_ticks = 0; k->act_ticks = 0;
-            say_msg(k, is_en(k) ? "Window gone! Sticky umbrella open!" : "Oeps, venster weg! Paraplu open!", 42);
+            say_msg(k, loc_str(k, "msg_umbrella"), 42);
         }
     }
 }
@@ -1235,7 +1244,7 @@ static void step_physics(KarelApp *k) {
 
 static int run_ask_prompt(KarelApp *k) {
     float s = k->dpi;
-    int W = Sc(490, s), H = Sc(224, s), P = Sc(18, s), hdrH = Sc(40, s), en = is_en(k);
+    int W = Sc(490, s), H = Sc(224, s), P = Sc(18, s), hdrH = Sc(40, s);
     int wx, wy, ww, wh;
     get_work_area(k->dpy, k->scr, &wx, &wy, &ww, &wh);
 
@@ -1279,15 +1288,11 @@ static int run_ask_prompt(KarelApp *k) {
 
             int tx = P + boxSz + Sc(16, s);
             XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 242, 245, 250));
-            const char *q = confirm
-                ? (en ? "Are you sure?" : "Weet je het zeker?")
-                : (en ? "Do you want a koala on your screen?" : "Wil je een koala op je scherm hebben?");
+            const char *q = confirm ? loc_str(k, "ask_sure_title") : loc_str(k, "ask_screen_title");
             XDrawString(k->dpy, win, gc, tx, hdrH + Sc(42, s), q, (int)strlen(q));
             if (k->font) XSetFont(k->dpy, gc, k->font->fid);
             XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 176, 184, 202));
-            const char *sub = confirm
-                ? (en ? "Karel stays off your screen." : "Karel verschijnt dan niet op je scherm.")
-                : (en ? "Karel lives on your Sticky RP2350." : "Karel woont op je Sticky RP2350-stick.");
+            const char *sub = confirm ? loc_str(k, "ask_sure_sub") : loc_str(k, "ask_screen_sub");
             XDrawString(k->dpy, win, gc, tx, hdrH + Sc(72, s), sub, (int)strlen(sub));
 
             int btnY = H - Sc(54, s), btnH = Sc(36, s);
@@ -1298,7 +1303,7 @@ static int run_ask_prompt(KarelApp *k) {
                 XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 140, 38, 48));  XFillRectangle(k->dpy, win, gc, x3, btnY, (unsigned)w3, (unsigned)btnH);
                 XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
                 if (k->bfont) XSetFont(k->dpy, gc, k->bfont->fid);
-                const char *l1 = en ? "Yes" : "Ja", *l2 = en ? "View README" : "README bekijken", *l3 = en ? "No" : "Nee";
+                const char *l1 = loc_str(k, "ask_btn_yes"), *l2 = loc_str(k, "ask_btn_readme"), *l3 = loc_str(k, "ask_btn_no");
                 XDrawString(k->dpy, win, gc, x1 + Sc(44, s), btnY + Sc(23, s), l1, (int)strlen(l1));
                 XDrawString(k->dpy, win, gc, x2 + Sc(26, s), btnY + Sc(23, s), l2, (int)strlen(l2));
                 XDrawString(k->dpy, win, gc, x3 + Sc(40, s), btnY + Sc(23, s), l3, (int)strlen(l3));
@@ -1308,7 +1313,7 @@ static int run_ask_prompt(KarelApp *k) {
                 XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 140, 38, 48));  XFillRectangle(k->dpy, win, gc, x2, btnY, (unsigned)w2, (unsigned)btnH);
                 XSetForeground(k->dpy, gc, rgb_px(k->dpy, k->scr, 255, 255, 255));
                 if (k->bfont) XSetFont(k->dpy, gc, k->bfont->fid);
-                const char *l1 = en ? "Actually yes!" : "Toch wel!", *l2 = en ? "Yes, skip" : "Ja, sluit af";
+                const char *l1 = loc_str(k, "ask_btn_actually_yes"), *l2 = loc_str(k, "ask_btn_skip");
                 XDrawString(k->dpy, win, gc, x1 + Sc(64, s), btnY + Sc(23, s), l1, (int)strlen(l1));
                 XDrawString(k->dpy, win, gc, x2 + Sc(58, s), btnY + Sc(23, s), l2, (int)strlen(l2));
             }
@@ -1361,7 +1366,7 @@ static void handle_karel_mouse_release(KarelApp *k, const XButtonEvent *be) {
                 play_sound_key("sneeze", k->muted, k->auto_paused);
                 spawn_particles(k, "*", 245, 245, 245, 10);
                 set_act(k, "SNEEZE", 24);
-                say_msg(k, is_en(k) ? "Achoo! BBG dust!" : "Hatsjoe! BBG stof!", 55);
+                say_msg(k, loc_str(k, "msg_sneeze"), 55);
             }
         } else if (k->act_ticks == 0 && strcmp(k->state, "SLEEP") != 0) {
             open_hub(k);
@@ -1449,7 +1454,7 @@ static void poll_ipc_and_serial(KarelApp *k) {
                     if (k->hidden) {
                         k->hidden = 0;
                         XMapRaised(k->dpy, k->karel_win);
-                        trigger_climb(k, is_en(k) ? "I'm back!" : "Daar ben ik weer!");
+                        trigger_climb(k, loc_str(k, "msg_back"));
                     } else {
                         trigger_dive(k, "quit");
                     }
@@ -1475,7 +1480,7 @@ static void poll_ipc_and_serial(KarelApp *k) {
         if (k->hidden) {
             k->hidden = 0;
             XMapRaised(k->dpy, k->karel_win);
-            trigger_climb(k, is_en(k) ? "I'm back!" : "Daar ben ik weer!");
+            trigger_climb(k, loc_str(k, "msg_back"));
         } else {
             trigger_dive(k, "quit");
         }
@@ -1504,9 +1509,10 @@ static int run_self_test(void) {
         return 1;
     }
     static LocaleStore loc;
-    if (!load_locale_json(&loc, lj) || loc.nl.n_quotes < 25 || loc.en.n_quotes < 25 || loc.n_tricks != 28) {
-        fprintf(stderr, "Failed loading locale %s (nl=%d en=%d tricks=%d)\n",
-                lj, loc.nl.n_quotes, loc.en.n_quotes, loc.n_tricks);
+    if (!load_locale_json(&loc, lj) || loc.nl.n_quotes < 25 || loc.en.n_quotes < 25
+        || loc.n_tricks != 28 || loc.nl.n_ui < 60 || loc.en.n_ui < 60) {
+        fprintf(stderr, "Failed loading locale %s (nl=%d en=%d tricks=%d ui=%d)\n",
+                lj, loc.nl.n_quotes, loc.en.n_quotes, loc.n_tricks, loc.nl.n_ui);
         return 1;
     }
     Rgba px[32][32];
@@ -1525,7 +1531,7 @@ static int run_self_test(void) {
     sha256_hex((const uint8_t *)"abc", 3, sha);
     if (opaque < 50 ||
         strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 ||
-        compare_ver("2.7.3", KAREL_VERSION) <= 0 ||
+        compare_ver("2.7.4", KAREL_VERSION) <= 0 ||
         !is_valid_semver(KAREL_VERSION) ||
         is_valid_semver("2.7.0;id")) {
         fprintf(stderr, "Self-check failed\n");
@@ -1622,7 +1628,7 @@ int main(int argc, char **argv) {
     k.karel_gc = XCreateGC(k.dpy, k.karel_win, 0, NULL);
     XMapRaised(k.dpy, k.karel_win);
     (void)no_update;
-    trigger_climb(&k, is_en(&k) ? "Karel climbed onto your Linux desktop!" : "Karel klimt je Linux bureaublad op!");
+    trigger_climb(&k, loc_str(&k, "msg_welcome"));
 
     while (!k.quit_req) {
         handle_x11_events(&k);

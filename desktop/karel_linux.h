@@ -26,7 +26,7 @@
  * Version, Read-Only Update Endpoints & Hard Safety Caps
  * ========================================================================= */
 
-#define KAREL_VERSION "2.7.2"
+#define KAREL_VERSION "2.7.3"
 #define KAREL_MANIFEST_URL "https://github.com/svsticky/karel-de-koala/releases/latest/download/version.json"
 #define KAREL_RELEASES_URL "https://github.com/svsticky/karel-de-koala/releases/latest"
 
@@ -202,6 +202,8 @@ typedef struct {
     char level_titles[12][48];  int n_levels;
     char outfit_keys[20][24];
     char outfit_vals[20][128];  int n_outfits;
+    char ui_keys[120][32];
+    char ui_vals[120][192];     int n_ui;
 } LocaleSet;
 
 typedef struct { char lbl[48], st[32], msg[128]; } TrickDef;

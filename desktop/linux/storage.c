@@ -486,6 +486,25 @@ static int parse_str_array(const char *blk, const char *blk_end, const char *key
     return count;
 }
 
+static int parse_str_map(const char *blk, const char *blk_end, const char *key,
+                         void *keys_base, size_t key_stride, void *vals_base, size_t val_stride, int max_items) {
+    const char *o_end = NULL;
+    const char *p = json_find_block(blk, blk_end, key, '{', '}', &o_end);
+    int count = 0;
+    char *kdst = (char *)keys_base, *vdst = (char *)vals_base;
+    while (p && p < o_end && count < max_items) {
+        while (p < o_end && (isspace((unsigned char)*p) || *p == ',')) p++;
+        if (p >= o_end || *p != '"') break;
+        p = json_read_quoted(p, kdst + (size_t)count * key_stride, key_stride);
+        if (!p) break;
+        while (p < o_end && (isspace((unsigned char)*p) || *p == ':')) p++;
+        p = json_read_quoted(p, vdst + (size_t)count * val_stride, val_stride);
+        if (!p) break;
+        count++;
+    }
+    return count;
+}
+
 static void parse_locale_set(const char *blk, const char *blk_end, LocaleSet *ls) {
     ls->n_quotes    = parse_str_array(blk, blk_end, "quotes",       ls->quotes,       40, sizeof(ls->quotes[0]));
     ls->n_morning   = parse_str_array(blk, blk_end, "morning",      ls->morning,       8, sizeof(ls->morning[0]));
@@ -498,20 +517,12 @@ static void parse_locale_set(const char *blk, const char *blk_end, LocaleSet *ls
     ls->n_toss_soft = parse_str_array(blk, blk_end, "toss_soft",    ls->toss_soft,     6, sizeof(ls->toss_soft[0]));
     ls->n_toss_hard = parse_str_array(blk, blk_end, "toss_hard",    ls->toss_hard,     6, sizeof(ls->toss_hard[0]));
     ls->n_levels    = parse_str_array(blk, blk_end, "level_titles", ls->level_titles, 12, sizeof(ls->level_titles[0]));
-
-    const char *o_end = NULL;
-    const char *p = json_find_block(blk, blk_end, "outfit_quotes", '{', '}', &o_end);
-    ls->n_outfits = 0;
-    while (p && p < o_end && ls->n_outfits < 20) {
-        while (p < o_end && (isspace((unsigned char)*p) || *p == ',')) p++;
-        if (p >= o_end || *p != '"') break;
-        p = json_read_quoted(p, ls->outfit_keys[ls->n_outfits], sizeof(ls->outfit_keys[0]));
-        if (!p) break;
-        while (p < o_end && (isspace((unsigned char)*p) || *p == ':')) p++;
-        p = json_read_quoted(p, ls->outfit_vals[ls->n_outfits], sizeof(ls->outfit_vals[0]));
-        if (!p) break;
-        ls->n_outfits++;
-    }
+    ls->n_outfits   = parse_str_map(blk, blk_end, "outfit_quotes",
+                                    ls->outfit_keys, sizeof(ls->outfit_keys[0]),
+                                    ls->outfit_vals, sizeof(ls->outfit_vals[0]), 20);
+    ls->n_ui        = parse_str_map(blk, blk_end, "ui",
+                                    ls->ui_keys, sizeof(ls->ui_keys[0]),
+                                    ls->ui_vals, sizeof(ls->ui_vals[0]), 120);
 }
 
 int load_locale_json(LocaleStore *loc, const char *path) {
