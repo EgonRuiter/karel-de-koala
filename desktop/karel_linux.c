@@ -1015,7 +1015,7 @@ static void handle_key_event(KarelApp *k, XKeyEvent *kev) {
  * 5. Roaming Physics, Background Event Polling & Ask Prompt
  * ========================================================================= */
 
-static void poll_background_events(KarelApp *k, int minx, int maxx, int miny, int gy) {
+static void poll_background_events(KarelApp *k, int maxx, int miny) {
     if (k->frame_idx % 16 == 0) {
         if (k->save.auto_quiet) {
             int busy = detect_auto_quiet(k);
@@ -1085,10 +1085,9 @@ static void poll_background_events(KarelApp *k, int minx, int maxx, int miny, in
             draw_hub(k);
         }
     }
-    (void)gy;
 }
 
-static void step_window_ledge_roam(KarelApp *k, int wx, int wy, int ww, int wh, int minx, int maxx, int miny, int gy) {
+static void step_window_ledge_roam(KarelApp *k, int wy, int wh, int minx, int maxx, int miny, int gy) {
     if (strcmp(k->save.roam_mode, "window") == 0) {
         if ((++k->ledge_ticks % 12) == 1 || !k->has_ledge) {
             int ax, ay, aw, ah;
@@ -1123,10 +1122,9 @@ static void step_window_ledge_roam(KarelApp *k, int wx, int wy, int ww, int wh, 
             say_msg(k, is_en(k) ? "Window gone! Sticky umbrella open!" : "Oeps, venster weg! Paraplu open!", 42);
         }
     }
-    (void)wx; (void)ww;
 }
 
-static void step_roam(KarelApp *k, int wx, int wy, int ww, int wh, int minx, int maxx, int miny, int gy) {
+static void step_roam(KarelApp *k, int wy, int wh, int minx, int maxx, int miny, int gy) {
     if (k->disco_ticks > 0) { strcpy(k->state, "DANCE"); return; }
     if (strcmp(k->save.roam_mode, "park") == 0) { strcpy(k->state, "IDLE"); return; }
 
@@ -1153,7 +1151,7 @@ static void step_roam(KarelApp *k, int wx, int wy, int ww, int wh, int minx, int
         return;
     }
 
-    step_window_ledge_roam(k, wx, wy, ww, wh, minx, maxx, miny, gy);
+    step_window_ledge_roam(k, wy, wh, minx, maxx, miny, gy);
     if (k->umbrella_fall) return;
 
     if (k->roam_wait > 0) {
@@ -1198,7 +1196,7 @@ static void step_physics(KarelApp *k) {
     int minx = wx - k_ox(k) + 6, maxx = wx + ww - k_ox(k) - px_sz(k) - 6;
     int miny = wy - k_oy(k) + 6, gy = wy + wh - (k_oy(k) + px_sz(k));
 
-    poll_background_events(k, minx, maxx, miny, gy);
+    poll_background_events(k, maxx, miny);
 
     if (k->closing) {
         k->close_step++;
@@ -1248,7 +1246,7 @@ static void step_physics(KarelApp *k) {
             k->roam_wait = 80;
         }
     } else if (!k->dragging && !k->auto_paused && k->act_ticks == 0 && strcmp(k->state, "SLEEP") != 0) {
-        step_roam(k, wx, wy, ww, wh, minx, maxx, miny, gy);
+        step_roam(k, wy, wh, minx, maxx, miny, gy);
     }
 
     if (k->jump_y < 0 || k->jump_vy < 0) {
