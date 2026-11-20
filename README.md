@@ -19,7 +19,6 @@ Plug the USB stick into any Windows, macOS, or Linux machine, launch the compani
 - [Security & Privacy](#security--privacy)
 - [Architecture](#architecture)
 - [Hardware](#hardware)
-- [3D-Printable Enclosure](#3d-printable-enclosure)
 - [Building from Source](#building-from-source)
 - [Repository Layout](#repository-layout)
 - [Troubleshooting](#troubleshooting)
@@ -30,11 +29,11 @@ Plug the USB stick into any Windows, macOS, or Linux machine, launch the compani
 
 - **Portable & Zero-Install** — Runs directly from the USB drive on Windows, macOS (Universal Apple Silicon + Intel), and Linux with no external runtimes or package managers required.
 - **Native Desktop Companions** — Lightweight native binaries for each OS: C# (.NET Framework) on Windows, Swift/AppKit on macOS, and C99/X11 on Linux.
-- **64 Animations & Customization** — 234 hand-crafted pixel-art frames shared across platforms, 14 coat colors, and 16 wearable outfits.
+- **64 Animations & Customization** — 234 hand-crafted pixel-art frames shared across platforms, 14 coat colors, 16 wearable outfits that track Karel's animations per frame, and a one-click Random Style button.
+- **Personality & Chiptune Audio** — 60+ bilingual (`NL`/`EN`) time-, outfit-, and action-aware voice lines, 10 level titles, and synthesized 8-bit chiptune sound effects.
 - **Hardware RGB LED Sync** — Bidirectional USB serial communication mirrors Karel's state (happy, hungry, studying, party, sleeping) on the RP2350's WS2812 NeoPixel LED.
 - **On-Stick Persistence** — XP, level, stats, outfit, and preferences are stored directly on the USB drive (`save.json`) so your companion follows you across computers.
 - **Optional Auto-Launch & Clean Removal** — Opt in to launch Karel automatically when the USB stick is plugged in, with idle zero-CPU waiting on Windows, zero background processes on macOS (`launchd`), and one-click uninstallation.
-- **Custom 3D-Printable Case** — Snap-fit enclosure sized for the RP2350 SuperMini featuring the SV Sticky mascot logo, integrated LED diffuser, and keychain loop.
 
 ---
 
@@ -185,26 +184,6 @@ Plain UTF-8, newline-delimited messages at `115200` baud:
 
 ---
 
-## 3D-Printable Enclosure
-
-Manifold, print-ready STL files for a bare **RP2350 SuperMini** (`18.0 × 23.3–23.5 mm`, without pin headers) are provided in [`case/stl/`](case/stl/):
-
-| File | Dimensions | Description |
-|---|---|---|
-| [`karel_rp2350_complete_plate.stl`](case/stl/karel_rp2350_complete_plate.stl) | `51.0 × 36.0 × 7.6 mm` | Complete print plate (bottom + lid). |
-| [`karel_rp2350_bottom.stl`](case/stl/karel_rp2350_bottom.stl) | `23.0 × 35.6 × 7.6 mm` | Base shell with PCB retention ribs, USB-C cutout (`12.2 × 5.3 mm`), and keychain eye (`Ø 4.6 mm`). |
-| [`karel_rp2350_top.stl`](case/stl/karel_rp2350_top.stl) | `23.0 × 28.0 × 5.1 mm` | Snap-fit lid with recessed SV Sticky logo and thin internal diffuser window over `GP16`. |
-
-**Recommended print settings:** `0.4 mm` nozzle, `0.16 mm` layer height, no supports required. White or light-colored PLA/PETG works best for LED diffusion.
-
-To regenerate or customize the STLs (e.g. open LED or BOOT cutout):
-
-```bash
-python case/generate_karel_case.py --help
-```
-
----
-
 ## Building from Source
 
 ### Prerequisites
@@ -243,8 +222,6 @@ python desktop/prepare_test_usb.py --drive D:\
 python desktop/prepare_test_usb.py --drive D:\ --reset-save
 ```
 
-For batch flashing 50+ boards, see [`DEPLOYMENT_50_BOARDS.md`](DEPLOYMENT_50_BOARDS.md).
-
 ### Release Pipeline
 
 Pushing to `main` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds and self-tests all three platforms, verifies version parity across sources, computes SHA-256 checksums, generates `version.json`, and publishes a GitHub Release.
@@ -253,30 +230,28 @@ Pushing to `main` triggers [`.github/workflows/release.yml`](.github/workflows/r
 
 ## Repository Layout
 
+This repository contains strictly the source code and build scripts for what ships on the USB stick:
+
 ```text
 karel-de-koala/
 ├── README.md
-├── DEPLOYMENT_50_BOARDS.md          # Batch provisioning guide for 50+ boards
 ├── .github/workflows/release.yml    # Cross-platform CI/CD & release workflow
 ├── firmware/
 │   ├── boot.py                      # USB configuration (Mass Storage + CDC, HID disabled)
 │   └── code.py                      # CircuitPython LED controller & serial protocol
-├── desktop/
-│   ├── karel_native.cs              # Windows companion (C# / WinForms)
-│   ├── karel_mac.swift              # macOS companion (Swift / AppKit)
-│   ├── karel_linux.c                # Linux companion (C99 / X11 + XShape)
-│   ├── karel_sprites.gz             # Shared compressed sprite archive (64 states, 234 frames)
-│   ├── build_native.py              # Windows build script & sprite exporter
-│   ├── build_mac.sh                 # macOS Universal app bundle build script
-│   ├── build_linux.sh               # Linux build script
-│   ├── launch_karel.sh              # Linux USB launcher wrapper
-│   ├── prepare_test_usb.py          # USB / RP2350 provisioning tool
-│   └── generate_initial_save.py     # Initial save.json & drive icon generator
-├── python_extended/                 # Extended Python desktop edition & sprite definitions
-└── case/
-    ├── generate_karel_case.py       # Parametric STL enclosure generator
-    ├── assets/                      # SV Sticky logo assets (.png / .svg)
-    └── stl/                         # Print-ready STL files
+└── desktop/
+    ├── karel_native.cs              # Windows companion (C# / WinForms)
+    ├── karel_mac.swift              # macOS companion (Swift / AppKit)
+    ├── karel_linux.c                # Linux companion (C99 / X11 + XShape)
+    ├── launch_karel.sh              # Linux USB launcher wrapper (Karel (Linux).sh)
+    ├── build_native.py              # Windows build script & sprite archive exporter
+    ├── build_mac.sh                 # macOS Universal app bundle build script
+    ├── build_linux.sh               # Linux build script
+    ├── prepare_test_usb.py          # USB / RP2350 provisioning tool
+    ├── generate_initial_save.py     # Initial save.json & drive icon generator
+    └── sprites/
+        ├── karel_assets.py          # Base pixel-art palette & static sprites
+        └── karel_anims.py           # Procedural animation frames (64 states, 234 frames)
 ```
 
 ---

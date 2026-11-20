@@ -5,19 +5,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCH="$(uname -m)"
 export KAREL_DRIVE_DIR="$HERE"
 
-PY_SCRIPT="$HERE/../python_extended/karel.py"
-[ -f "$PY_SCRIPT" ] || PY_SCRIPT="$HERE/python_extended/karel.py"
-
-for a in "$@"; do
-    case "$a" in
-        --python|--full)
-            if [ -f "$PY_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
-                exec python3 "$PY_SCRIPT" "$@"
-            fi
-            ;;
-    esac
-done
-
 BIN=""
 for CAND in \
     "$HERE/.karel_linux_${ARCH}" \
@@ -42,17 +29,13 @@ if [ -n "$BIN" ]; then
 elif [ -f "$HERE/build_linux.sh" ] && command -v gcc >/dev/null 2>&1; then
     echo "Karel Linux-versie eenmalig compileren..."
     if bash "$HERE/build_linux.sh" "$RUN_BIN"; then
-        cp -f "$RUN_BIN" "$HERE/karel_linux_${ARCH}" 2>/dev/null || true
+        cp -f "$RUN_BIN" "$HERE/.karel_linux_${ARCH}" 2>/dev/null || true
     fi
 fi
 
 if [ -x "$RUN_BIN" ]; then
     [ -f "$HERE/karel_sprites.gz" ] && cp -f "$HERE/karel_sprites.gz" "$RUN_DIR/karel_sprites.gz"
     exec "$RUN_BIN" "$@"
-fi
-
-if [ -f "$PY_SCRIPT" ] && command -v python3 >/dev/null 2>&1 && python3 -c "import tkinter" >/dev/null 2>&1; then
-    exec python3 "$PY_SCRIPT" "$@"
 fi
 
 echo "Karel de Koala: geen voorgebouwde karel_linux_${ARCH} binary gevonden."

@@ -1210,11 +1210,3 @@ dWWWWWd.........................
 from karel_anims import register_animations  # noqa: E402
 
 register_animations(SPRITES)
-
-from karel_wardrobe import (  # noqa: E402, F401
-    COMPANION_SPRITES, SKINS, WARDROBE_ITEMS, apply_accessories,
-)
-from karel_data import (  # noqa: E402, F401
-    ACHIEVEMENTS, FOOD_SHOP, HYPER_QUOTES, QUEST_POOL, QUOTES, ROAM_QUOTES,
-    TITLES, UPGRADES, generate_daily_quests, level_from_xp, title_for_level,
-)

@@ -1,23 +1,42 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# Compiled binaries & generated desktop build artifacts
+# (built reproducibly via GitHub Actions and distributed on GitHub Releases)
+desktop/karel_native.exe
+desktop/karel_linux
+desktop/karel_linux_*
+desktop/Karel.app/
+desktop/Karel-macOS-App.zip
+desktop/karel_sprites.gz
+desktop/karel.ico
+desktop/AUTORUN.INF
+desktop/.VolumeIcon.icns
 
-# Build / staging / temporary files
+# Local-only hardware/3D-case files & batch deployment notes (not part of USB software)
+case/
+DEPLOYMENT_50_BOARDS.md
 deploy_stage/
-*.tmp
-*.log
+release_assets/
 
-# Per-stick runtime state (generated per board on deployment)
+# Per-stick runtime state
 desktop/save.json
 desktop/.karel_drive
 desktop/.karel_no_hid
 desktop/.karel_mac
-python_extended/save.json
-python_extended/.karel_drive
-python_extended/.karel_no_hid
 
-# OS junk
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Temporary, log & editor files
+*.tmp
+*.log
+*.bak
+.vscode/
+.idea/
+
+# OS metadata
 .DS_Store
 .AppleDouble
 .LSOverride

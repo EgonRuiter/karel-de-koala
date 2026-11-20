@@ -18,10 +18,13 @@ if ! xcode-select -p >/dev/null 2>&1 || ! command -v swiftc >/dev/null 2>&1; the
     exit 1
 fi
 
-if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/../python_extended/karel_assets.py" ]; then
-    python3 -c "import sys; sys.path.insert(0, '$HERE'); sys.path.insert(1, '$HERE/../python_extended'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
+if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/sprites/karel_assets.py" ]; then
+    python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
 [ -f "$SPRITES" ] || { echo "Fout: karel_sprites.gz niet gevonden naast build_mac.sh."; exit 1; }
+if [ ! -f "$HERE/.VolumeIcon.icns" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/generate_initial_save.py" ]; then
+    python3 -c "import sys; sys.path.insert(0, '$HERE'); import generate_initial_save; generate_initial_save.write_drive_branding('$HERE')" || true
+fi
 
 rm -rf "$APP"
 mkdir -p "$MACOS_DIR" "$RES_DIR"

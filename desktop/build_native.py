@@ -8,10 +8,10 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PY_EXT = os.path.join(os.path.dirname(HERE), "python_extended")
+SPRITES_DIR = os.path.join(HERE, "sprites")
 sys.path.insert(0, HERE)
-if os.path.isdir(PY_EXT):
-    sys.path.insert(1, PY_EXT)
+if os.path.isdir(SPRITES_DIR):
+    sys.path.insert(1, SPRITES_DIR)
 from generate_initial_save import write_drive_branding  # noqa: E402
 from karel_anims import ANIM_DIV  # noqa: E402
 from karel_assets import PALETTE, SPRITES  # noqa: E402

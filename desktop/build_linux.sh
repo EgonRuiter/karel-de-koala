@@ -17,8 +17,8 @@ command -v gcc >/dev/null 2>&1 || {
     exit 1
 }
 
-if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/../python_extended/karel_assets.py" ]; then
-    python3 -c "import sys; sys.path.insert(0, '$HERE'); sys.path.insert(1, '$HERE/../python_extended'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
+if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/sprites/karel_assets.py" ]; then
+    python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
 [ -f "$SPRITES" ] || { echo "Fout: karel_sprites.gz niet gevonden."; exit 1; }
 
