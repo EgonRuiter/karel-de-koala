@@ -5,7 +5,7 @@ ANIM_DIV = {
     **dict.fromkeys((
         "IDLE", "SIT", "SLEEP", "THINK", "YAWN", "STUDY", "LAPTOP_CODE",
         "PEEK", "EARS_WIGGLE", "BLINK_SMILE", "BOW", "UMBRELLA", "MAGNIFY",
-        "FISHING", "HUG_PLUSH", "EUCALYPTUS_HUG", "HUNGRY",
+        "FISHING", "HUG_PLUSH", "EUCALYPTUS_HUG", "HUNGRY", "MEDITATE", "TELESCOPE",
     ), 3),
 }
 
@@ -13,6 +13,8 @@ DESKTOP_IDLE_ACTS = (
     "BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "STRETCH",
     "THINK", "LAPTOP_CODE", "MAGNIFY", "PAPER_PLANE",
     "HUG_PLUSH", "EUCALYPTUS_HUG", "UMBRELLA", "BOW", "SPIN", "WAVE",
+    "SKATEBOARD", "JUGGLE", "MAGIC_TRICK", "DJ", "TELESCOPE",
+    "BALLOON", "MEDITATE", "PIZZA", "NINJA", "KARATE",
 )
 
 
@@ -483,3 +485,142 @@ def register_animations(sprites):
     _bg = _shift(blink, dy=3)
     _paint(_bg, [(11, 20, 20, 23, "g"), (13, 21, 18, 23, "s")], [(10, 29, "k"), (21, 29, "k"), (6, 10, "y"), (25, 10, "y")])
     sprites["BOW"] = [idle0, _make(blink, [], [], dy=1), ["".join(r) for r in _bg], _make(pet_h, [], [(15, 2, "y"), (16, 2, "y")])]
+
+    # --- v2.5.0 Content Expansion (+10 new animations) ---
+    # 1. SKATEBOARD: cruising on a Sticky-red skateboard with speed lines
+    def _skate_f(step):
+        dx = (-1, 0, 1, 0)[step]
+        dy = -2 if step != 2 else -3
+        board = [
+            (7 + dx, 28, 24 + dx, 29, "k"),
+            (8 + dx, 28, 23 + dx, 28, "r"),
+            (6 + dx, 27, 7 + dx, 28, "k"), (24 + dx, 27, 25 + dx, 28, "k"),
+            (10 + dx, 30, 12 + dx, 31, "k"), (19 + dx, 30, 21 + dx, 31, "k"),
+            (11 + dx, 30, 11 + dx, 30, "y" if step % 2 == 0 else "W"),
+            (20 + dx, 30, 20 + dx, 30, "W" if step % 2 == 0 else "y"),
+        ]
+        sp = [(2, 26, "u"), (3, 26, "u"), (1, 28, "a"), (2, 28, "a")] if step % 2 == 0 else [(3, 27, "u"), (4, 27, "u"), (2, 29, "a")]
+        return _make(pet_h if step % 2 == 0 else wink, board, sp, dx=dx, dy=dy)
+    sprites["SKATEBOARD"] = [_skate_f(i) for i in range(4)]
+
+    # 2. KARATE: red headband + karate chop & action slash
+    kb = [(9, 7, 22, 8, "r"), (10, 7, 21, 7, "R"), (23, 8, 25, 9, "r"), (25, 9, 26, 10, "R")]
+    sprites["KARATE"] = [
+        _make(idle0, kb + [(22, 18, 26, 20, "k"), (23, 19, 25, 19, "g")], [(27, 17, "W"), (28, 19, "y")]),
+        _make(pet_h, kb + [(22, 17, 28, 19, "k"), (23, 18, 27, 18, "g")], [(29, 15, "W"), (30, 17, "y"), (29, 19, "W"), (28, 21, "y")], dx=1, dy=-1),
+        _make(idle0, kb + [(5, 17, 10, 19, "k"), (6, 18, 9, 18, "g")], [(3, 15, "W"), (2, 17, "y"), (3, 19, "W")], dx=-1, dy=-1),
+        _make(pet_h, kb + [(23, 20, 27, 22, "k"), (24, 21, 26, 21, "g")], [(28, 19, "y"), (29, 21, "W")]),
+    ]
+
+    # 3. MAGIC_TRICK: wand wave + sparkling stars & floating magic heart above head
+    wand = [(22, 18, 23, 19, "k"), (24, 16, 25, 17, "k"), (26, 14, 27, 15, "W")]
+    sprites["MAGIC_TRICK"] = [
+        _make(idle0, wand, [(28, 12, "y"), (29, 14, "a")]),
+        _make(pet_h, wand, [(28, 11, "W"), (29, 13, "y"), (21, 3, "a"), (15, 2, "y"), (16, 2, "W")], dy=-1),
+        _make(wink, wand, [(28, 11, "y"), (29, 13, "a"), (14, 1, "r"), (17, 1, "r"), (13, 2, "r"), (14, 2, "R"), (15, 2, "r"), (16, 2, "r"), (17, 2, "R"), (18, 2, "r"), (14, 3, "r"), (15, 3, "r"), (16, 3, "r"), (17, 3, "r"), (15, 4, "r"), (16, 4, "r"), (11, 2, "y"), (20, 2, "y")], dy=-1),
+        _make(pet_h, wand, [(12, 1, "y"), (19, 1, "W"), (15, 3, "a"), (28, 12, "W")]),
+    ]
+
+    # 4. JUGGLE: 3 colorful balls (red, gold, blue) orbiting above Karel
+    jpos = [
+        ((7, 5), (15, 1), (24, 5)),
+        ((10, 2), (21, 2), (26, 9)),
+        ((15, 1), (24, 5), (7, 9)),
+        ((21, 2), (25, 9), (9, 3)),
+    ]
+    def _jug_f(step):
+        (x1, y1), (x2, y2), (x3, y3) = jpos[step]
+        rc = [
+            (x1, y1, x1 + 1, y1 + 1, "r"),
+            (x2, y2, x2 + 1, y2 + 1, "y"),
+            (x3, y3, x3 + 1, y3 + 1, "b"),
+            (5, 17, 8, 19, "k"), (6, 18, 7, 18, "g"),
+            (23, 17, 26, 19, "k"), (24, 18, 25, 18, "g"),
+        ]
+        pt = [(x1, y1, "W"), (x2, y2, "W"), (x3, y3, "W")]
+        return _make(pet_h if step % 2 == 0 else idle0, rc, pt, dy=-(step % 2))
+    sprites["JUGGLE"] = [_jug_f(i) for i in range(4)]
+
+    # 5. PIZZA: holding a cheesy pepperoni pizza slice & chomping happily
+    piz = [
+        (11, 18, 20, 19, "h"), (12, 20, 19, 21, "y"), (13, 22, 18, 23, "y"), (14, 24, 17, 25, "y"), (15, 26, 16, 26, "Y"),
+        (13, 20, 14, 21, "r"), (17, 21, 18, 22, "r"), (15, 23, 16, 24, "r"),
+    ]
+    sprites["PIZZA"] = [
+        _make(idle0, piz, [(12, 18, "o"), (19, 18, "o")]),
+        _make(pet_h, piz, [(12, 18, "o"), (19, 18, "o"), (15, 15, "p"), (16, 15, "p")], dy=-1),
+        _make(blink, piz[0:5], [(14, 21, "r"), (17, 21, "r"), (22, 16, "y")]),
+        _make(pet_h, piz, [(12, 18, "o"), (19, 18, "o"), (5, 3, "p"), (26, 3, "p")]),
+    ]
+
+    # 6. DJ: mini DJ turntable deck with flashing neon buttons & floating music notes
+    def _dj_f(step):
+        deck = [
+            (4, 22, 27, 29, "k"), (5, 23, 26, 28, "d"),
+            (6, 24, 11, 27, "k"), (7, 25, 10, 26, "s"), (8 + (step % 2), 25, 8 + (step % 2), 25, "W"),
+            (20, 24, 25, 27, "k"), (21, 25, 24, 26, "s"), (23 - (step % 2), 26, 23 - (step % 2), 26, "W"),
+            (13, 24, 14, 24, "n" if step % 2 == 0 else "a"),
+            (16, 24, 17, 24, "v" if step % 2 == 0 else "y"),
+            (13, 26, 18, 27, "k"), (14 + (step % 3), 26, 14 + (step % 3), 27, "r"),
+        ]
+        hp = _headphones_on(pet_h if step % 2 == 0 else wink)
+        ny = 2 if step % 2 == 0 else 1
+        notes = [(3, ny + 2, "a"), (4, ny + 1, "a"), (4, ny, "a"), (5, ny, "a"),
+                 (27, ny + 3, "v"), (28, ny + 2, "v"), (28, ny + 1, "v"), (29, ny + 1, "v")]
+        return _make(hp, deck, notes, dy=-(step % 2))
+    sprites["DJ"] = [_dj_f(i) for i in range(4)]
+
+    # 7. TELESCOPE: brass telescope pointing up-right at twinkling stars
+    scope = [
+        (19, 15, 22, 16, "k"), (20, 15, 22, 16, "Y"),
+        (22, 13, 26, 15, "k"), (23, 13, 25, 14, "y"),
+        (26, 11, 29, 13, "k"), (27, 11, 28, 12, "b"),
+        (22, 17, 23, 27, "k"), (20, 27, 21, 29, "k"), (24, 27, 25, 29, "k"),
+    ]
+    sprites["TELESCOPE"] = [
+        _make(idle0, scope, [(26, 2, "y"), (29, 5, "W"), (24, 5, "a")]),
+        _make(wink, scope, [(26, 2, "W"), (29, 5, "y"), (24, 5, "W"), (28, 1, "a")]),
+        _make(idle0, scope, [(26, 2, "y"), (29, 5, "a"), (24, 5, "y")]),
+        _make(pet_h, scope, [(26, 2, "W"), (29, 5, "W"), (24, 5, "a"), (30, 3, "y")]),
+    ]
+
+    # 8. BALLOON: floating gently holding a big Sticky-red balloon
+    def _bal_f(step):
+        dy = (-2, -3, -2, -1)[step]
+        by = 1 if step in (0, 2) else (0 if step == 1 else 2)
+        bal = [
+            (25, by, 31, by + 6, "k"), (26, by + 1, 30, by + 5, "r"), (27, by + 1, 28, by + 2, "R"),
+            (27, by + 7, 29, by + 7, "k"), (28, by + 8, 28, 18 + dy, "w"),
+            (24, 19 + dy, 28, 19 + dy, "w"),
+        ]
+        pt = [(25, by, "."), (31, by, "."), (25, by + 6, "."), (31, by + 6, "."), (27, by + 2, "W")]
+        return _make(pet_h if step in (1, 2) else idle0, bal, pt, dy=dy)
+    sprites["BALLOON"] = [_bal_f(i) for i in range(4)]
+
+    # 9. NINJA: dark headband + smoke puff poof!
+    nb = [(9, 7, 22, 8, "k"), (10, 7, 21, 7, "r"), (23, 7, 26, 8, "r"), (26, 8, 28, 9, "R")]
+    smoke = [(3, 21, 6, 24, "w"), (4, 22, 5, 23, "W"), (25, 20, 28, 23, "w"), (26, 21, 27, 22, "W")]
+    sprites["NINJA"] = [
+        _make(idle0, nb + [(9, 13, 22, 16, "k"), (10, 14, 21, 15, "d")], [(11, 11, "W"), (20, 11, "W")]),
+        _make(idle0, nb + [(9, 13, 22, 16, "k"), (10, 14, 21, 15, "d")] + smoke, [(11, 11, "a"), (20, 11, "a")], dy=-1),
+        _make(idle0, nb + [(9, 13, 22, 16, "k"), (10, 14, 21, 15, "d")], [(11, 11, "W"), (20, 11, "W"), (4, 18, "w"), (27, 17, "w")], dy=-2),
+        _make(wink, nb + [(9, 13, 22, 16, "k"), (10, 14, 21, 15, "d")], [(5, 23, "W"), (26, 22, "W")]),
+    ]
+
+    # 10. MEDITATE: peaceful floating zen pose with glowing aura sparkles
+    def _med_f(step):
+        dy = (-2, -3, -2, -1)[step]
+        aura = [
+            (4, 12 + (step % 2), "a"), (27, 12 + ((step + 1) % 2), "a"),
+            (6, 20 - (step % 2), "y"), (25, 20 - ((step + 1) % 2), "y"),
+            (15, 2 - (step % 2), "u"), (16, 2 - (step % 2), "W"),
+        ]
+        # cross-legged tuck floating cleanly above a soft ground shadow
+        rc = [
+            (8, 23, 23, 31, "."),
+            (10, 23, 21, 26, "k"), (11, 23, 20, 25, "g"), (13, 24, 18, 25, "s"),
+            (9, 24, 10, 25, "k"), (21, 24, 22, 25, "k"),
+            (12, 30, 19, 30, "d"),
+        ]
+        return _make(blink, rc, aura, dy=dy)
+    sprites["MEDITATE"] = [_med_f(i) for i in range(4)]

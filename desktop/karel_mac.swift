@@ -102,16 +102,23 @@ private enum MacWin {
 // MARK: - Sprites (shared karel_sprites.gz)
 
 private final class SpriteBank {
-    static let skinIds = ["classic", "sticky", "mint", "midnight", "gold", "crimson"]
-    static let outfitIds = ["scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat", ""]
+    static let skinIds = [
+        "classic", "sticky", "mint", "midnight", "gold", "crimson",
+        "sakura", "ocean", "sunset", "espresso", "cyber", "forest", "snow", "obsidian"
+    ]
+    static let outfitIds = [
+        "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat",
+        "beanie", "tophat", "chef", "halo", "bowtie", "cape", "labcoat", "nerd", ""
+    ]
     private static let skipOverlayStates: Set<String> = [
         "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
         "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
         "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-        "CELEBRATE", "JETPACK", "STUDY"
+        "CELEBRATE", "JETPACK", "STUDY",
+        "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE"
     ]
     private static let skipHeadStates: Set<String> = ["JUMP", "HYPER", "SNEEZE"]
-    private static let skipTorsoStates: Set<String> = ["DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL"]
+    private static let skipTorsoStates: Set<String> = ["DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA"]
 
     var states: [String: [[String]]] = [:]
     var animDiv: [String: Int] = [:]
@@ -200,6 +207,22 @@ private final class SpriteBank {
             if ch == "g" { return "y" }; if ch == "s" { return "Y" }; if ch == "w" { return "W" }
         case "crimson":
             if ch == "g" { return "R" }; if ch == "s" { return "r" }; if ch == "w" { return "y" }
+        case "sakura":
+            if ch == "g" { return "p" }; if ch == "s" { return "v" }; if ch == "w" { return "P" }
+        case "ocean":
+            if ch == "g" { return "b" }; if ch == "s" { return "A" }; if ch == "w" { return "u" }
+        case "sunset":
+            if ch == "g" { return "o" }; if ch == "s" { return "f" }; if ch == "w" { return "t" }
+        case "espresso":
+            if ch == "g" { return "h" }; if ch == "s" { return "H" }; if ch == "w" { return "t" }
+        case "cyber":
+            if ch == "g" { return "d" }; if ch == "s" { return "k" }; if ch == "w" { return "a" }
+        case "forest":
+            if ch == "g" { return "e" }; if ch == "s" { return "E" }; if ch == "w" { return "l" }
+        case "snow":
+            if ch == "g" { return "W" }; if ch == "s" { return "w" }; if ch == "w" { return "u" }
+        case "obsidian":
+            if ch == "g" { return "d" }; if ch == "s" { return "k" }; if ch == "w" { return "W" }
         default: break
         }
         return ch
@@ -277,6 +300,49 @@ private final class SpriteBank {
             fillRect(&g, 13, 3, 18, 4, "m"); fillRect(&g, 14, 1, 17, 2, "R")
             putPx(&g, 15, 0, "y"); putPx(&g, 16, 0, "W")
             putPx(&g, 14, 4, "y"); putPx(&g, 17, 4, "b"); putPx(&g, 15, 2, "y")
+        case "beanie" where !skipHead:
+            fillRect(&g, 11, 1, 20, 4, "r"); fillRect(&g, 12, 1, 19, 1, "k")
+            putPx(&g, 11, 1, "."); putPx(&g, 20, 1, ".")
+            fillRect(&g, 10, 4, 21, 5, "R"); putPx(&g, 10, 5, "k"); putPx(&g, 21, 5, "k")
+            for x in stride(from: 11, through: 20, by: 2) { putPx(&g, x, 5, "S") }
+            fillRect(&g, 15, 0, 16, 1, "W"); putPx(&g, 14, 0, "w"); putPx(&g, 17, 0, "w")
+        case "tophat" where !skipHead:
+            fillRect(&g, 9, 5, 22, 5, "k")
+            fillRect(&g, 11, 0, 20, 4, "k"); fillRect(&g, 12, 1, 19, 3, "d")
+            fillRect(&g, 12, 4, 19, 4, "r"); putPx(&g, 13, 1, "s"); putPx(&g, 13, 2, "s")
+        case "chef" where !skipHead:
+            fillRect(&g, 11, 5, 20, 5, "k"); fillRect(&g, 11, 4, 20, 4, "r")
+            fillRect(&g, 10, 1, 21, 3, "W"); fillRect(&g, 12, 0, 19, 1, "W")
+            putPx(&g, 10, 1, "w"); putPx(&g, 21, 1, "w"); putPx(&g, 14, 1, "w"); putPx(&g, 17, 1, "w")
+            putPx(&g, 14, 2, "w"); putPx(&g, 17, 2, "w"); fillRect(&g, 11, 3, 20, 3, "w")
+        case "halo" where !skipHead:
+            fillRect(&g, 11, 1, 20, 1, "y"); fillRect(&g, 10, 2, 21, 2, "Y")
+            fillRect(&g, 12, 2, 19, 2, "."); fillRect(&g, 11, 3, 20, 3, "y")
+            putPx(&g, 12, 1, "W"); putPx(&g, 13, 1, "t"); putPx(&g, 19, 1, "t")
+        case "bowtie" where !skipTorso:
+            fillRect(&g, 12, 17, 19, 17, "W"); putPx(&g, 11, 17, "w"); putPx(&g, 20, 17, "w")
+            fillRect(&g, 12, 18, 13, 20, "r"); putPx(&g, 14, 19, "r")
+            fillRect(&g, 18, 18, 19, 20, "r"); putPx(&g, 17, 19, "r")
+            putPx(&g, 12, 18, "k"); putPx(&g, 19, 18, "k"); putPx(&g, 12, 20, "k"); putPx(&g, 19, 20, "k")
+            putPx(&g, 15, 19, "R"); putPx(&g, 16, 19, "y")
+        case "cape" where !skipTorso:
+            fillRect(&g, 7, 18, 9, 26, "S"); fillRect(&g, 22, 18, 24, 26, "S")
+            fillRect(&g, 8, 19, 9, 25, "r"); fillRect(&g, 22, 19, 23, 25, "r")
+            putPx(&g, 6, 23, "S"); putPx(&g, 6, 24, "r"); putPx(&g, 6, 25, "S")
+            putPx(&g, 25, 23, "S"); putPx(&g, 25, 24, "r"); putPx(&g, 25, 25, "S")
+            fillRect(&g, 10, 17, 21, 18, "r"); fillRect(&g, 14, 17, 17, 18, "y"); putPx(&g, 15, 18, "W")
+        case "labcoat" where !skipTorso:
+            fillRect(&g, 9, 18, 22, 25, "W"); fillRect(&g, 7, 19, 9, 22, "W"); fillRect(&g, 22, 19, 24, 22, "W")
+            putPx(&g, 9, 18, "w"); putPx(&g, 22, 18, "w"); fillRect(&g, 9, 25, 22, 25, "w")
+            fillRect(&g, 15, 18, 16, 24, "b"); putPx(&g, 15, 18, "A"); putPx(&g, 16, 18, "A")
+            putPx(&g, 14, 18, "w"); putPx(&g, 17, 18, "w")
+            fillRect(&g, 18, 21, 20, 22, "w"); putPx(&g, 19, 20, "r")
+        case "nerd" where !skipHead:
+            fillRect(&g, 9, 10, 14, 13, "k"); fillRect(&g, 17, 10, 22, 13, "k")
+            fillRect(&g, 10, 11, 13, 12, "u"); fillRect(&g, 18, 11, 21, 12, "u")
+            putPx(&g, 12, 11, "k"); putPx(&g, 20, 11, "k"); putPx(&g, 11, 11, "W"); putPx(&g, 19, 11, "W")
+            fillRect(&g, 14, 11, 17, 11, "k"); putPx(&g, 15, 11, "W"); putPx(&g, 16, 11, "W")
+            putPx(&g, 8, 11, "k"); putPx(&g, 23, 11, "k")
         default: break
         }
         if tired && !skipHead {
@@ -807,7 +873,7 @@ private final class SerialSync {
 // MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
 
 private enum AutoUpdater {
-    static let version = "2.4.1"
+    static let version = "2.5.0"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
     static func compareVer(_ a: String, _ b: String) -> Int {
@@ -1710,8 +1776,11 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         if roamWait > 0 {
             roamWait -= 1
             if roamWait % 60 == 30 && Double.random(in: 0..<1) < 0.6 {
-                let acts = ["BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE"]
-                setAction(acts.randomElement() ?? "IDLE", 24)
+                let acts = [
+                    "BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE",
+                    "SKATEBOARD", "JUGGLE", "MAGIC_TRICK", "DJ", "TELESCOPE", "BALLOON", "MEDITATE", "PIZZA", "NINJA", "KARATE"
+                ]
+                setAction(acts.randomElement() ?? "IDLE", 32)
             } else { state = "IDLE" }
             return
         }
@@ -1931,7 +2000,17 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             ("Guitar Solo", "GUITAR", "8-bit riff!"),
             ("Drums", "DRUM", "Ba-dum-tss!"),
             ("Flex Muscles", "FLEX", "RP2350 spierkracht!"),
-            ("Dance", "DANCE", "De Vagant boogie!")
+            ("Dance", "DANCE", "De Vagant boogie!"),
+            ("Skateboard", "SKATEBOARD", "Kickflip over de taakbalk!"),
+            ("Karate Chop", "KARATE", "Hi-yaa!!"),
+            ("Magic Trick", "MAGIC_TRICK", "Abraka-koala!"),
+            ("Juggle", "JUGGLE", "Kijk, zonder handen!"),
+            ("Pizza Time", "PIZZA", "Kwartiertje pizza!"),
+            ("DJ Set", "DJ", "Drop de bass!!"),
+            ("Stargazing", "TELESCOPE", "Sterren kijken..."),
+            ("Sticky Balloon", "BALLOON", "Ik zweeef!"),
+            ("Ninja Mode", "NINJA", "Poef! Onzichtbaar!"),
+            ("Zen Meditate", "MEDITATE", "Ommm... 0 bugs...")
         ]
         let tmItem = NSMenuItem(title: en ? "Tricks & Animations" : "Trucjes & Animaties", action: nil, keyEquivalent: "")
         let tm = NSMenu()
@@ -2324,7 +2403,7 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.4.2", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.5.1", AutoUpdater.version) <= 0 {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

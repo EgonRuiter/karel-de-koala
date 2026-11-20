@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.4.1"
+#define KAREL_VERSION "2.5.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
 
 #ifndef KAREL_CORE_TEST
@@ -351,24 +351,31 @@ static int compare_ver(const char *a, const char *b) {
  * 2. Sprite Bank (karel_sprites.gz)
  * ========================================================================= */
 
-#define MAX_STATES 72
+#define MAX_STATES 96
 #define MAX_FRAMES 16
 
 typedef struct { uint8_t r, g, b, a; } Rgba;
 typedef struct { char name[32]; int nframes, div; char rows[MAX_FRAMES][32][33]; } AnimState;
 typedef struct { Rgba pal[128]; AnimState states[MAX_STATES]; int nstates; } SpriteBank;
 
-static const char *SKIN_IDS[] = {"classic", "sticky", "mint", "midnight", "gold", "crimson"};
-static const char *OUTFIT_IDS[] = {"scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat", ""};
-#define NUM_SKINS 6
-#define NUM_OUTFITS 9
+static const char *SKIN_IDS[] = {
+    "classic", "sticky", "mint", "midnight", "gold", "crimson",
+    "sakura", "ocean", "sunset", "espresso", "cyber", "forest", "snow", "obsidian"
+};
+static const char *OUTFIT_IDS[] = {
+    "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat",
+    "beanie", "tophat", "chef", "halo", "bowtie", "cape", "labcoat", "nerd", ""
+};
+#define NUM_SKINS 14
+#define NUM_OUTFITS 17
 
 static int skip_overlay(const char *st) {
     static const char *skip[] = {
         "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
         "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
         "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-        "CELEBRATE", "JETPACK", "STUDY", NULL
+        "CELEBRATE", "JETPACK", "STUDY",
+        "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE", NULL
     };
     for (int i = 0; skip[i]; i++) if (strcmp(st, skip[i]) == 0) return 1;
     return 0;
@@ -379,7 +386,7 @@ static int skip_head(const char *st) {
 }
 
 static int skip_torso(const char *st) {
-    static const char *sk[] = {"DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", NULL};
+    static const char *sk[] = {"DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA", NULL};
     for (int i = 0; sk[i]; i++) if (strcmp(st, sk[i]) == 0) return 1;
     return 0;
 }
@@ -470,6 +477,14 @@ static char map_skin(const char *skin, char ch) {
     else if (strcmp(skin, "midnight") == 0) { if (ch == 'g') return 'm'; if (ch == 's') return 'k'; if (ch == 'w') return 'b'; }
     else if (strcmp(skin, "gold") == 0) { if (ch == 'g') return 'y'; if (ch == 's') return 'Y'; if (ch == 'w') return 'W'; }
     else if (strcmp(skin, "crimson") == 0) { if (ch == 'g') return 'R'; if (ch == 's') return 'r'; if (ch == 'w') return 'y'; }
+    else if (strcmp(skin, "sakura") == 0) { if (ch == 'g') return 'p'; if (ch == 's') return 'v'; if (ch == 'w') return 'P'; }
+    else if (strcmp(skin, "ocean") == 0) { if (ch == 'g') return 'b'; if (ch == 's') return 'A'; if (ch == 'w') return 'u'; }
+    else if (strcmp(skin, "sunset") == 0) { if (ch == 'g') return 'o'; if (ch == 's') return 'f'; if (ch == 'w') return 't'; }
+    else if (strcmp(skin, "espresso") == 0) { if (ch == 'g') return 'h'; if (ch == 's') return 'H'; if (ch == 'w') return 't'; }
+    else if (strcmp(skin, "cyber") == 0) { if (ch == 'g') return 'd'; if (ch == 's') return 'k'; if (ch == 'w') return 'a'; }
+    else if (strcmp(skin, "forest") == 0) { if (ch == 'g') return 'e'; if (ch == 's') return 'E'; if (ch == 'w') return 'l'; }
+    else if (strcmp(skin, "snow") == 0) { if (ch == 'g') return 'W'; if (ch == 's') return 'w'; if (ch == 'w') return 'u'; }
+    else if (strcmp(skin, "obsidian") == 0) { if (ch == 'g') return 'd'; if (ch == 's') return 'k'; if (ch == 'w') return 'W'; }
     return ch;
 }
 
@@ -564,6 +579,49 @@ static void render_frame_rgba(const SpriteBank *sb, const char *req_st, int fram
             g_rect(g, 13, 3, 18, 4, 'm'); g_rect(g, 14, 1, 17, 2, 'R');
             g_px(g, 15, 0, 'y'); g_px(g, 16, 0, 'W');
             g_px(g, 14, 4, 'y'); g_px(g, 17, 4, 'b'); g_px(g, 15, 2, 'y');
+        } else if (strcmp(item, "beanie") == 0 && !sk_h) {
+            g_rect(g, 11, 1, 20, 4, 'r'); g_rect(g, 12, 1, 19, 1, 'k');
+            g_px(g, 11, 1, '.'); g_px(g, 20, 1, '.');
+            g_rect(g, 10, 4, 21, 5, 'R'); g_px(g, 10, 5, 'k'); g_px(g, 21, 5, 'k');
+            for (int x = 11; x <= 20; x += 2) g_px(g, x, 5, 'S');
+            g_rect(g, 15, 0, 16, 1, 'W'); g_px(g, 14, 0, 'w'); g_px(g, 17, 0, 'w');
+        } else if (strcmp(item, "tophat") == 0 && !sk_h) {
+            g_rect(g, 9, 5, 22, 5, 'k');
+            g_rect(g, 11, 0, 20, 4, 'k'); g_rect(g, 12, 1, 19, 3, 'd');
+            g_rect(g, 12, 4, 19, 4, 'r'); g_px(g, 13, 1, 's'); g_px(g, 13, 2, 's');
+        } else if (strcmp(item, "chef") == 0 && !sk_h) {
+            g_rect(g, 11, 5, 20, 5, 'k'); g_rect(g, 11, 4, 20, 4, 'r');
+            g_rect(g, 10, 1, 21, 3, 'W'); g_rect(g, 12, 0, 19, 1, 'W');
+            g_px(g, 10, 1, 'w'); g_px(g, 21, 1, 'w'); g_px(g, 14, 1, 'w'); g_px(g, 17, 1, 'w');
+            g_px(g, 14, 2, 'w'); g_px(g, 17, 2, 'w'); g_rect(g, 11, 3, 20, 3, 'w');
+        } else if (strcmp(item, "halo") == 0 && !sk_h) {
+            g_rect(g, 11, 1, 20, 1, 'y'); g_rect(g, 10, 2, 21, 2, 'Y');
+            g_rect(g, 12, 2, 19, 2, '.'); g_rect(g, 11, 3, 20, 3, 'y');
+            g_px(g, 12, 1, 'W'); g_px(g, 13, 1, 't'); g_px(g, 19, 1, 't');
+        } else if (strcmp(item, "bowtie") == 0 && !sk_t) {
+            g_rect(g, 12, 17, 19, 17, 'W'); g_px(g, 11, 17, 'w'); g_px(g, 20, 17, 'w');
+            g_rect(g, 12, 18, 13, 20, 'r'); g_px(g, 14, 19, 'r');
+            g_rect(g, 18, 18, 19, 20, 'r'); g_px(g, 17, 19, 'r');
+            g_px(g, 12, 18, 'k'); g_px(g, 19, 18, 'k'); g_px(g, 12, 20, 'k'); g_px(g, 19, 20, 'k');
+            g_px(g, 15, 19, 'R'); g_px(g, 16, 19, 'y');
+        } else if (strcmp(item, "cape") == 0 && !sk_t) {
+            g_rect(g, 7, 18, 9, 26, 'S'); g_rect(g, 22, 18, 24, 26, 'S');
+            g_rect(g, 8, 19, 9, 25, 'r'); g_rect(g, 22, 19, 23, 25, 'r');
+            g_px(g, 6, 23, 'S'); g_px(g, 6, 24, 'r'); g_px(g, 6, 25, 'S');
+            g_px(g, 25, 23, 'S'); g_px(g, 25, 24, 'r'); g_px(g, 25, 25, 'S');
+            g_rect(g, 10, 17, 21, 18, 'r'); g_rect(g, 14, 17, 17, 18, 'y'); g_px(g, 15, 18, 'W');
+        } else if (strcmp(item, "labcoat") == 0 && !sk_t) {
+            g_rect(g, 9, 18, 22, 25, 'W'); g_rect(g, 7, 19, 9, 22, 'W'); g_rect(g, 22, 19, 24, 22, 'W');
+            g_px(g, 9, 18, 'w'); g_px(g, 22, 18, 'w'); g_rect(g, 9, 25, 22, 25, 'w');
+            g_rect(g, 15, 18, 16, 24, 'b'); g_px(g, 15, 18, 'A'); g_px(g, 16, 18, 'A');
+            g_px(g, 14, 18, 'w'); g_px(g, 17, 18, 'w');
+            g_rect(g, 18, 21, 20, 22, 'w'); g_px(g, 19, 20, 'r');
+        } else if (strcmp(item, "nerd") == 0 && !sk_h) {
+            g_rect(g, 9, 10, 14, 13, 'k'); g_rect(g, 17, 10, 22, 13, 'k');
+            g_rect(g, 10, 11, 13, 12, 'u'); g_rect(g, 18, 11, 21, 12, 'u');
+            g_px(g, 12, 11, 'k'); g_px(g, 20, 11, 'k'); g_px(g, 11, 11, 'W'); g_px(g, 19, 11, 'W');
+            g_rect(g, 14, 11, 17, 11, 'k'); g_px(g, 15, 11, 'W'); g_px(g, 16, 11, 'W');
+            g_px(g, 8, 11, 'k'); g_px(g, 23, 11, 'k');
         }
         if (tired && !sk_h) {
             int xs[4] = {11, 12, 19, 20}, ys[2] = {11, 13};
@@ -1165,7 +1223,7 @@ typedef struct {
 
     HubBtn hub_btns[18]; int nhub_btns;
     int pop_mode, pop_w, pop_h, pop_hover;
-    PopItem pop_items[22]; int npop;
+    PopItem pop_items[40]; int npop;
 } KarelApp;
 
 static int Sc(int px, float s) { int v = (int)llround(px * s); return v < 1 ? 1 : v; }
@@ -1466,8 +1524,21 @@ static const struct { const char *lbl, *st, *msg; } TRICKS[] = {
     {"Guitar Solo", "GUITAR", "8-bit riff!"},
     {"Drums", "DRUM", "Ba-dum-tss!"},
     {"Flex Muscles", "FLEX", "RP2350 spierkracht!"},
-    {"Dance", "DANCE", "De Vagant boogie!"}
+    {"Dance", "DANCE", "De Vagant boogie!"},
+    {"Skateboard", "SKATEBOARD", "Kickflip over de taakbalk!"},
+    {"Karate Chop", "KARATE", "Hi-yaa!!"},
+    {"Magic Trick", "MAGIC_TRICK", "Abraka-koala!"},
+    {"Juggle", "JUGGLE", "Kijk, zonder handen!"},
+    {"Pizza Time", "PIZZA", "Kwartiertje pizza!"},
+    {"DJ Set", "DJ", "Drop de bass!!"},
+    {"Stargazing", "TELESCOPE", "Sterren kijken..."},
+    {"Sticky Balloon", "BALLOON", "Ik zweeef!"},
+    {"Ninja Mode", "NINJA", "Poef! Onzichtbaar!"},
+    {"Zen Meditate", "MEDITATE", "Ommm... 0 bugs..."}
 };
+#define NUM_TRICKS ((int)(sizeof(TRICKS) / sizeof(TRICKS[0])))
+
+static int pop_rh(const KarelApp *k) { return k->npop > 20 ? 20 : 26; }
 
 static void close_popup(KarelApp *k) {
     if (k->pop_win) { XDestroyWindow(k->dpy, k->pop_win); k->pop_win = 0; k->pop_mode = POP_NONE; }
@@ -1475,7 +1546,7 @@ static void close_popup(KarelApp *k) {
 
 static void draw_popup(KarelApp *k) {
     if (!k->pop_win) return;
-    int rh = 26;
+    int rh = pop_rh(k);
     XSetForeground(k->dpy, k->pop_gc, rgb_px(k->dpy, k->scr, 27, 31, 42));
     XFillRectangle(k->dpy, k->pop_win, k->pop_gc, 0, 0, (unsigned)k->pop_w, (unsigned)k->pop_h);
     XSetForeground(k->dpy, k->pop_gc, rgb_px(k->dpy, k->scr, 196, 30, 37));
@@ -1485,7 +1556,7 @@ static void draw_popup(KarelApp *k) {
         int y = 4 + i * rh;
         if (strcmp(k->pop_items[i].lbl, "---") == 0) {
             XSetForeground(k->dpy, k->pop_gc, rgb_px(k->dpy, k->scr, 62, 70, 90));
-            XFillRectangle(k->dpy, k->pop_win, k->pop_gc, 8, y + 12, (unsigned)(k->pop_w - 16), 1);
+            XFillRectangle(k->dpy, k->pop_win, k->pop_gc, 8, y + rh / 2, (unsigned)(k->pop_w - 16), 1);
             continue;
         }
         if (i == k->pop_hover) {
@@ -1493,7 +1564,7 @@ static void draw_popup(KarelApp *k) {
             XFillRectangle(k->dpy, k->pop_win, k->pop_gc, 3, y + 1, (unsigned)(k->pop_w - 6), (unsigned)(rh - 2));
         }
         XSetForeground(k->dpy, k->pop_gc, rgb_px(k->dpy, k->scr, 242, 245, 250));
-        XDrawString(k->dpy, k->pop_win, k->pop_gc, 12, y + 17, k->pop_items[i].lbl, (int)strlen(k->pop_items[i].lbl));
+        XDrawString(k->dpy, k->pop_win, k->pop_gc, 12, y + rh - 6, k->pop_items[i].lbl, (int)strlen(k->pop_items[i].lbl));
     }
 }
 
@@ -1501,7 +1572,7 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
     close_popup(k);
     k->npop = 0; k->pop_mode = mode; k->pop_hover = -1;
     int en = is_en(k);
-    #define P_ADD(txt, kd, ix) do { if (k->npop < 22) { snprintf(k->pop_items[k->npop].lbl, 48, "%.47s", (txt)); k->pop_items[k->npop].kind = (kd); k->pop_items[k->npop].idx = (ix); k->npop++; } } while (0)
+    #define P_ADD(txt, kd, ix) do { if (k->npop < 40) { snprintf(k->pop_items[k->npop].lbl, 48, "%.47s", (txt)); k->pop_items[k->npop].kind = (kd); k->pop_items[k->npop].idx = (ix); k->npop++; } } while (0)
     if (mode == POP_MAIN) {
         P_ADD("Open Sticky Hub", 1, 0);
         P_ADD("---", 0, 0);
@@ -1512,7 +1583,7 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
         P_ADD(en ? "Powernap ON/OFF" : "Powernap AAN/UIT", 2, 4);
         P_ADD(k->focus_active ? "Stop Focus" : (en ? "Focus Mode (25m)" : "Focus Modus (25m)"), 2, 5);
         P_ADD("---", 0, 0);
-        P_ADD(en ? "Tricks (18)  >" : "Trucjes (18)  >", 3, POP_TRICKS);
+        P_ADD(en ? "Tricks (28)  >" : "Trucjes (28)  >", 3, POP_TRICKS);
         P_ADD(en ? "Roam Mode  >" : "Loopgedrag  >", 3, POP_ROAM);
         P_ADD(en ? "Size  >" : "Grootte  >", 3, POP_SCALE);
         P_ADD(en ? "Sound On/Off" : "Geluid Aan/Uit", 4, 0);
@@ -1522,7 +1593,7 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
         P_ADD(en ? "Hide (Ctrl/Cmd --toggle)" : "Verberg (--toggle)", 4, 3);
         P_ADD(en ? "Dive & Quit" : "Duik & Sluit", 4, 4);
     } else if (mode == POP_TRICKS) {
-        for (int i = 0; i < 18; i++) P_ADD(TRICKS[i].lbl, 5, i);
+        for (int i = 0; i < NUM_TRICKS; i++) P_ADD(TRICKS[i].lbl, 5, i);
     } else if (mode == POP_ROAM) {
         P_ADD(en ? "Free Roam" : "Heel Scherm", 6, 0);
         P_ADD(en ? "Active Window" : "Op Actief Venster", 6, 1);
@@ -1543,7 +1614,7 @@ static void open_popup(KarelApp *k, int mode, int rx, int ry) {
         }
     }
     #undef P_ADD
-    k->pop_w = 220; k->pop_h = 8 + k->npop * 26;
+    k->pop_w = 220; k->pop_h = 8 + k->npop * pop_rh(k);
     int sw = XDisplayWidth(k->dpy, k->scr), sh = XDisplayHeight(k->dpy, k->scr);
     if (rx + k->pop_w > sw - 8) rx = sw - k->pop_w - 8;
     if (ry + k->pop_h > sh - 8) ry = sh - k->pop_h - 8;
@@ -1569,7 +1640,7 @@ static void resize_karel_scale(KarelApp *k, int sc) {
 }
 
 static void click_popup(KarelApp *k, int my, int x_root, int y_root) {
-    int i = (my - 4) / 26;
+    int i = (my - 4) / pop_rh(k);
     if (i < 0 || i >= k->npop) { close_popup(k); return; }
     int kd = k->pop_items[i].kind, ix = k->pop_items[i].idx;
     if (kd == 0) return;
@@ -1898,8 +1969,11 @@ static void step_physics(KarelApp *k) {
             if (!k->umbrella_fall && k->roam_wait > 0) {
                 k->roam_wait--;
                 if (k->roam_wait % 60 == 30 && (rand() % 10) < 6) {
-                    static const char *acts[] = {"BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE"};
-                    set_act(k, acts[rand() % 8], 24);
+                    static const char *acts[] = {
+                        "BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE",
+                        "SKATEBOARD", "JUGGLE", "MAGIC_TRICK", "DJ", "TELESCOPE", "BALLOON", "MEDITATE", "PIZZA", "NINJA", "KARATE"
+                    };
+                    set_act(k, acts[rand() % 18], 32);
                 } else strcpy(k->state, "IDLE");
             } else if (!k->umbrella_fall) {
                 double dx = k->roam_tx - k->wx, dy = k->roam_ty - k->wy, dd = hypot(dx, dy);
@@ -2085,7 +2159,7 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.4.2", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.5.1", KAREL_VERSION) <= 0) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -2155,7 +2229,7 @@ int main(int argc, char **argv) {
             } else if (ev.type == Expose && ev.xexpose.window == k.pop_win) {
                 draw_popup(&k);
             } else if (ev.type == MotionNotify && ev.xmotion.window == k.pop_win) {
-                int nh = (ev.xmotion.y - 4) / 26;
+                int nh = (ev.xmotion.y - 4) / pop_rh(&k);
                 if (nh != k.pop_hover) { k.pop_hover = nh; draw_popup(&k); }
             } else if (ev.type == ButtonPress && ev.xbutton.window == k.pop_win && ev.xbutton.button == 1) {
                 click_popup(&k, ev.xbutton.y, ev.xbutton.x_root, ev.xbutton.y_root);

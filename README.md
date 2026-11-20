@@ -30,7 +30,7 @@ Plug the USB stick into any Windows, macOS, or Linux machine, launch the compani
 
 - **Portable & Zero-Install** — Runs directly from the USB drive on Windows, macOS (Universal Apple Silicon + Intel), and Linux with no external runtimes or package managers required.
 - **Native Desktop Companions** — Lightweight native binaries for each OS: C# (.NET Framework) on Windows, Swift/AppKit on macOS, and C99/X11 on Linux.
-- **54 Animations & Customization** — 194 hand-crafted pixel-art frames shared across platforms, 6 coat colors, and 8 wearable outfits.
+- **64 Animations & Customization** — 234 hand-crafted pixel-art frames shared across platforms, 14 coat colors, and 16 wearable outfits.
 - **Hardware RGB LED Sync** — Bidirectional USB serial communication mirrors Karel's state (happy, hungry, studying, party, sleeping) on the RP2350's WS2812 NeoPixel LED.
 - **On-Stick Persistence** — XP, level, stats, outfit, and preferences are stored directly on the USB drive (`save.json`) so your companion follows you across computers.
 - **Optional Auto-Launch & Clean Removal** — Opt in to launch Karel automatically when the USB stick is plugged in, with idle zero-CPU waiting on Windows, zero background processes on macOS (`launchd`), and one-click uninstallation.
@@ -94,7 +94,7 @@ Manual removal commands:
 | **Click Karel** | Open the Hub (XP/level, stats, coat & outfits, 25-minute Focus timer, settings, updates, uninstall). |
 | **Double-click Karel** | Pet Karel (`+8 XP`, heart particles, and LED pulse). |
 | **Drag & toss** | Launch Karel across the screen with physics and bounce. |
-| **Right-click / tray / menu bar** | Quick menu for actions, 18 tricks, roam modes, scale (`2×–5×`), sound, Auto-Quiet, language (`NL`/`EN`), and quit. |
+| **Right-click / tray / menu bar** | Quick menu for actions, 28 tricks, roam modes, scale (`2×–5×`), sound, Auto-Quiet, language (`NL`/`EN`), and quit. |
 | **`Ctrl + Alt + K`** *(Windows)* | Hide or summon Karel on demand. |
 
 ### Roam Modes
@@ -107,8 +107,8 @@ Manual removal commands:
 
 ### Customization & Extras
 
-- **Coats (6):** `classic`, `sticky`, `mint`, `midnight`, `gold`, `crimson`
-- **Outfits (8):** `scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`
+- **Coats (14):** `classic`, `sticky`, `mint`, `midnight`, `gold`, `crimson`, `sakura`, `ocean`, `sunset`, `espresso`, `cyber`, `forest`, `snow`, `obsidian`
+- **Outfits (16):** `scarf`, `stickycap`, `hoodie`, `headphones`, `shades`, `crown`, `wizard`, `partyhat`, `beanie`, `tophat`, `chef`, `halo`, `bowtie`, `cape`, `labcoat`, `nerd`
 - **Focus Timer:** 25-minute Pomodoro session that switches the hardware LED to a calm study glow and awards `+45 XP` on completion.
 - **Easter Eggs:**
   - Feed 3 coffees within 2 minutes for *Hyper Mode*.
@@ -265,7 +265,7 @@ karel-de-koala/
 │   ├── karel_native.cs              # Windows companion (C# / WinForms)
 │   ├── karel_mac.swift              # macOS companion (Swift / AppKit)
 │   ├── karel_linux.c                # Linux companion (C99 / X11 + XShape)
-│   ├── karel_sprites.gz             # Shared compressed sprite archive (54 states, 194 frames)
+│   ├── karel_sprites.gz             # Shared compressed sprite archive (64 states, 234 frames)
 │   ├── build_native.py              # Windows build script & sprite exporter
 │   ├── build_mac.sh                 # macOS Universal app bundle build script
 │   ├── build_linux.sh               # Linux build script

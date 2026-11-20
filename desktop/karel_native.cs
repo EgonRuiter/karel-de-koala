@@ -27,8 +27,8 @@ using Microsoft.Win32;
 [assembly: AssemblyCompany("Studievereniging Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.4.1.0")]
-[assembly: AssemblyFileVersion("2.4.1.0")]
+[assembly: AssemblyVersion("2.5.0.0")]
+[assembly: AssemblyFileVersion("2.5.0.0")]
 
 namespace KarelNative {
 
@@ -150,20 +150,27 @@ namespace KarelNative {
         private readonly Dictionary<char, Color> pal = new Dictionary<char, Color>();
         private readonly Dictionary<string, Bitmap> cache = new Dictionary<string, Bitmap>();
 
-        public static readonly string[] SkinIds = { "classic", "sticky", "mint", "midnight", "gold", "crimson" };
-        public static readonly string[] OutfitIds = { "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat", "" };
+        public static readonly string[] SkinIds = {
+            "classic", "sticky", "mint", "midnight", "gold", "crimson",
+            "sakura", "ocean", "sunset", "espresso", "cyber", "forest", "snow", "obsidian"
+        };
+        public static readonly string[] OutfitIds = {
+            "scarf", "stickycap", "hoodie", "headphones", "shades", "crown", "wizard", "partyhat",
+            "beanie", "tophat", "chef", "halo", "bowtie", "cape", "labcoat", "nerd", ""
+        };
 
         private static readonly HashSet<string> SkipOverlayStates = new HashSet<string>(new string[] {
             "SLEEP", "CRY", "YAWN", "DIZZY", "CLIMB", "DIVE_WAVE", "DIVE_DOWN",
             "PEEK", "BACKFLIP", "SPIN", "UMBRELLA", "MUSIC", "EXERCISE",
             "LAPTOP_CODE", "SIT", "STRETCH", "BOW", "PARTY_HORN", "GAMING",
-            "CELEBRATE", "JETPACK", "STUDY"
+            "CELEBRATE", "JETPACK", "STUDY",
+            "SKATEBOARD", "KARATE", "MAGIC_TRICK", "JUGGLE", "DJ", "TELESCOPE", "BALLOON", "NINJA", "MEDITATE"
         });
         private static readonly HashSet<string> SkipHeadStates = new HashSet<string>(new string[] {
             "JUMP", "HYPER", "SNEEZE"
         });
         private static readonly HashSet<string> SkipTorsoStates = new HashSet<string>(new string[] {
-            "DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL"
+            "DRUM", "GUITAR", "HUG_PLUSH", "EUCALYPTUS_HUG", "TOSTI", "BORREL", "PIZZA"
         });
 
         public static SpriteBank LoadEmbedded() {
@@ -221,6 +228,14 @@ namespace KarelNative {
             else if (skin == "midnight") { if (ch == 'g') return 'm'; if (ch == 's') return 'k'; if (ch == 'w') return 'b'; }
             else if (skin == "gold") { if (ch == 'g') return 'y'; if (ch == 's') return 'Y'; if (ch == 'w') return 'W'; }
             else if (skin == "crimson") { if (ch == 'g') return 'R'; if (ch == 's') return 'r'; if (ch == 'w') return 'y'; }
+            else if (skin == "sakura") { if (ch == 'g') return 'p'; if (ch == 's') return 'v'; if (ch == 'w') return 'P'; }
+            else if (skin == "ocean") { if (ch == 'g') return 'b'; if (ch == 's') return 'A'; if (ch == 'w') return 'u'; }
+            else if (skin == "sunset") { if (ch == 'g') return 'o'; if (ch == 's') return 'f'; if (ch == 'w') return 't'; }
+            else if (skin == "espresso") { if (ch == 'g') return 'h'; if (ch == 's') return 'H'; if (ch == 'w') return 't'; }
+            else if (skin == "cyber") { if (ch == 'g') return 'd'; if (ch == 's') return 'k'; if (ch == 'w') return 'a'; }
+            else if (skin == "forest") { if (ch == 'g') return 'e'; if (ch == 's') return 'E'; if (ch == 'w') return 'l'; }
+            else if (skin == "snow") { if (ch == 'g') return 'W'; if (ch == 's') return 'w'; if (ch == 'w') return 'u'; }
+            else if (skin == "obsidian") { if (ch == 'g') return 'd'; if (ch == 's') return 'k'; if (ch == 'w') return 'W'; }
             return ch;
         }
 
@@ -295,6 +310,49 @@ namespace KarelNative {
                 FillRect(g, 13, 3, 18, 4, 'm'); FillRect(g, 14, 1, 17, 2, 'R');
                 PutPx(g, 15, 0, 'y'); PutPx(g, 16, 0, 'W');
                 PutPx(g, 14, 4, 'y'); PutPx(g, 17, 4, 'b'); PutPx(g, 15, 2, 'y');
+            } else if (item == "beanie" && !skipHead) {
+                FillRect(g, 11, 1, 20, 4, 'r'); FillRect(g, 12, 1, 19, 1, 'k');
+                PutPx(g, 11, 1, '.'); PutPx(g, 20, 1, '.');
+                FillRect(g, 10, 4, 21, 5, 'R'); PutPx(g, 10, 5, 'k'); PutPx(g, 21, 5, 'k');
+                for (int x = 11; x <= 20; x += 2) PutPx(g, x, 5, 'S');
+                FillRect(g, 15, 0, 16, 1, 'W'); PutPx(g, 14, 0, 'w'); PutPx(g, 17, 0, 'w');
+            } else if (item == "tophat" && !skipHead) {
+                FillRect(g, 9, 5, 22, 5, 'k');
+                FillRect(g, 11, 0, 20, 4, 'k'); FillRect(g, 12, 1, 19, 3, 'd');
+                FillRect(g, 12, 4, 19, 4, 'r'); PutPx(g, 13, 1, 's'); PutPx(g, 13, 2, 's');
+            } else if (item == "chef" && !skipHead) {
+                FillRect(g, 11, 5, 20, 5, 'k'); FillRect(g, 11, 4, 20, 4, 'r');
+                FillRect(g, 10, 1, 21, 3, 'W'); FillRect(g, 12, 0, 19, 1, 'W');
+                PutPx(g, 10, 1, 'w'); PutPx(g, 21, 1, 'w'); PutPx(g, 14, 1, 'w'); PutPx(g, 17, 1, 'w');
+                PutPx(g, 14, 2, 'w'); PutPx(g, 17, 2, 'w'); FillRect(g, 11, 3, 20, 3, 'w');
+            } else if (item == "halo" && !skipHead) {
+                FillRect(g, 11, 1, 20, 1, 'y'); FillRect(g, 10, 2, 21, 2, 'Y');
+                FillRect(g, 12, 2, 19, 2, '.'); FillRect(g, 11, 3, 20, 3, 'y');
+                PutPx(g, 12, 1, 'W'); PutPx(g, 13, 1, 't'); PutPx(g, 19, 1, 't');
+            } else if (item == "bowtie" && !skipTorso) {
+                FillRect(g, 12, 17, 19, 17, 'W'); PutPx(g, 11, 17, 'w'); PutPx(g, 20, 17, 'w');
+                FillRect(g, 12, 18, 13, 20, 'r'); PutPx(g, 14, 19, 'r');
+                FillRect(g, 18, 18, 19, 20, 'r'); PutPx(g, 17, 19, 'r');
+                PutPx(g, 12, 18, 'k'); PutPx(g, 19, 18, 'k'); PutPx(g, 12, 20, 'k'); PutPx(g, 19, 20, 'k');
+                PutPx(g, 15, 19, 'R'); PutPx(g, 16, 19, 'y');
+            } else if (item == "cape" && !skipTorso) {
+                FillRect(g, 7, 18, 9, 26, 'S'); FillRect(g, 22, 18, 24, 26, 'S');
+                FillRect(g, 8, 19, 9, 25, 'r'); FillRect(g, 22, 19, 23, 25, 'r');
+                PutPx(g, 6, 23, 'S'); PutPx(g, 6, 24, 'r'); PutPx(g, 6, 25, 'S');
+                PutPx(g, 25, 23, 'S'); PutPx(g, 25, 24, 'r'); PutPx(g, 25, 25, 'S');
+                FillRect(g, 10, 17, 21, 18, 'r'); FillRect(g, 14, 17, 17, 18, 'y'); PutPx(g, 15, 18, 'W');
+            } else if (item == "labcoat" && !skipTorso) {
+                FillRect(g, 9, 18, 22, 25, 'W'); FillRect(g, 7, 19, 9, 22, 'W'); FillRect(g, 22, 19, 24, 22, 'W');
+                PutPx(g, 9, 18, 'w'); PutPx(g, 22, 18, 'w'); FillRect(g, 9, 25, 22, 25, 'w');
+                FillRect(g, 15, 18, 16, 24, 'b'); PutPx(g, 15, 18, 'A'); PutPx(g, 16, 18, 'A');
+                PutPx(g, 14, 18, 'w'); PutPx(g, 17, 18, 'w');
+                FillRect(g, 18, 21, 20, 22, 'w'); PutPx(g, 19, 20, 'r');
+            } else if (item == "nerd" && !skipHead) {
+                FillRect(g, 9, 10, 14, 13, 'k'); FillRect(g, 17, 10, 22, 13, 'k');
+                FillRect(g, 10, 11, 13, 12, 'u'); FillRect(g, 18, 11, 21, 12, 'u');
+                PutPx(g, 12, 11, 'k'); PutPx(g, 20, 11, 'k'); PutPx(g, 11, 11, 'W'); PutPx(g, 19, 11, 'W');
+                FillRect(g, 14, 11, 17, 11, 'k'); PutPx(g, 15, 11, 'W'); PutPx(g, 16, 11, 'W');
+                PutPx(g, 8, 11, 'k'); PutPx(g, 23, 11, 'k');
             }
             if (tired && !skipHead) {
                 int[] xs = { 11, 12, 19, 20 }, ys = { 11, 13 };
@@ -828,7 +886,7 @@ namespace KarelNative {
     }
 
     internal static class AutoUpdater {
-        public const string Version = "2.4.1";
+        public const string Version = "2.5.0";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
 
         public static int CompareVer(string a, string b) {
@@ -1677,8 +1735,11 @@ namespace KarelNative {
             if (roamWait > 0) {
                 roamWait--;
                 if (roamWait % 60 == 30 && rng.NextDouble() < 0.6) {
-                    string[] acts = { "BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE" };
-                    SetAction(acts[rng.Next(acts.Length)], 24);
+                    string[] acts = {
+                        "BLINK_SMILE", "EARS_WIGGLE", "PEEK", "SIT", "LAPTOP_CODE", "UMBRELLA", "BOW", "WAVE",
+                        "SKATEBOARD", "JUGGLE", "MAGIC_TRICK", "DJ", "TELESCOPE", "BALLOON", "MEDITATE", "PIZZA", "NINJA", "KARATE"
+                    };
+                    SetAction(acts[rng.Next(acts.Length)], 32);
                 } else state = "IDLE";
                 return;
             }
@@ -1855,7 +1916,17 @@ namespace KarelNative {
                 { "Guitar Solo", "GUITAR", "8-bit riff!" },
                 { "Drums", "DRUM", "Ba-dum-tss!" },
                 { "Flex Muscles", "FLEX", "RP2350 spierkracht!" },
-                { "Dance", "DANCE", "De Vagant boogie!" }
+                { "Dance", "DANCE", "De Vagant boogie!" },
+                { "Skateboard", "SKATEBOARD", "Kickflip over de taakbalk!" },
+                { "Karate Chop", "KARATE", "Hi-yaa!!" },
+                { "Magic Trick", "MAGIC_TRICK", "Abraka-koala!" },
+                { "Juggle", "JUGGLE", "Kijk, zonder handen!" },
+                { "Pizza Time", "PIZZA", "Kwartiertje pizza!" },
+                { "DJ Set", "DJ", "Drop de bass!!" },
+                { "Stargazing", "TELESCOPE", "Sterren kijken..." },
+                { "Sticky Balloon", "BALLOON", "Ik zweeef!" },
+                { "Ninja Mode", "NINJA", "Poef! Onzichtbaar!" },
+                { "Zen Meditate", "MEDITATE", "Ommm... 0 bugs..." }
             };
             for (int i = 0; i < tricks.GetLength(0); i++) {
                 string s0 = tricks[i, 1], m0 = tricks[i, 2];
@@ -2340,7 +2411,7 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.4.2", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.5.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;
