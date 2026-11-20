@@ -12,13 +12,10 @@ Hardware Pinout (RP2350 SuperMini, 4 MB Flash):
                         runtime button while executing from Flash (XIP).
 - Start/Stop Toggle Btn : Optional external tactile switch on GP15 (to GND) — or GP24!
                         Press once to Show (climb from taskbar) or Hide/Close (dive back behind
-                        taskbar + save + exit cleanly)! Uses instant serial EVENT:TOGGLE_KAREL when
-                        connected, or Win+R -> launch_karel.bat --toggle when Karel is closed.
+                        taskbar + save + exit cleanly) via serial EVENT:TOGGLE_KAREL.
 - Hardware Boop / RUN : No onboard RST tactile button on this 1-button PCB; re-plugging USB-C
-                        wakes/boops an already-open Karel via 127.0.0.1:42421, and optional
-                        external RUN reset (RESET_PIN) also listens briefly for KAREL_PING to
-                        send EVENT:RST_BOOP without popping up Win+R.
-- Dev / Safe Mode     : Hold outer pin GP0 (or GP24) to GND at plug-in to skip Win+R HID.
+                        wakes/boops an already-open Karel via serial KAREL_PING -> EVENT:RST_BOOP.
+- Dev / Safe Mode     : Hold outer pin GP0 (or GP24) to GND at plug-in to enable autoreload (cyan LED).
 - Optional Touch Pad  : GP2 (Pet Karel -> EVENT:PET; on RP2350 requires pull-up to 3.3V)
 - Optional Action Btn : GP1 / Touch GP3 (short=FEED, double=COFFEE, long 1.5s=MINIGAME)
 """

@@ -135,7 +135,7 @@ private final class SpriteBank {
     static func loadBundled() -> SpriteBank {
         let bank = SpriteBank()
         guard let gzPath = findSpritesGz() else {
-            fputs("karel_sprites.gz niet gevonden.\n", stderr)
+            fputs("Error: karel_sprites.gz not found.\n", stderr)
             return bank
         }
         let proc = Process()
@@ -888,11 +888,23 @@ private final class SerialSync {
     }
 }
 
-// MARK: - GitHub Releases Auto-Updater (Desktop + code.py)
+// MARK: - GitHub Releases Version Check (Read-Only)
 
 private enum AutoUpdater {
-    static let version = "2.6.0"
+    static let version = "2.7.0"
     static let manifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
+    static let releasesUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest"
+    private static let maxManifestBytes = 65536
+
+    static func isValidSemver(_ v: String) -> Bool {
+        let parts = v.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3 else { return false }
+        for p in parts {
+            if p.isEmpty || p.count > 3 { return false }
+            for ch in p.utf8 where ch < 48 || ch > 57 { return false }
+        }
+        return true
+    }
 
     static func compareVer(_ a: String, _ b: String) -> Int {
         func parts(_ s: String) -> [Int] {
@@ -909,15 +921,16 @@ private enum AutoUpdater {
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func fetchData(_ urlStr: String, timeout: TimeInterval) -> Data? {
-        guard let url = URL(string: urlStr) else { return nil }
+    private static func fetchManifestData(timeout: TimeInterval) -> Data? {
+        guard let url = URL(string: manifestUrl) else { return nil }
         let sem = DispatchSemaphore(value: 0)
         var out: Data? = nil
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.setValue("KarelDeKoala/\(version)", forHTTPHeaderField: "User-Agent")
         URLSession.shared.dataTask(with: req) { data, resp, _ in
-            if let http = resp as? HTTPURLResponse, http.statusCode >= 200 && http.statusCode < 300 {
-                out = data
+            if let http = resp as? HTTPURLResponse, http.statusCode >= 200 && http.statusCode < 300,
+               let d = data, d.count <= maxManifestBytes {
+                out = d
             }
             sem.signal()
         }.resume()
@@ -925,82 +938,17 @@ private enum AutoUpdater {
         return out
     }
 
-    private static func runTool(_ path: String, _ args: [String]) -> Int32 {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
-        do { try p.run(); p.waitUntilExit(); return p.terminationStatus } catch { return -1 }
-    }
-
-    private static func updateFirmwareIfNeeded(save: SaveStore, codeUrl: String, codeSha: String) {
-        if !save.connected || codeUrl.isEmpty || codeSha.isEmpty { return }
-        let bootP = save.driveRoot + "/boot.py"
-        let codeP = save.driveRoot + "/code.py"
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: bootP), fm.fileExists(atPath: codeP),
-              let cur = try? Data(contentsOf: URL(fileURLWithPath: codeP)) else { return }
-        if sha256Hex(cur).lowercased() == codeSha.lowercased() { return }
-        guard let next = fetchData(codeUrl, timeout: 10.0), next.count >= 500,
-              sha256Hex(next).lowercased() == codeSha.lowercased() else { return }
-        try? next.write(to: URL(fileURLWithPath: codeP), options: .atomic)
-    }
-
-    static func checkNowAsync(save: SaveStore, updatedFrom: String, onReady: @escaping (String, String) -> Void, onStatus: @escaping (String) -> Void) {
+    static func checkNowAsync(onNewVersion: @escaping (String) -> Void, onStatus: @escaping (String) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let raw = fetchData(manifestUrl, timeout: 6.0) else { onStatus("offline"); return }
+            guard let raw = fetchManifestData(timeout: 6.0) else { onStatus("offline"); return }
             guard let man = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { onStatus("error"); return }
-            let remVer = (man["version"] as? String) ?? ""
-            if compareVer(remVer, version) <= 0 || (!updatedFrom.isEmpty && compareVer(remVer, updatedFrom) == 0) {
+            let remVer = ((man["version"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isValidSemver(remVer) else { onStatus("error"); return }
+            if compareVer(remVer, version) <= 0 {
                 onStatus("uptodate")
                 return
             }
-
-            onStatus("downloading:\(remVer)")
-            let zipUrl = (man["mac_zip_url"] as? String) ?? ""
-            let zipSha = (man["mac_zip_sha256"] as? String) ?? ""
-            guard !zipUrl.isEmpty, !zipSha.isEmpty,
-                  let zipData = fetchData(zipUrl, timeout: 15.0), zipData.count > 10000,
-                  sha256Hex(zipData).lowercased() == zipSha.lowercased() else { onStatus("error"); return }
-
-            updateFirmwareIfNeeded(
-                save: save,
-                codeUrl: (man["code_py_url"] as? String) ?? "",
-                codeSha: (man["code_py_sha256"] as? String) ?? ""
-            )
-
-            let appBundle = Bundle.main.bundleURL
-            guard appBundle.pathExtension == "app" else { onStatus("error"); return }
-            let stageDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("karel_mac_upd_\(remVer)")
-            let zipFile = stageDir.appendingPathComponent("Karel-macOS-App.zip")
-            let fm = FileManager.default
-            try? fm.removeItem(at: stageDir)
-            try? fm.createDirectory(at: stageDir, withIntermediateDirectories: true)
-            do { try zipData.write(to: zipFile) } catch { onStatus("error"); return }
-            if runTool("/usr/bin/unzip", ["-oq", zipFile.path, "-d", stageDir.path]) != 0 { onStatus("error"); return }
-
-            let newApp = stageDir.appendingPathComponent("Karel.app")
-            guard fm.fileExists(atPath: newApp.path) else { onStatus("error"); return }
-            _ = runTool("/usr/bin/xattr", ["-dr", "com.apple.quarantine", newApp.path])
-
-            let usbApp: URL = {
-                guard save.connected else { return appBundle }
-                let root = URL(fileURLWithPath: save.driveRoot)
-                let newName = root.appendingPathComponent("Karel (Mac).app")
-                let oldName = root.appendingPathComponent("Karel.app")
-                if fm.fileExists(atPath: newName.path) { return newName }
-                if fm.fileExists(atPath: oldName.path) { return oldName }
-                return newName
-            }()
-            let instApp = MacStartupHelper.installedAppUrl
-            let syncInst = MacStartupHelper.isEnabled() && instApp.path != appBundle.path
-            let swapSh = stageDir.appendingPathComponent("swap.sh")
-            let sh = "#!/usr/bin/env bash\nsleep 1\nrm -rf \"\(appBundle.path)\"\nditto \"\(newApp.path)\" \"\(appBundle.path)\"\n"
-                + (usbApp.path != appBundle.path ? "rm -rf \"\(usbApp.path)\" && ditto \"\(newApp.path)\" \"\(usbApp.path)\" || true\n" : "")
-                + (syncInst ? "rm -rf \"\(instApp.path)\" && ditto \"\(newApp.path)\" \"\(instApp.path)\" || true\n" : "")
-                + "xattr -dr com.apple.quarantine \"\(appBundle.path)\" 2>/dev/null || true\nopen -n \"\(appBundle.path)\" --args --updated-from=\(remVer)\nrm -rf \"\(stageDir.path)\"\n"
-            try? sh.write(to: swapSh, atomically: true, encoding: .utf8)
-            _ = runTool("/bin/chmod", ["+x", swapSh.path])
-            onReady(remVer, swapSh.path)
+            onNewVersion(remVer)
         }
     }
 }
@@ -1032,7 +980,7 @@ private final class KarelStageView: NSView {
     override func keyDown(with event: NSEvent) { ctrl?.handleKeyDown(event) }
 }
 
-// MARK: - Main Karel Controller
+// MARK: - Opt-In macOS Auto-Launch (LaunchAgent StartOnMount)
 
 private enum MacStartupHelper {
     private static let label = "nl.svsticky.karel"
@@ -1104,16 +1052,16 @@ private enum MacStartupHelper {
         return isEnabled()
     }
 
+    // Remove LaunchAgent, local support directory, and live temp copy using positional shell args (no interpolation).
     static func uninstallFromMac() {
         let fm = FileManager.default
         runLaunchctl(["unload", "-w", plistUrl.path])
         try? fm.removeItem(at: plistUrl)
         let dirPath = installedDirUrl.path
-        let tmpBase = NSTemporaryDirectory()
-        let cmd = "sleep 1; rm -rf \"\(dirPath)\" \"\(tmpBase)/Karel_live.app\" \"\(tmpBase)\"/karel_mac_upd_* 2>/dev/null || true"
+        let liveApp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Karel_live.app").path
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", cmd]
+        p.arguments = ["-c", "sleep 1; rm -rf -- \"$1\" \"$2\" 2>/dev/null || true", "_", dirPath, liveApp]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try? p.run()
@@ -1124,6 +1072,8 @@ private enum MacStartupHelper {
         return setEnabled(!isEnabled())
     }
 }
+
+// MARK: - Main Karel Controller
 
 private final class KarelController: NSObject, NSApplicationDelegate {
     private let sprites = SpriteBank.loadBundled()
@@ -1157,7 +1107,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
     private var hubUsbLbl: NSTextField!
 
     private var state = "IDLE", roamMode = "free", bubble = "", diveMode = "quit", climbMsg = ""
-    private var pendingUpdateSh = "", pendingUpdateVer = "", updatedFrom = ""
+    private var updatedFrom = ""
     private var noUpdate = false, startHidden = false, uninstalling = false, updateBusy = false
     private var scale = 3, frameIdx = 0, actTicks = 0, bubbleTicks = 0, discoTicks = 0, hyperTicks = 0
     private var noseClicks = 0, climbStep = 0, closeStep = 0, roamTicks = 0, roamWait = 120, ledgeTicks = 0
@@ -1513,6 +1463,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         rxLock.lock(); rxQueue.append(ev); rxLock.unlock()
     }
 
+    // Localhost single-instance IPC listener (127.0.0.1 only, 500ms timeout, strict KAREL_* tokens).
     private func startIpc() {
         let s = Darwin.socket(AF_INET, SOCK_STREAM, 0)
         if s < 0 { return }
@@ -1533,12 +1484,15 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             while let self = self, self.ipcSock >= 0 {
                 let c = Darwin.accept(self.ipcSock, nil, nil)
                 if c < 0 { break }
+                var tv = timeval(tv_sec: 0, tv_usec: 500_000)
+                setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
                 var buf = [CChar](repeating: 0, count: 128)
                 let n = Darwin.read(c, &buf, 127)
                 Darwin.close(c)
                 if n > 0 {
                     let msg = String(cString: buf).trimmingCharacters(in: .whitespacesAndNewlines)
-                    self.enqueue(msg == "TOGGLE" ? "EVENT:TOGGLE_KAREL" : "EVENT:RST_BOOP")
+                    if msg == "KAREL_TOGGLE" { self.enqueue("EVENT:TOGGLE_KAREL") }
+                    else if msg == "KAREL_BOOP" { self.enqueue("EVENT:RST_BOOP") }
                 }
             }
         }
@@ -1548,6 +1502,8 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         let s = Darwin.socket(AF_INET, SOCK_STREAM, 0)
         if s < 0 { return false }
         defer { Darwin.close(s) }
+        var tv = timeval(tv_sec: 0, tv_usec: 500_000)
+        setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = port.bigEndian
@@ -1558,7 +1514,7 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             }
         }
         if rc < 0 { return false }
-        let msg = toggle ? "TOGGLE\n" : "BOOP\n"
+        let msg = toggle ? "KAREL_TOGGLE\n" : "KAREL_BOOP\n"
         _ = msg.withCString { Darwin.write(s, $0, strlen($0)) }
         return true
     }
@@ -1752,20 +1708,20 @@ private final class KarelController: NSObject, NSApplicationDelegate {
         if updateBusy { return }
         updateBusy = true
         say(isEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55)
-        AutoUpdater.checkNowAsync(save: save, updatedFrom: updatedFrom,
-            onReady: { [weak self] ver, sh in
-                self?.pendingUpdateVer = ver
-                self?.pendingUpdateSh = sh
-                self?.enqueue("EVENT:APPLY_UPDATE")
+        AutoUpdater.checkNowAsync(
+            onNewVersion: { [weak self] ver in
+                DispatchQueue.main.async {
+                    guard let s = self else { return }
+                    s.updateBusy = false
+                    s.say(s.isEn() ? "Update v\(ver) available! Opening GitHub..." : "Update v\(ver) beschikbaar! GitHub openen...", 80)
+                    if let url = URL(string: AutoUpdater.releasesUrl) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             },
             onStatus: { [weak self] status in
                 DispatchQueue.main.async {
                     guard let s = self else { return }
-                    if status.hasPrefix("downloading:") {
-                        let ver = String(status.dropFirst(12))
-                        s.say(s.isEn() ? "Downloading v\(ver)..." : "Downloaden v\(ver)...", 90)
-                        return
-                    }
                     s.updateBusy = false
                     if status == "uptodate" { s.say(s.isEn() ? "Up to date (v\(AutoUpdater.version))!" : "Al de nieuwste versie (v\(AutoUpdater.version))!", 65) }
                     else if status == "offline" { s.say(s.isEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60) }
@@ -1839,14 +1795,6 @@ private final class KarelController: NSObject, NSApplicationDelegate {
             case "EVENT:QUIT_NOW":
                 if trayHidden { finalizeQuit() } else { triggerDive("quit") }
             case "EVENT:SHUTDOWN_SAVE": save.save()
-            case "EVENT:APPLY_UPDATE":
-                if !pendingUpdateSh.isEmpty {
-                    say(isEn() ? "Updated to v\(pendingUpdateVer)! Restarting..." : "Update v\(pendingUpdateVer) klaar! Herstarten...", 40)
-                    save.save()
-                    let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/bash"); p.arguments = [pendingUpdateSh]
-                    try? p.run()
-                    finalizeQuit()
-                }
             default: break
             }
         }
@@ -2649,7 +2597,10 @@ for a in CommandLine.arguments.dropFirst() {
 if selfTest {
     let bank = SpriteBank.loadBundled()
     let img = bank.getFrame(state: "IDLE", frameIdx: 0, skin: "sticky", item: "crown")
-    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty || AutoUpdater.compareVer("2.6.1", AutoUpdater.version) <= 0 {
+    if img.size.width != 32 || img.size.height != 32 || bank.states.isEmpty
+        || AutoUpdater.compareVer("2.7.1", AutoUpdater.version) <= 0
+        || !AutoUpdater.isValidSemver(AutoUpdater.version)
+        || AutoUpdater.isValidSemver("2.7.0;id") {
         fputs("SELF_TEST_FAILED sprites=\(bank.states.count)\n", stderr)
         exit(1)
     }

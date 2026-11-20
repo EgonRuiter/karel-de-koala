@@ -153,7 +153,7 @@ def write_bundle_state(target_dir, name="Karel", force=False):
     write_drive_branding(target_dir)
 
     if os.path.exists(save_path) and not force:
-        print(f"Bestaande save.json behouden: {save_path} (gebruik --force om te overschrijven)")
+        print(f"Kept existing save.json: {save_path} (use --force to overwrite)")
         return marker_path, save_path
 
     data = build_default_save(name=name)
@@ -161,22 +161,22 @@ def write_bundle_state(target_dir, name="Karel", force=False):
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
-    print(f"Aangemaakt: {marker_path}")
-    print(f"Aangemaakt: {save_path}")
+    print(f"Created: {marker_path}")
+    print(f"Created: {save_path}")
     return marker_path, save_path
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Genereer standaard save.json en .karel_drive marker voor Karel de Koala."
+        description="Generate default save.json and .karel_drive marker for Karel de Koala."
     )
     parser.add_argument(
         "--out",
         default=os.path.dirname(os.path.abspath(__file__)),
-        help="Doelmap (standaard: map van dit script, of pad naar het KAREL-station).",
+        help="Target directory (default: directory of this script, or path to the KAREL drive).",
     )
-    parser.add_argument("--name", default="Karel", help="Naam van de koala (standaard: Karel).")
-    parser.add_argument("--force", action="store_true", help="Overschrijf bestaande save.json indien aanwezig.")
+    parser.add_argument("--name", default="Karel", help="Koala name (default: Karel).")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing save.json if present.")
     args = parser.parse_args(argv)
     write_bundle_state(args.out, name=args.name, force=args.force)
 

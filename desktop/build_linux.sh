@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Build native Linux X11/XShape companion binary from karel_linux.c and run --self-test.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,24 +9,25 @@ ARCH="$(uname -m)"
 OUT="${1:-$HERE/karel_linux_${ARCH}}"
 
 if [ "$(uname -s)" != "Linux" ]; then
-    echo "Fout: build_linux.sh moet op Linux draaien."
+    echo "Error: build_linux.sh must be run on Linux."
     exit 1
 fi
 
 command -v gcc >/dev/null 2>&1 || {
-    echo "Fout: gcc niet gevonden (Ubuntu/Debian: sudo apt install -y gcc)."
+    echo "Error: gcc not found (Ubuntu/Debian: sudo apt install -y gcc)."
     exit 1
 }
 
 if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/sprites/karel_assets.py" ]; then
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
-[ -f "$SPRITES" ] || { echo "Fout: karel_sprites.gz niet gevonden."; exit 1; }
+[ -f "$SPRITES" ] || { echo "Error: karel_sprites.gz not found."; exit 1; }
 
 LIB_ARGS=()
 TMP_LIB=""
 trap 'if [ -n "$TMP_LIB" ] && [ -d "$TMP_LIB" ]; then rm -rf "$TMP_LIB"; fi' EXIT
 
+# Fallback: if X11 dev headers are absent, link against runtime libX11.so.6 / libXext.so.6 via temp symlinks.
 if ! echo '#include <X11/extensions/shape.h>' | gcc -E - >/dev/null 2>&1; then
     X11_SO="$(ldconfig -p 2>/dev/null | awk '/libX11\.so\.6 /{print $NF; exit}')"
     XEXT_SO="$(ldconfig -p 2>/dev/null | awk '/libXext\.so\.6 /{print $NF; exit}')"
@@ -35,7 +37,7 @@ if ! echo '#include <X11/extensions/shape.h>' | gcc -E - >/dev/null 2>&1; then
         ln -sf "$XEXT_SO" "$TMP_LIB/libXext.so"
         LIB_ARGS=(-L"$TMP_LIB")
     else
-        echo "Fout: X11 libraries ontbreken (Ubuntu: sudo apt install -y libx11-dev libxext-dev)."
+        echo "Error: X11 libraries missing (Ubuntu/Debian: sudo apt install -y libx11-dev libxext-dev)."
         exit 1
     fi
 fi
@@ -45,5 +47,5 @@ chmod +x "$OUT"
 cp -f "$OUT" "$HERE/karel_linux" 2>/dev/null || true
 
 SIZE_KB="$(du -k "$OUT" | cut -f1)"
-echo "Gebouwd: $OUT (${SIZE_KB} KB)"
+echo "Built: $OUT (${SIZE_KB} KB)"
 KAREL_DRIVE_DIR="$HERE" "$OUT" --self-test

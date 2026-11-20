@@ -20,8 +20,9 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define KAREL_VERSION "2.6.0"
+#define KAREL_VERSION "2.7.0"
 #define KAREL_MANIFEST_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json"
+#define KAREL_RELEASES_URL "https://github.com/EgonRuiter/karel-de-koala/releases/latest"
 
 #ifndef KAREL_CORE_TEST
 #include <arpa/inet.h>
@@ -29,6 +30,7 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -198,6 +200,21 @@ static int huff_dec(BitRd *b, const HuffTbl *h) {
     return -1;
 }
 
+/* Bounded gzip/DEFLATE decompressor (capped at 2 MB to prevent zip-bomb OOM). */
+#define MAX_INFLATE_BYTES (2u * 1024u * 1024u)
+
+static uint8_t *inflate_grow(uint8_t *out, size_t *cap, size_t needed) {
+    if (needed > MAX_INFLATE_BYTES) { free(out); return NULL; }
+    if (needed + 2 <= *cap) return out;
+    size_t ncap = (*cap) * 2;
+    if (ncap < needed + 1024) ncap = needed + 1024;
+    if (ncap > MAX_INFLATE_BYTES + 16) ncap = MAX_INFLATE_BYTES + 16;
+    uint8_t *tmp = (uint8_t *)realloc(out, ncap);
+    if (!tmp) { free(out); return NULL; }
+    *cap = ncap;
+    return tmp;
+}
+
 static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len) {
     if (len < 18 || src[0] != 0x1f || src[1] != 0x8b || src[2] != 8) return NULL;
     uint8_t flg = src[3];
@@ -209,6 +226,7 @@ static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len) {
     if (p >= len) return NULL;
 
     size_t cap = len * 24 + 4096, out_n = 0;
+    if (cap > MAX_INFLATE_BYTES + 16) cap = MAX_INFLATE_BYTES + 16;
     uint8_t *out = (uint8_t *)malloc(cap);
     if (!out) return NULL;
 
@@ -230,7 +248,8 @@ static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len) {
             uint16_t blen = (uint16_t)(br.src[br.pos] | (br.src[br.pos + 1] << 8));
             br.pos += 4;
             if (br.pos + blen > br.len) { free(out); return NULL; }
-            if (out_n + blen + 1 > cap) { cap = (out_n + blen) * 2 + 1024; out = (uint8_t *)realloc(out, cap); }
+            out = inflate_grow(out, &cap, out_n + blen);
+            if (!out) return NULL;
             memcpy(out + out_n, br.src + br.pos, blen);
             br.pos += blen; out_n += blen;
             continue;
@@ -269,7 +288,8 @@ static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len) {
             int s = huff_dec(&br, &lt);
             if (s < 0) { free(out); return NULL; }
             if (s < 256) {
-                if (out_n + 2 > cap) { cap *= 2; out = (uint8_t *)realloc(out, cap); }
+                out = inflate_grow(out, &cap, out_n + 1);
+                if (!out) return NULL;
                 out[out_n++] = (uint8_t)s;
             } else if (s == 256) break;
             else {
@@ -280,7 +300,8 @@ static uint8_t *inflate_gzip(const uint8_t *src, size_t len, size_t *out_len) {
                 if (di < 0 || di >= 30) { free(out); return NULL; }
                 int dist = (int)dbase[di] + br_bits(&br, dext[di]);
                 if ((size_t)dist > out_n) { free(out); return NULL; }
-                if (out_n + (size_t)clen + 2 > cap) { cap = (out_n + (size_t)clen) * 2 + 1024; out = (uint8_t *)realloc(out, cap); }
+                out = inflate_grow(out, &cap, out_n + (size_t)clen);
+                if (!out) return NULL;
                 for (int k = 0; k < clen; k++) { out[out_n] = out[out_n - (size_t)dist]; out_n++; }
             }
         }
@@ -337,6 +358,22 @@ static void sha256_hex(const uint8_t *data, size_t len, char out[65]) {
     free(msg);
     for (int i = 0; i < 8; i++) snprintf(out + i * 8, 9, "%08x", st[i]);
     out[64] = 0;
+}
+
+/* Strictly validate MAJOR.MINOR.PATCH (1-3 ASCII digits per component). */
+static int is_valid_semver(const char *s) {
+    if (!s || !*s) return 0;
+    const char *p = s;
+    for (int part = 0; part < 3; part++) {
+        int digits = 0;
+        while (*p >= '0' && *p <= '9') { digits++; p++; }
+        if (digits < 1 || digits > 3) return 0;
+        if (part < 2) {
+            if (*p != '.') return 0;
+            p++;
+        }
+    }
+    return *p == '\0';
 }
 
 static int compare_ver(const char *a, const char *b) {
@@ -937,6 +974,38 @@ static void sleep_ms(int ms) {
     nanosleep(&ts, NULL);
 }
 
+/* Per-process private temporary directory (mode 0700) for synthesized WAV clips. */
+static char g_snd_dir[128] = "";
+
+static void cleanup_sound_dir(void) {
+    if (!g_snd_dir[0]) return;
+    DIR *dp = opendir(g_snd_dir);
+    if (dp) {
+        struct dirent *de;
+        while ((de = readdir(dp)) != NULL) {
+            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+            char p[256];
+            snprintf(p, sizeof(p), "%.120s/%.120s", g_snd_dir, de->d_name);
+            remove(p);
+        }
+        closedir(dp);
+    }
+    rmdir(g_snd_dir);
+    g_snd_dir[0] = 0;
+}
+
+/* Open a URL or local file via xdg-open without invoking a shell. */
+static void open_with_xdg(const char *target) {
+    if (!target || !*target) return;
+    pid_t pid = fork();
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); close(devnull); }
+        execlp("xdg-open", "xdg-open", target, (char *)NULL);
+        _exit(127);
+    }
+}
+
 static void play_sound_key(const char *key, int muted, int auto_quiet) {
     if (muted || auto_quiet) return;
     static const struct { const char *k; double f[5]; int n; double dur; double amp; } tbl[] = {
@@ -963,7 +1032,12 @@ static void play_sound_key(const char *key, int muted, int auto_quiet) {
     int idx = -1;
     for (int i = 0; i < nt; i++) if (strcmp(tbl[i].k, key) == 0) { idx = i; break; }
     if (idx < 0) return;
-    char path[128]; snprintf(path, sizeof(path), "/tmp/karel_snd_%.24s.wav", key);
+    if (!g_snd_dir[0]) {
+        strcpy(g_snd_dir, "/tmp/karel_snd_XXXXXX");
+        if (!mkdtemp(g_snd_dir)) { g_snd_dir[0] = 0; return; }
+        chmod(g_snd_dir, 0700);
+    }
+    char path[200]; snprintf(path, sizeof(path), "%.120s/%.24s.wav", g_snd_dir, key);
     if (!file_exists(path)) {
         uint8_t wav[44 + 16384 * 2];
         size_t wn = build_wav_bytes(tbl[idx].f, tbl[idx].n, tbl[idx].dur, tbl[idx].amp, wav, sizeof(wav));
@@ -1061,52 +1135,67 @@ static void ser_poll(LinuxSerial *s, char *ev_out, size_t max_ev) {
     if (s->fd >= 0 && ++hb >= 16) { hb = 0; ser_send(s, "KAREL_PING"); }
 }
 
-/* Auto-updater helper: uses curl or wget + pure-C99 SHA-256 verification */
-static uint8_t *http_get_bytes(const char *url, size_t *out_len) {
+/* Read-only GitHub version check (no shell, no binary download/execution) */
+#define MAX_MANIFEST_BYTES 65536u
+
+static uint8_t *exec_fetch_tool(const char *tool, char *const argv[], size_t *out_len) {
     *out_len = 0;
-    char cmd[1200];
-    snprintf(cmd, sizeof(cmd), "(curl -fsSL --max-time 12 \"%.500s\" || wget -qO- -T 12 \"%.500s\") 2>/dev/null", url, url);
-    FILE *fp = popen(cmd, "r"); if (!fp) return NULL;
-    size_t cap = 16384, n = 0;
-    uint8_t *buf = (uint8_t *)malloc(cap); if (!buf) { pclose(fp); return NULL; }
-    while (1) {
-        if (n + 4096 + 1 > cap) {
-            if (cap > 8 * 1024 * 1024) { free(buf); pclose(fp); return NULL; }
-            cap *= 2; buf = (uint8_t *)realloc(buf, cap);
-        }
-        size_t r = fread(buf + n, 1, 4096, fp);
-        n += r;
-        if (r == 0) break;
+    int pfd[2];
+    if (pipe(pfd) != 0) return NULL;
+    pid_t pid = fork();
+    if (pid < 0) { close(pfd[0]); close(pfd[1]); return NULL; }
+    if (pid == 0) {
+        close(pfd[0]);
+        dup2(pfd[1], 1);
+        close(pfd[1]);
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 2); close(devnull); }
+        execvp(tool, argv);
+        _exit(127);
     }
-    int rc = pclose(fp);
-    if (rc != 0 || n == 0) { free(buf); return NULL; }
-    buf[n] = 0; *out_len = n;
+    close(pfd[1]);
+    size_t cap = 4096, n = 0;
+    uint8_t *buf = (uint8_t *)malloc(cap);
+    if (!buf) { close(pfd[0]); waitpid(pid, NULL, 0); return NULL; }
+    int too_big = 0;
+    while (1) {
+        if (n + 2048 + 1 > cap) {
+            if (cap >= MAX_MANIFEST_BYTES + 1) { too_big = 1; break; }
+            size_t ncap = cap * 2;
+            if (ncap > MAX_MANIFEST_BYTES + 1) ncap = MAX_MANIFEST_BYTES + 1;
+            uint8_t *tmp = (uint8_t *)realloc(buf, ncap);
+            if (!tmp) { free(buf); close(pfd[0]); waitpid(pid, NULL, 0); return NULL; }
+            buf = tmp; cap = ncap;
+        }
+        size_t avail = cap - n - 1;
+        if (avail == 0) { too_big = 1; break; }
+        ssize_t r = read(pfd[0], buf + n, avail > 2048 ? 2048 : avail);
+        if (r < 0) { if (errno == EINTR) continue; break; }
+        if (r == 0) break;
+        n += (size_t)r;
+    }
+    close(pfd[0]);
+    int st = 0;
+    waitpid(pid, &st, 0);
+    if (too_big || !WIFEXITED(st) || WEXITSTATUS(st) != 0 || n == 0) { free(buf); return NULL; }
+    buf[n] = 0;
+    *out_len = n;
     return buf;
 }
 
-static int eq_ci(const char *a, const char *b) {
-    while (*a && *b) {
-        if (tolower((unsigned char)*a++) != tolower((unsigned char)*b++)) return 0;
-    }
-    return *a == *b;
+static uint8_t *http_get_manifest(size_t *out_len) {
+    char *curl_argv[] = {
+        "curl", "-fsSL", "--max-time", "10", "--proto", "=https", "--", KAREL_MANIFEST_URL, NULL
+    };
+    uint8_t *res = exec_fetch_tool("curl", curl_argv, out_len);
+    if (res) return res;
+    char *wget_argv[] = {
+        "wget", "-qO-", "-T", "10", "--https-only", "--", KAREL_MANIFEST_URL, NULL
+    };
+    return exec_fetch_tool("wget", wget_argv, out_len);
 }
 
-static int write_verified_file(const char *dst, const char *url, const char *expected_sha, size_t min_bytes) {
-    size_t n = 0;
-    uint8_t *buf = http_get_bytes(url, &n);
-    if (!buf || n < min_bytes) { free(buf); return 0; }
-    char got[65]; sha256_hex(buf, n, got);
-    if (!eq_ci(got, expected_sha)) { free(buf); return 0; }
-    char tmp[600]; snprintf(tmp, sizeof(tmp), "%.580s.tmp", dst);
-    FILE *fp = fopen(tmp, "wb"); if (!fp) { free(buf); return 0; }
-    size_t w = fwrite(buf, 1, n, fp); fclose(fp); free(buf);
-    if (w != n) { remove(tmp); return 0; }
-    if (min_bytes >= 20000) (void)chmod(tmp, 0755);
-    if (rename(tmp, dst) != 0) { remove(tmp); return 0; }
-    return 1;
-}
-
-static void start_updater_async(const char *drive_root, const char *self_exe, const char *updated_from, int *out_pipe_fd) {
+static void start_updater_async(int *out_pipe_fd) {
     int pfd[2]; *out_pipe_fd = -1;
     if (pipe(pfd) != 0) return;
     pid_t pid = fork();
@@ -1118,62 +1207,20 @@ static void start_updater_async(const char *drive_root, const char *self_exe, co
         return;
     }
     close(pfd[0]);
+    signal(SIGCHLD, SIG_DFL);
     size_t mlen = 0;
-    uint8_t *mraw = http_get_bytes(KAREL_MANIFEST_URL, &mlen);
+    uint8_t *mraw = http_get_manifest(&mlen);
     if (mraw && mlen > 10) {
-        char rem_ver[32] = "", bin_url[512] = "", bin_sha[80] = "", spr_url[512] = "", spr_sha[80] = "", fw_url[512] = "", fw_sha[80] = "";
+        char rem_ver[32] = "";
         json_find_str((const char *)mraw, "version", rem_ver, sizeof(rem_ver));
-#if defined(__aarch64__)
-        json_find_str((const char *)mraw, "linux_arm64_url", bin_url, sizeof(bin_url));
-        json_find_str((const char *)mraw, "linux_arm64_sha256", bin_sha, sizeof(bin_sha));
-#endif
-        if (!*bin_url) {
-            json_find_str((const char *)mraw, "linux_x64_url", bin_url, sizeof(bin_url));
-            json_find_str((const char *)mraw, "linux_x64_sha256", bin_sha, sizeof(bin_sha));
-        }
-        json_find_str((const char *)mraw, "sprites_url", spr_url, sizeof(spr_url));
-        json_find_str((const char *)mraw, "sprites_sha256", spr_sha, sizeof(spr_sha));
-        json_find_str((const char *)mraw, "code_py_url", fw_url, sizeof(fw_url));
-        json_find_str((const char *)mraw, "code_py_sha256", fw_sha, sizeof(fw_sha));
         free(mraw);
-
-        if (!*rem_ver || compare_ver(rem_ver, KAREL_VERSION) <= 0 || (*updated_from && compare_ver(rem_ver, updated_from) == 0)) {
-            (void)!write(pfd[1], "UPTODATE", 8);
-        } else if (*bin_url && *bin_sha) {
-            if (*drive_root) {
-                char bootp[600], codep[600];
-                snprintf(bootp, sizeof(bootp), "%.500s/boot.py", drive_root);
-                snprintf(codep, sizeof(codep), "%.500s/code.py", drive_root);
-                if (file_exists(bootp) && file_exists(codep) && *fw_url && *fw_sha) {
-                    FILE *cf = fopen(codep, "rb");
-                    if (cf) {
-                        uint8_t cur[65536]; size_t cn = fread(cur, 1, sizeof(cur), cf); fclose(cf);
-                        char csha[65]; sha256_hex(cur, cn, csha);
-                        if (!eq_ci(csha, fw_sha)) (void)write_verified_file(codep, fw_url, fw_sha, 500);
-                    }
-                }
-            }
-            if (*spr_url && *spr_sha) {
-                char sdir[512], sp[600]; snprintf(sdir, sizeof(sdir), "%.500s", self_exe);
-                char *sl = strrchr(sdir, '/');
-                if (sl) { *sl = 0; snprintf(sp, sizeof(sp), "%.500s/karel_sprites.gz", sdir); (void)write_verified_file(sp, spr_url, spr_sha, 1000); }
-                if (*drive_root) { snprintf(sp, sizeof(sp), "%.500s/karel_sprites.gz", drive_root); (void)write_verified_file(sp, spr_url, spr_sha, 1000); }
-            }
-            if (write_verified_file(self_exe, bin_url, bin_sha, 20000)) {
-                chmod(self_exe, 0755);
-                if (*drive_root) {
-                    char usb_dot[600], usb_old[600];
-                    snprintf(usb_dot, sizeof(usb_dot), "%.500s/.karel_linux_x86_64", drive_root);
-                    snprintf(usb_old, sizeof(usb_old), "%.500s/karel_linux_x86_64", drive_root);
-                    (void)write_verified_file(file_exists(usb_dot) || !file_exists(usb_old) ? usb_dot : usb_old, bin_url, bin_sha, 20000);
-                }
-                char msg[48]; snprintf(msg, sizeof(msg), "OK:%.31s", rem_ver);
-                (void)!write(pfd[1], msg, strlen(msg));
-            } else {
-                (void)!write(pfd[1], "ERROR", 5);
-            }
-        } else {
+        if (!is_valid_semver(rem_ver)) {
             (void)!write(pfd[1], "ERROR", 5);
+        } else if (compare_ver(rem_ver, KAREL_VERSION) <= 0) {
+            (void)!write(pfd[1], "UPTODATE", 8);
+        } else {
+            char msg[48]; snprintf(msg, sizeof(msg), "NEW:%.31s", rem_ver);
+            (void)!write(pfd[1], msg, strlen(msg));
         }
     } else {
         free(mraw);
@@ -1183,12 +1230,15 @@ static void start_updater_async(const char *drive_root, const char *self_exe, co
     _exit(0);
 }
 
+/* Loopback-only single-instance IPC (127.0.0.1, 500ms timeout, strict KAREL_* tokens). */
 static int try_signal_existing(int toggle, uint16_t port) {
     int s = socket(AF_INET, SOCK_STREAM, 0); if (s < 0) return 0;
+    struct timeval tv; tv.tv_sec = 0; tv.tv_usec = 500000;
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     struct sockaddr_in a; memset(&a, 0, sizeof(a));
     a.sin_family = AF_INET; a.sin_port = htons(port); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (connect(s, (struct sockaddr *)&a, sizeof(a)) < 0) { close(s); return 0; }
-    const char *m = toggle ? "TOGGLE\n" : "BOOP\n";
+    const char *m = toggle ? "KAREL_TOGGLE\n" : "KAREL_BOOP\n";
     (void)!write(s, m, strlen(m)); close(s);
     return 1;
 }
@@ -1223,7 +1273,6 @@ typedef struct {
 
     SpriteBank sb; SaveStore save; LinuxSerial ser;
     int ipc_fd, upd_pipe;
-    char self_exe[512], upd_ver[32], updated_from[32];
 
     char state[32], bubble[160], climb_msg[128], dive_mode[16];
     int scale, frame_idx, act_ticks, bubble_ticks, disco_ticks, hyper_ticks, nose_clicks;
@@ -1961,7 +2010,7 @@ static void handle_hub_click(KarelApp *k, int mx, int my, int x_root, int y_root
         else if (b.id == 22) { strcpy(k->save.language, is_en(k) ? "nl" : "en"); save_persist(&k->save); }
         else if (b.id == 26) {
             say_msg(k, is_en(k) ? "Checking GitHub for updates..." : "Controleren op updates...", 60);
-            if (k->upd_pipe < 0) start_updater_async(k->save.drive_root, k->self_exe, k->updated_from, &k->upd_pipe);
+            if (k->upd_pipe < 0) start_updater_async(&k->upd_pipe);
         } else if (b.id == 30) { trigger_dive(k, "quit"); return; }
         draw_hub(k); return;
     }
@@ -2004,12 +2053,11 @@ static void step_physics(KarelApp *k) {
         if (nr > 0) {
             buf[nr] = 0;
             close(k->upd_pipe); k->upd_pipe = -1;
-            if (strncmp(buf, "OK:", 3) == 0) {
-                snprintf(k->upd_ver, sizeof(k->upd_ver), "%.31s", buf + 3);
-                k->quit_req = 2;
-                say_msg(k, is_en(k) ? "Update installed! Restarting..." : "Update klaar! Herstarten...", 50);
-                paint_karel(k); XFlush(k->dpy); sleep_ms(500);
-                return;
+            if (strncmp(buf, "NEW:", 4) == 0 && is_valid_semver(buf + 4)) {
+                char um[96];
+                snprintf(um, sizeof(um), is_en(k) ? "Update v%.16s available! Opening GitHub..." : "Update v%.16s beschikbaar! GitHub openen...", buf + 4);
+                say_msg(k, um, 80);
+                open_with_xdg(KAREL_RELEASES_URL);
             } else if (strcmp(buf, "UPTODATE") == 0) {
                 char um[64]; snprintf(um, sizeof(um), is_en(k) ? "Up to date (v%s)!" : "Al nieuwste versie (v%s)!", KAREL_VERSION);
                 say_msg(k, um, 65);
@@ -2236,10 +2284,9 @@ static int run_ask_prompt(KarelApp *k) {
                         if (k->save.connected && *k->save.drive_root) snprintf(lmd, sizeof(lmd), "%.500s/README.md", k->save.drive_root);
                         else lmd[0] = 0;
                         if (*lmd && file_exists(lmd)) {
-                            char cmd[700]; snprintf(cmd, sizeof(cmd), "xdg-open '%.600s' >/dev/null 2>&1 &", lmd);
-                            if (system(cmd) != 0) {}
+                            open_with_xdg(lmd);
                         } else {
-                            if (system("xdg-open 'https://github.com/EgonRuiter/karel-de-koala#readme' >/dev/null 2>&1 &") != 0) {}
+                            open_with_xdg("https://github.com/EgonRuiter/karel-de-koala#readme");
                         }
                     }
                     else if (cx >= x3 && cx <= x3 + w3) { confirm = 1; XClearArea(k->dpy, win, 0, 0, 0, 0, True); }
@@ -2281,7 +2328,7 @@ int main(int argc, char **argv) {
 
     if (self_test) {
         char gz[600];
-        if (!locate_sprites_gz(gz, sizeof(gz))) { fprintf(stderr, "karel_sprites.gz niet gevonden\n"); return 1; }
+        if (!locate_sprites_gz(gz, sizeof(gz))) { fprintf(stderr, "Error: karel_sprites.gz not found\n"); return 1; }
         static SpriteBank sb;
         if (!load_sprites_gz(&sb, gz)) { fprintf(stderr, "Failed loading %s\n", gz); return 1; }
         Rgba px[32][32];
@@ -2289,7 +2336,10 @@ int main(int argc, char **argv) {
             for (int o = 0; o < NUM_OUTFITS; o++) render_frame_rgba(&sb, "IDLE", 0, SKIN_IDS[s], OUTFIT_IDS[o], px);
         int opaque = 0; for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (px[y][x].a) opaque++;
         char sha[65]; sha256_hex((const uint8_t *)"abc", 3, sha);
-        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0 || compare_ver("2.6.1", KAREL_VERSION) <= 0) {
+        if (opaque < 50 || strcmp(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") != 0
+            || compare_ver("2.7.1", KAREL_VERSION) <= 0
+            || !is_valid_semver(KAREL_VERSION)
+            || is_valid_semver("2.7.0;id")) {
             fprintf(stderr, "Self-check failed\n"); return 1;
         }
         double tf[3] = {440, 554.37, 659.25}; uint8_t wb[16384];
@@ -2309,20 +2359,18 @@ int main(int argc, char **argv) {
 
     static KarelApp k; memset(&k, 0, sizeof(k));
     k.ser.fd = -1; k.upd_pipe = -1;
-    snprintf(k.updated_from, sizeof(k.updated_from), "%.31s", updated_from);
-    ssize_t el = readlink("/proc/self/exe", k.self_exe, sizeof(k.self_exe) - 1);
-    if (el > 0) k.self_exe[el] = 0; else snprintf(k.self_exe, sizeof(k.self_exe), "%.500s", argv[0]);
+    (void)updated_from;
 
     char gz[600];
     if (!locate_sprites_gz(gz, sizeof(gz)) || !load_sprites_gz(&k.sb, gz)) {
-        fprintf(stderr, "Karel: karel_sprites.gz niet gevonden.\n"); return 1;
+        fprintf(stderr, "Karel: karel_sprites.gz not found.\n"); return 1;
     }
     save_load(&k.save);
     k.scale = clamp_int(k.save.karel_scale, 2, 5);
     srand((unsigned)time(NULL));
 
     k.dpy = XOpenDisplay(NULL);
-    if (!k.dpy) { fprintf(stderr, "Geen X11/XWayland DISPLAY gevonden.\n"); return 1; }
+    if (!k.dpy) { fprintf(stderr, "Error: no X11/XWayland DISPLAY found.\n"); return 1; }
     k.scr = XDefaultScreen(k.dpy); k.root = XRootWindow(k.dpy, k.scr);
     k.dpi = get_dpi_scale(k.dpy);
     k.wm_del = XInternAtom(k.dpy, "WM_DELETE_WINDOW", False);
@@ -2417,13 +2465,18 @@ int main(int argc, char **argv) {
         if (k.ipc_fd >= 0) {
             int c = accept(k.ipc_fd, NULL, NULL);
             if (c >= 0) {
+                struct timeval tv; tv.tv_sec = 0; tv.tv_usec = 500000;
+                setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
                 char msg[64]; ssize_t n = read(c, msg, sizeof(msg) - 1); close(c);
                 if (n > 0) {
                     msg[n] = 0;
-                    if (strstr(msg, "TOGGLE")) {
+                    if (strncmp(msg, "KAREL_TOGGLE", 12) == 0) {
                         if (k.hidden) { k.hidden = 0; XMapRaised(k.dpy, k.karel_win); trigger_climb(&k, is_en(&k) ? "I'm back!" : "Daar ben ik weer!"); }
                         else trigger_dive(&k, "quit");
-                    } else { if (k.hidden) { k.hidden = 0; XMapRaised(k.dpy, k.karel_win); } do_boop(&k); }
+                    } else if (strncmp(msg, "KAREL_BOOP", 10) == 0) {
+                        if (k.hidden) { k.hidden = 0; XMapRaised(k.dpy, k.karel_win); }
+                        do_boop(&k);
+                    }
                 }
             }
         }
@@ -2445,16 +2498,12 @@ int main(int argc, char **argv) {
         sleep_ms(62);
     }
 
-    int restart = (k.quit_req == 2);
     ser_send(&k.ser, "STATE:BYE"); save_persist(&k.save); ser_drop(&k.ser);
     if (k.ipc_fd >= 0) close(k.ipc_fd);
     if (k.upd_pipe >= 0) close(k.upd_pipe);
     close_popup(&k);
+    cleanup_sound_dir();
     XCloseDisplay(k.dpy);
-    if (restart && *k.self_exe) {
-        char uf[48]; snprintf(uf, sizeof(uf), "--updated-from=%.31s", k.upd_ver);
-        execl(k.self_exe, k.self_exe, uf, (char *)NULL);
-    }
     return 0;
 #endif
 }

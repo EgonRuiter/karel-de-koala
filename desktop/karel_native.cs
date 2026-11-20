@@ -24,14 +24,15 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("Karel de Koala")]
 [assembly: AssemblyDescription("Sticky RP2350 Desktop Koala Companion")]
-[assembly: AssemblyCompany("Studievereniging Sticky")]
+[assembly: AssemblyCompany("Study Association Sticky")]
 [assembly: AssemblyProduct("Karel de Koala")]
-[assembly: AssemblyCopyright("Copyright (c) 2026 Studievereniging Sticky")]
-[assembly: AssemblyVersion("2.6.0.0")]
-[assembly: AssemblyFileVersion("2.6.0.0")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 Study Association Sticky")]
+[assembly: AssemblyVersion("2.7.0.0")]
+[assembly: AssemblyFileVersion("2.7.0.0")]
 
 namespace KarelNative {
 
+    // Win32 interop helpers: DPI scaling, USB volume notifications, active window detection, and hotkeys.
     internal static class NativeWin {
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left, Top, Right, Bottom; }
@@ -144,6 +145,7 @@ namespace KarelNative {
         }
     }
 
+    // Decompresses embedded karel_sprites.gz and renders 32x32 frames with coat recoloring and per-frame outfit anchors.
     internal sealed class SpriteBank {
         public readonly Dictionary<string, List<string[]>> States = new Dictionary<string, List<string[]>>();
         public readonly Dictionary<string, int> AnimDiv = new Dictionary<string, int>();
@@ -416,6 +418,7 @@ namespace KarelNative {
         }
     }
 
+    // Pure-managed 8-bit chiptune PCM/WAV synthesizer (zero external audio assets).
     internal sealed class WavSynth {
         private readonly Dictionary<string, byte[]> bank = new Dictionary<string, byte[]>();
         private readonly object playLock = new object();
@@ -487,6 +490,7 @@ namespace KarelNative {
         }
     }
 
+    // Manages USB KAREL drive detection, save.json persistence, offline stat decay, and local AppData backup.
     internal sealed class SaveStore {
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
         private readonly object ioLock = new object();
@@ -722,6 +726,7 @@ namespace KarelNative {
         }
     }
 
+    // Background USB CDC serial worker for RP2350 handshake (KAREL_PING/KAREL_PONG) and live RGB LED telemetry.
     internal sealed class SerialSync {
         private SerialPort sp;
         private string lastState = "";
@@ -816,6 +821,7 @@ namespace KarelNative {
         public void Stop() { stopping = true; Drop(); try { wakeEv.Set(); } catch { } }
     }
 
+    // Opt-in Windows auto-launch helper (HKCU Run key + local copy in %LOCALAPPDATA%\KarelDeKoala).
     internal static class StartupHelper {
         private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "KarelDeKoala";
@@ -842,15 +848,23 @@ namespace KarelNative {
             } catch { return false; }
         }
 
+        // Schedules deferred cleanup of %LOCALAPPDATA%\KarelDeKoala after exit, passing the validated path via env var.
         public static void ScheduleRemoveInstalledDir() {
             string dir = InstalledDir();
             if (!Directory.Exists(dir)) return;
             try {
-                Process.Start(new ProcessStartInfo("cmd.exe", "/c timeout /t 2 /nobreak >nul & rmdir /s /q \"" + dir + "\"") {
+                string fullDir = Path.GetFullPath(dir);
+                string localBase = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+                if (!fullDir.StartsWith(localBase + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return;
+                if (!string.Equals(Path.GetFileName(fullDir.TrimEnd(Path.DirectorySeparatorChar)), AppName, StringComparison.OrdinalIgnoreCase)) return;
+                if (fullDir.IndexOfAny(new char[] { '"', '\r', '\n', '&', '|', '%', '^', '<', '>' }) >= 0) return;
+                ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c \"timeout /t 2 /nobreak >nul & rmdir /s /q \"%KAREL_RM_DIR%\"\"") {
                     WindowStyle = ProcessWindowStyle.Hidden,
                     CreateNoWindow = true,
                     UseShellExecute = false
-                });
+                };
+                psi.EnvironmentVariables["KAREL_RM_DIR"] = fullDir;
+                Process.Start(psi);
             } catch { }
         }
 
@@ -904,9 +918,26 @@ namespace KarelNative {
         }
     }
 
+    // Read-only GitHub Releases version checker (fetches version.json capped at 64 KB; never downloads or runs code).
     internal static class AutoUpdater {
-        public const string Version = "2.6.0";
+        public const string Version = "2.7.0";
         public const string ManifestUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest/download/version.json";
+        public const string ReleasesUrl = "https://github.com/EgonRuiter/karel-de-koala/releases/latest";
+        private const int MaxManifestBytes = 65536;
+
+        public static bool IsValidSemver(string v) {
+            if (string.IsNullOrEmpty(v)) return false;
+            string[] parts = v.Split('.');
+            if (parts.Length != 3) return false;
+            for (int i = 0; i < 3; i++) {
+                if (parts[i].Length < 1 || parts[i].Length > 3) return false;
+                for (int j = 0; j < parts[i].Length; j++) {
+                    char c = parts[i][j];
+                    if (c < '0' || c > '9') return false;
+                }
+            }
+            return true;
+        }
 
         public static int CompareVer(string a, string b) {
             int[] pa = ParseVer(a), pb = ParseVer(b);
@@ -937,10 +968,10 @@ namespace KarelNative {
             }
         }
 
-        private static byte[] FetchBytes(string url, int timeoutMs) {
+        private static byte[] FetchManifestBytes(int timeoutMs) {
             try {
                 try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | SecurityProtocolType.Tls12; } catch { }
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(ManifestUrl);
                 req.Timeout = timeoutMs;
                 req.ReadWriteTimeout = timeoutMs;
                 req.UserAgent = "KarelDeKoala/" + Version;
@@ -948,86 +979,32 @@ namespace KarelNative {
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (Stream st = resp.GetResponseStream())
                 using (MemoryStream ms = new MemoryStream()) {
-                    byte[] buf = new byte[8192];
+                    byte[] buf = new byte[4096];
                     int n;
-                    while ((n = st.Read(buf, 0, buf.Length)) > 0) ms.Write(buf, 0, n);
+                    while ((n = st.Read(buf, 0, buf.Length)) > 0) {
+                        if (ms.Length + n > MaxManifestBytes) return null;
+                        ms.Write(buf, 0, n);
+                    }
                     return ms.ToArray();
                 }
             } catch { return null; }
         }
 
-        private static bool UpdateFirmwareIfNeeded(SaveStore save, string codeUrl, string codeSha) {
-            if (!save.Connected || string.IsNullOrEmpty(codeUrl) || string.IsNullOrEmpty(codeSha)) return false;
-            string bootP = Path.Combine(save.DriveRoot, "boot.py");
-            string codeP = Path.Combine(save.DriveRoot, "code.py");
-            if (!File.Exists(bootP) || !File.Exists(codeP)) return false;
-            try {
-                byte[] cur = File.ReadAllBytes(codeP);
-                if (string.Equals(Sha256Hex(cur), codeSha.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-                byte[] next = FetchBytes(codeUrl, 10000);
-                if (next == null || next.Length < 500) return false;
-                if (!string.Equals(Sha256Hex(next), codeSha.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-                bool keepHidden = (File.GetAttributes(codeP) & FileAttributes.Hidden) != 0;
-                try { File.SetAttributes(codeP, FileAttributes.Normal); } catch { }
-                using (FileStream fs = new FileStream(codeP, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
-                    fs.Write(next, 0, next.Length);
-                    fs.Flush(true);
-                }
-                if (keepHidden) { try { File.SetAttributes(codeP, File.GetAttributes(codeP) | FileAttributes.Hidden); } catch { } }
-                return true;
-            } catch { return false; }
-        }
-
-        public static void CheckNowAsync(SaveStore save, string updatedFrom, Action<string, string> onReady, Action<string> onStatus) {
+        public static void CheckNowAsync(Action<string> onNewVersion, Action<string> onStatus) {
             Thread t = new Thread(new ThreadStart(delegate {
                 try {
-                    byte[] raw = FetchBytes(ManifestUrl, 6000);
+                    byte[] raw = FetchManifestBytes(6000);
                     if (raw == null || raw.Length == 0) { if (onStatus != null) onStatus("offline"); return; }
                     JavaScriptSerializer ser = new JavaScriptSerializer();
                     Dictionary<string, object> man = ser.DeserializeObject(Encoding.UTF8.GetString(raw)) as Dictionary<string, object>;
                     if (man == null) { if (onStatus != null) onStatus("error"); return; }
-                    string remVer = SaveStore.GetStrFrom(man, "version", "");
-                    if (CompareVer(remVer, Version) <= 0 || (!string.IsNullOrEmpty(updatedFrom) && CompareVer(remVer, updatedFrom) == 0)) {
+                    string remVer = SaveStore.GetStrFrom(man, "version", "").Trim();
+                    if (!IsValidSemver(remVer)) { if (onStatus != null) onStatus("error"); return; }
+                    if (CompareVer(remVer, Version) <= 0) {
                         if (onStatus != null) onStatus("uptodate");
                         return;
                     }
-
-                    if (onStatus != null) onStatus("downloading:" + remVer);
-                    string exeUrl = SaveStore.GetStrFrom(man, "exe_url", "");
-                    string exeSha = SaveStore.GetStrFrom(man, "exe_sha256", "");
-                    if (string.IsNullOrEmpty(exeUrl) || string.IsNullOrEmpty(exeSha)) { if (onStatus != null) onStatus("error"); return; }
-                    byte[] exeBytes = FetchBytes(exeUrl, 15000);
-                    if (exeBytes == null || exeBytes.Length < 20000 || !string.Equals(Sha256Hex(exeBytes), exeSha.Trim(), StringComparison.OrdinalIgnoreCase)) {
-                        if (onStatus != null) onStatus("error");
-                        return;
-                    }
-
-                    UpdateFirmwareIfNeeded(save, SaveStore.GetStrFrom(man, "code_py_url", ""), SaveStore.GetStrFrom(man, "code_py_sha256", ""));
-
-                    string curExe = Application.ExecutablePath;
-                    string stageNew = Path.Combine(Path.GetTempPath(), "karel_native_" + remVer + ".exe");
-                    File.WriteAllBytes(stageNew, exeBytes);
-
-                    string usbCopyCmd = "";
-                    if (save.Connected) {
-                        string winExe = Path.Combine(save.DriveRoot, "Karel (Windows).exe");
-                        string oldExe = Path.Combine(save.DriveRoot, "karel_native.exe");
-                        string usbExe = File.Exists(winExe) ? winExe : (File.Exists(oldExe) ? oldExe : winExe);
-                        if (!string.Equals(Path.GetFullPath(curExe), Path.GetFullPath(usbExe), StringComparison.OrdinalIgnoreCase))
-                            usbCopyCmd += string.Format("copy /Y \"{0}\" \"{1}\" >nul 2>&1\r\n", curExe, usbExe);
-                    }
-                    if (StartupHelper.IsEnabled()) {
-                        string instExe = StartupHelper.InstalledExePath();
-                        if (!string.Equals(Path.GetFullPath(curExe), Path.GetFullPath(instExe), StringComparison.OrdinalIgnoreCase))
-                            usbCopyCmd += string.Format("copy /Y \"{0}\" \"{1}\" >nul 2>&1\r\n", curExe, instExe);
-                    }
-                    string cmdPath = Path.Combine(Path.GetTempPath(), "karel_upd.cmd");
-                    string script = string.Format(
-                        "@echo off\r\nset /a n=0\r\n:wait\r\ntimeout /t 1 /nobreak >nul\r\nset /a n+=1\r\ncopy /Y \"{0}\" \"{1}\" >nul 2>&1\r\nif errorlevel 1 if %n% LSS 15 goto :wait\r\ndel \"{0}\" >nul 2>&1\r\n{2}start \"\" \"{1}\" --updated-from={3} --no-ask\r\ndel \"%~f0\"\r\n",
-                        stageNew, curExe, usbCopyCmd, remVer
-                    );
-                    File.WriteAllText(cmdPath, script, Encoding.Default);
-                    if (onReady != null) onReady(remVer, cmdPath);
+                    if (onNewVersion != null) onNewVersion(remVer);
                 } catch { if (onStatus != null) onStatus("error"); }
             }));
             t.IsBackground = true;
@@ -1035,6 +1012,7 @@ namespace KarelNative {
         }
     }
 
+    // Main borderless desktop pet window, physics/roaming loop, speech bubbles, tray icon, and Sticky Hub dialog.
     internal sealed class KarelForm : Form {
         private readonly SpriteBank sprites;
         private readonly SaveStore save;
@@ -1057,8 +1035,7 @@ namespace KarelNative {
         private double wx, wy, roamTx, roamTy, jumpY = 0, jumpVy = 0, flingVx = 0, flingVy = 0, closeStartY = 0;
         private bool dragging = false, flying = false, climbing = false, closing = false, autoPaused = false;
         private bool umbrellaFall = false, trayHidden = false, usbSleeping = false, uninstalling = false, updateBusy = false, focusActive = false;
-        private readonly string updatedFromVer = "";
-        private string diveMode = "quit", climbMsg = "", pendingUpdateCmd = "", pendingUpdateVer = "";
+        private string diveMode = "quit", climbMsg = "";
         private double preQuietX = 0, preQuietY = 0;
         private bool hasPreQuiet = false;
         private int focusRem = 0;
@@ -1373,7 +1350,6 @@ namespace KarelNative {
             MouseUp += OnMouseUpHandler;
             DoubleClick += delegate { DoPet(); };
 
-            updatedFromVer = updatedFrom ?? "";
             tick.Interval = 62;
             tick.Tick += OnTick;
             usbDebounce.Interval = 500;
@@ -1479,20 +1455,30 @@ namespace KarelNative {
             }
         }
 
+        // Loopback-only single-instance IPC listener (500ms timeout, strict KAREL_* command prefixes).
         private void StartIpc(int ipcPort) {
             Thread t = new Thread(new ThreadStart(delegate {
                 try {
                     ipcSrv = new TcpListener(IPAddress.Loopback, ipcPort);
                     ipcSrv.Start();
                     while (true) {
-                        using (TcpClient c = ipcSrv.AcceptTcpClient())
-                        using (NetworkStream ns = c.GetStream()) {
-                            byte[] buf = new byte[64];
-                            int n = ns.Read(buf, 0, buf.Length);
-                            string msg = Encoding.ASCII.GetString(buf, 0, n);
-                            if (msg.IndexOf("TOGGLE", StringComparison.Ordinal) >= 0) Enqueue("EVENT:TOGGLE_KAREL");
-                            else if (msg.IndexOf("BOOP", StringComparison.Ordinal) >= 0) Enqueue("EVENT:RST_BOOP");
-                        }
+                        try {
+                            using (TcpClient c = ipcSrv.AcceptTcpClient()) {
+                                c.ReceiveTimeout = 500;
+                                c.SendTimeout = 500;
+                                using (NetworkStream ns = c.GetStream()) {
+                                    byte[] buf = new byte[64];
+                                    int n = ns.Read(buf, 0, buf.Length);
+                                    if (n > 0) {
+                                        string msg = Encoding.ASCII.GetString(buf, 0, n);
+                                        if (msg.StartsWith("KAREL_TOGGLE", StringComparison.Ordinal)) Enqueue("EVENT:TOGGLE_KAREL");
+                                        else if (msg.StartsWith("KAREL_BOOP", StringComparison.Ordinal)) Enqueue("EVENT:RST_BOOP");
+                                    }
+                                }
+                            }
+                        } catch (SocketException) { if (ipcSrv == null) break; }
+                        catch (ObjectDisposedException) { break; }
+                        catch { }
                     }
                 } catch { }
             }));
@@ -1695,19 +1681,19 @@ namespace KarelNative {
             if (updateBusy) return;
             updateBusy = true;
             Say(IsEn() ? "Checking GitHub for updates..." : "Controleren op updates...", 55);
-            AutoUpdater.CheckNowAsync(save, updatedFromVer,
-                delegate(string ver, string cmd) {
-                    pendingUpdateVer = ver;
-                    pendingUpdateCmd = cmd;
-                    Enqueue("EVENT:APPLY_UPDATE");
+            AutoUpdater.CheckNowAsync(
+                delegate(string ver) {
+                    try {
+                        BeginInvoke(new Action(delegate {
+                            updateBusy = false;
+                            Say(string.Format(IsEn() ? "Update v{0} available! Opening GitHub..." : "Update v{0} beschikbaar! GitHub openen...", ver), 80);
+                            try { Process.Start(new ProcessStartInfo(AutoUpdater.ReleasesUrl) { UseShellExecute = true }); } catch { }
+                        }));
+                    } catch { updateBusy = false; }
                 },
                 delegate(string status) {
                     try {
                         BeginInvoke(new Action(delegate {
-                            if (status.StartsWith("downloading:")) {
-                                Say(string.Format(IsEn() ? "Downloading v{0}..." : "Downloaden v{0}...", status.Substring(12)), 90);
-                                return;
-                            }
                             updateBusy = false;
                             if (status == "uptodate") Say(string.Format(IsEn() ? "Up to date (v{0})!" : "Al de nieuwste versie (v{0})!", AutoUpdater.Version), 65);
                             else if (status == "offline") Say(IsEn() ? "Cannot reach GitHub." : "Kan GitHub niet bereiken.", 60);
@@ -1792,15 +1778,6 @@ namespace KarelNative {
                 else if (ev == "EVENT:TRAY_TOGGLE") { if (trayHidden) WakeFromTray(); else TriggerDive("tray"); }
                 else if (ev == "EVENT:QUIT_NOW") { if (trayHidden) FinalizeQuit(); else TriggerDive("quit"); }
                 else if (ev == "EVENT:SHUTDOWN_SAVE") save.Save();
-                else if (ev == "EVENT:APPLY_UPDATE" && !string.IsNullOrEmpty(pendingUpdateCmd)) {
-                    Say(string.Format(IsEn() ? "Updated to v{0}! Restarting..." : "Update v{0} klaar! Herstarten...", pendingUpdateVer), 40);
-                    save.Save();
-                    try {
-                        Process.Start(new ProcessStartInfo(pendingUpdateCmd) { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = true });
-                    } catch { }
-                    FinalizeQuit();
-                    return;
-                }
             }
         }
 
@@ -2522,14 +2499,17 @@ namespace KarelNative {
         }
     }
 
+    // Application entry point: CLI flags, --self-test, single-instance handoff, and first-launch auto-start prompt.
     internal static class Program {
         private static bool TrySignalExisting(bool toggle, int port) {
             try {
                 using (TcpClient c = new TcpClient()) {
+                    c.ReceiveTimeout = 500;
+                    c.SendTimeout = 500;
                     IAsyncResult ar = c.BeginConnect("127.0.0.1", port, null, null);
                     if (!ar.AsyncWaitHandle.WaitOne(350)) return false;
                     c.EndConnect(ar);
-                    byte[] msg = Encoding.ASCII.GetBytes(toggle ? "TOGGLE\n" : "BOOP\n");
+                    byte[] msg = Encoding.ASCII.GetBytes(toggle ? "KAREL_TOGGLE\n" : "KAREL_BOOP\n");
                     c.GetStream().Write(msg, 0, msg.Length);
                     return true;
                 }
@@ -2669,7 +2649,10 @@ namespace KarelNative {
                 WavSynth w = new WavSynth();
                 SaveStore s = new SaveStore();
                 s.Load();
-                if (AutoUpdater.CompareVer("2.6.1", AutoUpdater.Version) <= 0 || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
+                if (AutoUpdater.CompareVer("2.7.1", AutoUpdater.Version) <= 0
+                    || !AutoUpdater.IsValidSemver(AutoUpdater.Version)
+                    || AutoUpdater.IsValidSemver("2.7.0&calc")
+                    || AutoUpdater.Sha256Hex(Encoding.ASCII.GetBytes("abc")).Length != 64)
                     throw new InvalidOperationException("Bad updater self-check");
                 Console.WriteLine(string.Format("SELF_TEST_OK version={0} states={1} xp={2} has_synth={3}", AutoUpdater.Version, b.States.Count, s.GetInt("xp", 0), w != null));
                 return;

@@ -1,5 +1,6 @@
-"""Pixel-art sprites (54 animated states / ~200 frames) and palette for Karel de Koala."""
+"""Pixel-art sprites (64 animated states / 234 frames) and palette for Karel de Koala."""
 
+# Base 32x32 sprite geometry and default palette tokens ('.' = transparent).
 SZ, SCALE = 32, 3
 PX = SZ * SCALE
 CW, CH = 240, 190

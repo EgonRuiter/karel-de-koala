@@ -11,14 +11,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from generate_initial_save import write_bundle_state  # noqa: E402
 
-TEST_README = """Karel de Koala - USB Stick (Optie A — Zero-HID)
-===============================================
-Open 'README.md' voor uitleg per besturingssysteem, of start direct:
-- Windows : Karel (Windows).exe
-- macOS   : Karel (Mac).app
-- Linux   : bash "Karel (Linux).sh"
-"""
-
 VISIBLE_ROOT_ITEMS = {
     "Karel (Windows).exe",
     "Karel (Mac).app",
@@ -120,13 +112,13 @@ def _copy_over(src, dst):
 
 
 def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firmware=None):
-    """Copy clean Optie-A Windows, macOS & Linux payload onto target_dir (folder, USB stick, or RP2350)."""
+    """Copy clean Windows, macOS & Linux payload onto target_dir (folder, USB stick, or RP2350)."""
     exe_src = os.path.join(HERE, "karel_native.exe")
     if not os.path.isfile(exe_src):
-        raise FileNotFoundError(f"Niet gevonden: {exe_src}")
+        raise FileNotFoundError(f"Not found: {exe_src}")
     os.makedirs(target_dir, exist_ok=True)
 
-    # Remove old/cluttered root items before writing the clean 4-item Optie A layout.
+    # Remove old/cluttered root items before writing the clean 4-item layout.
     for old_name in OBSOLETE_ROOT_ITEMS:
         _rm_path(os.path.join(target_dir, old_name))
 
@@ -184,25 +176,25 @@ def populate_test_usb(target_dir, set_label=True, reset_save=False, include_firm
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Maak van een gewone USB-stick een Karel Test-Stick.")
-    parser.add_argument("--drive", help="Schijfletter of doelmap, bijv. E:\\")
-    parser.add_argument("--reset-save", action="store_true", help="Overschrijf bestaande save.json op de stick.")
-    parser.add_argument("--no-label", action="store_true", help="Hernoem volumenaam niet naar KAREL.")
+    parser = argparse.ArgumentParser(description="Provision a USB drive or RP2350 board as a Karel USB stick.")
+    parser.add_argument("--drive", help="Drive letter or target folder, e.g. E:\\")
+    parser.add_argument("--reset-save", action="store_true", help="Overwrite existing save.json on the drive.")
+    parser.add_argument("--no-label", action="store_true", help="Do not rename the volume label to KAREL.")
     args = parser.parse_args(argv)
 
     target = args.drive
     if not target:
         rems = find_removable_drives()
         if not rems:
-            print("Geen verwijderbare USB-stick gevonden! Steek een USB-stick in en probeer opnieuw.")
+            print("No removable USB drive found! Plug in a USB drive and try again.")
             return 2
         if len(rems) == 1:
             target = rems[0]
         else:
-            print("Meerdere USB-sticks gevonden:")
+            print("Multiple removable drives found:")
             for idx, r in enumerate(rems, 1):
                 print(f"  [{idx}] {r}")
-            pick = input("Kies nummer (of typ schijfletter zoals E:\\): ").strip()
+            pick = input("Choose number (or enter drive letter such as E:\\): ").strip()
             if pick.isdigit() and 1 <= int(pick) <= len(rems):
                 target = rems[int(pick) - 1]
             else:
@@ -213,8 +205,8 @@ def main(argv=None):
         target = target.upper() + "\\"
 
     labeled = populate_test_usb(target, set_label=(not args.no_label), reset_save=args.reset_save)
-    print(f"Klaar! Karel Test-Stick ingericht op: {target} (label=KAREL: {labeled})")
-    print("Tip: Haal de USB-stick veilig uit & opnieuw erin om het nieuwe KAREL-icoon in Verkenner te zien.")
+    print(f"Done! Karel USB stick provisioned at: {target} (label=KAREL: {labeled})")
+    print("Tip: Safely eject and reconnect the USB stick to refresh the KAREL drive icon in File Explorer.")
     return 0
 
 

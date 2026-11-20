@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Build Universal (arm64 + x86_64) macOS app bundle desktop/Karel.app from karel_mac.swift.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,19 +10,19 @@ MACOS_DIR="$APP/Contents/MacOS"
 RES_DIR="$APP/Contents/Resources"
 
 if [ "$(uname -s)" != "Darwin" ]; then
-    echo "Fout: build_mac.sh moet op macOS draaien (voor Xcode/Swift macOS SDK)."
+    echo "Error: build_mac.sh must be run on macOS (requires Xcode/Swift macOS SDK)."
     exit 1
 fi
 
 if ! xcode-select -p >/dev/null 2>&1 || ! command -v swiftc >/dev/null 2>&1; then
-    echo "Fout: swiftc / Xcode Command Line Tools vereist voor eenmalig bouwen: xcode-select --install"
+    echo "Error: swiftc / Xcode Command Line Tools required for building: xcode-select --install"
     exit 1
 fi
 
 if [ ! -f "$SPRITES" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/sprites/karel_assets.py" ]; then
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import build_native; build_native.export_sprites_gz('$SPRITES')" || true
 fi
-[ -f "$SPRITES" ] || { echo "Fout: karel_sprites.gz niet gevonden naast build_mac.sh."; exit 1; }
+[ -f "$SPRITES" ] || { echo "Error: karel_sprites.gz not found next to build_mac.sh."; exit 1; }
 if [ ! -f "$HERE/.VolumeIcon.icns" ] && command -v python3 >/dev/null 2>&1 && [ -f "$HERE/generate_initial_save.py" ]; then
     python3 -c "import sys; sys.path.insert(0, '$HERE'); import generate_initial_save; generate_initial_save.write_drive_branding('$HERE')" || true
 fi
@@ -33,6 +34,7 @@ ARM_BIN="$(mktemp "${TMPDIR:-/tmp}/karel_arm64.XXXXXX")"
 X64_BIN="$(mktemp "${TMPDIR:-/tmp}/karel_x64.XXXXXX")"
 trap 'rm -f "$ARM_BIN" "$X64_BIN"' EXIT
 
+# Compile both Apple Silicon (arm64) and Intel (x86_64) slices and combine with lipo.
 BUILD_ARM=0
 BUILD_X64=0
 swiftc -Osize -framework Cocoa -target arm64-apple-macosx12.0 "$SRC" -o "$ARM_BIN" 2>/dev/null && BUILD_ARM=1 || true
@@ -70,9 +72,9 @@ cat >"$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.6.0</string>
+    <string>2.7.0</string>
     <key>CFBundleVersion</key>
-    <string>260</string>
+    <string>270</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
@@ -85,8 +87,9 @@ cat >"$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+# Ad-hoc code sign the bundle and run the built-in self-test.
 codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 APP_SIZE="$(du -sk "$APP" | cut -f1)"
-echo "Gebouwd: $APP (${APP_SIZE} KB)"
+echo "Built: $APP (${APP_SIZE} KB)"
 "$MACOS_DIR/Karel" --self-test

@@ -18,13 +18,14 @@ from karel_assets import PALETTE, SPRITES  # noqa: E402
 
 
 def find_csc():
+    """Locate the built-in Windows .NET Framework 4.x C# compiler (csc.exe)."""
     for p in (
         r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
         r"C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe",
     ):
         if os.path.isfile(p):
             return p
-    raise FileNotFoundError(".NET Framework 4.x csc.exe niet gevonden.")
+    raise FileNotFoundError(".NET Framework 4.x csc.exe not found.")
 
 
 SKIP_HEAD_STATES = {"MUSIC", "DJ", "PARTY_HORN", "UMBRELLA", "NINJA"}
@@ -79,6 +80,7 @@ def compute_anchors():
 
 
 def export_sprites_gz(out_path):
+    """Export palette, frame dividers, per-frame outfit anchors, and 32x32 sprites to a gzipped archive."""
     lines = []
     pal_items = [f"{k}:{v}" for k, v in PALETTE.items() if v is not None and len(k) == 1]
     lines.append("PAL|" + ",".join(pal_items))
@@ -124,6 +126,7 @@ def patch_pe_removable_swap(exe_path):
 
 
 def build_native(out_exe=None):
+    """Compile karel_native.cs with embedded icon and sprites, patch PE flags, and run --self-test."""
     csc = find_csc()
     ico_path = write_drive_branding(HERE)[0]
     cs_path = os.path.join(HERE, "karel_native.cs")

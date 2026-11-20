@@ -79,7 +79,7 @@ Manual removal commands:
   ```
 - **Linux:**
   ```bash
-  rm -rf ~/.local/share/karel-de-koala "${XDG_RUNTIME_DIR:-/tmp}/karel_de_koala_$(id -u)"
+  rm -rf ~/.local/share/karel-de-koala "${XDG_RUNTIME_DIR:-/tmp}/karel_de_koala"
   ```
 
 ---
@@ -122,8 +122,8 @@ Manual removal commands:
 Karel is designed to be safe and inspectable on personal and university machines:
 
 - **No USB HID emulation:** [`firmware/boot.py`](firmware/boot.py) explicitly disables USB HID (`usb_hid.disable()`). The board enumerates strictly as USB Mass Storage (`KAREL`) and USB CDC Serial (for LED telemetry). It never acts as a keyboard or mouse and executes nothing on plug-in.
-- **Zero background network traffic:** Karel makes no automatic network connections, sends no telemetry, and never downloads files on its own. Network access occurs only when you manually click **Check for updates**, which queries GitHub Releases (`version.json`) and verifies every downloaded artifact against its **SHA-256** checksum before applying it.
-- **Open & reproducible builds:** All binaries distributed on the USB drive and GitHub Releases are compiled from this repository via [GitHub Actions](.github/workflows/release.yml).
+- **Zero remote code execution & zero background traffic:** Karel makes no automatic network connections, sends no telemetry, and never downloads or executes code from the internet. Network access occurs only when you manually click **Check for updates**, which performs a read-only HTTPS check of `version.json` on GitHub Releases (capped at 64 KB) and, if a newer version exists, opens the official GitHub Releases page in your browser so you can review and download updates yourself.
+- **Open & reproducible builds:** All binaries distributed on the USB drive and GitHub Releases are compiled from this repository via SHA-pinned [GitHub Actions](.github/workflows/release.yml) workflows.
 
 ---
 
@@ -148,11 +148,11 @@ flowchart LR
         APP <--> BACKUP
     end
 
-    GH["GitHub Releases\nversion.json + SHA-256"]
+    GH["GitHub Releases\nversion.json (read-only)"]
 
     FLASH <== "USB Mass Storage" ==> APP
     CODE <== "USB CDC Serial (115200 baud)" ==> APP
-    APP -. "manual update check only" .-> GH
+    APP -. "manual version check only" .-> GH
 ```
 
 ---
@@ -265,4 +265,4 @@ karel-de-koala/
 - **RGB LED does not react to desktop actions:**
   Make sure no other program (such as a serial monitor or Mu Editor) has the board's data serial port open, and reconnect the USB stick.
 - **Updating Karel:**
-  Open the Hub or right-click menu and click **Check for updates**. Both the desktop app and `code.py` firmware (when connected) are verified via SHA-256 and updated automatically.
+  Open the Hub or right-click menu and click **Check for updates**. Karel checks `version.json` on GitHub Releases (read-only) and, if a newer version is available, opens the GitHub Releases page in your browser for manual download.

@@ -1,5 +1,6 @@
-"""Procedural sprite upgrades, fixes, and extended animations (54 states total)."""
+"""Procedural sprite upgrades, fixes, and extended animations (64 states / 234 frames total)."""
 
+# Per-state animation frame-rate dividers (default 2 ticks/frame when omitted).
 ANIM_DIV = {
     **dict.fromkeys(("HYPER", "DIZZY", "JETPACK", "JUMP"), 1),
     **dict.fromkeys((
