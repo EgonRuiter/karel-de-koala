@@ -242,7 +242,8 @@ karel-de-koala/
 └── desktop/
     ├── karel_native.cs              # Windows companion (C# / WinForms)
     ├── karel_mac.swift              # macOS companion (Swift / AppKit)
-    ├── karel_linux.c                # Linux companion (C99 / X11 + XShape)
+    ├── karel_linux.h                # Linux companion header (types, constants, prototypes)
+    ├── karel_linux.c                # Linux companion implementation (C99 / X11 + XShape)
     ├── launch_karel.sh              # Linux USB launcher wrapper (Karel (Linux).sh)
     ├── build_native.py              # Windows build script & sprite archive exporter
     ├── build_mac.sh                 # macOS Universal app bundle build script

@@ -100,7 +100,7 @@ jobs:
 
           v_cs = read_ver("desktop/karel_native.cs", r'Version\s*=\s*"([^"]+)"')
           v_mac = read_ver("desktop/karel_mac.swift", r'version\s*=\s*"([^"]+)"')
-          v_lin = read_ver("desktop/karel_linux.c", r'#define\s+KAREL_VERSION\s+"([^"]+)"')
+          v_lin = read_ver("desktop/karel_linux.h", r'#define\s+KAREL_VERSION\s+"([^"]+)"')
           assert v_cs == v_mac == v_lin, f"Version mismatch: cs={v_cs} mac={v_mac} linux={v_lin}"
 
           base = f"https://github.com/{os.environ['REPO']}/releases/download/v{v_cs}"
